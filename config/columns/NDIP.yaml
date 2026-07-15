@@ -1,0 +1,13 @@
+# Schmale Spaltenprojektion fuer NDIP (Diagnose-Verwendung/-Position).
+table: NDIP
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - FALNR
+  - LFDNR      # VERIFY
+  - DIALF      # Referenz auf NDIA-Diagnose VERIFY
+  - DIAVW      # Verwendung (HD/ND/Aufnahme/Entlass) VERIFY
+  - STORN      # VERIFY
+  - ERDAT
+  - UPDAT

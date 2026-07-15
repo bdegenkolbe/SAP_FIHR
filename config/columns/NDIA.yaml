@@ -1,0 +1,17 @@
+# Schmale Spaltenprojektion fuer NDIA (Diagnosen).
+table: NDIA
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - FALNR
+  - LFDNR      # VERIFY Schluesselspalte (ggf. LFDDIA)
+  - DKEY1      # ICD-Kode VERIFY
+  - DKAT1      # Katalog/Jahresversion VERIFY
+  - LOKAL      # Seitenlokalisation VERIFY
+  - DIADT      # Diagnosedatum VERIFY
+  - DIATX      # Freitext VERIFY
+  - PATNR      # VERIFY: falls vorhanden, spart FALNR->PATNR-Lookup
+  - STORN      # Storno VERIFY
+  - ERDAT
+  - UPDAT

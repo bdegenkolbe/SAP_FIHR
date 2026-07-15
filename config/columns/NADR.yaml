@@ -1,0 +1,13 @@
+# Spaltenprojektion fuer NADR (Adressen, Join ueber NPAT.ADRNR).
+table: NADR
+schema: sap
+select:
+  - MANDT
+  - ADRNR      # VERIFY Schluessel
+  - STRAS      # Strasse VERIFY
+  - PSTLZ      # PLZ VERIFY
+  - ORT01      # Ort VERIFY
+  - LAND1      # Land VERIFY
+  - TELF1      # Telefon VERIFY
+  - ERDAT
+  - UPDAT

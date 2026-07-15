@@ -1,0 +1,20 @@
+# Schmale Spaltenprojektion fuer N2LABOR (i.s.h.med Laborbefunde).
+# Schluesselstruktur weicht vom NFAL-Muster ab -> VERIFY gegen Live-DB (CONCEPT §20.10).
+table: N2LABOR
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - FALNR      # VERIFY Fallbezug
+  - LFDNR      # VERIFY Schluessel
+  - PATNR      # VERIFY: falls vorhanden
+  - PARCD      # Parametercode (hauseigen) VERIFY
+  - PARTX      # Parametertext VERIFY
+  - WERT       # Messwert VERIFY
+  - EINH       # Einheit VERIFY
+  - REFBER     # Referenzbereich VERIFY
+  - BEFDT      # Befunddatum VERIFY
+  - BEFZT      # Befundzeit VERIFY
+  - STORN      # VERIFY
+  - ERDAT
+  - UPDAT

@@ -43,17 +43,20 @@ SAP_FIHR/
 pip install -r requirements.txt
 cp config/connection.example.yaml config/connection.yaml   # Host, DB, Auth setzen
 
-# Rechte- und Verbindungscheck
+# Rechte-, Verbindungs- UND Registry-/PK-Check (validiert tables.yaml gegen die DB)
 python -m sapfhir.extract.dbsource --check --config config/connection.yaml
 
-# Backfill Tier 1 (Keyset-Pagination, Parquet, resümierbar)
+# Backfill Tier 1 (Keyset-Pagination, Parquet, resümierbar, Lastfenster durchgesetzt)
 python -m sapfhir.extract.backfill --config config/connection.yaml --tier 1 --out data
 
-# Inkrement über Qlik-__ct-Change-Tables
+# Inkrement über Qlik-__ct-Change-Tables (Delta-Parquet + Retention-Wächter)
 python -m sapfhir.extract.cdc --config config/connection.yaml --out data
 
-# FHIR-Ausleitung (Silver, NDJSON) + Gold-Marts + Graph
-python -m sapfhir.fhir.ndjson --in data/bronze --out data/silver
+# Merge-Views bronze_current.* + nächtliche Compaction (CONCEPT §14 — Pflichtschritt!)
+python -m sapfhir.extract.merge --compact
+
+# FHIR-Ausleitung (Silver, inkrementell, mit Index + Provenance) + Gold + Graph
+python -m sapfhir.fhir.ndjson --config config/connection.yaml
 python -m sapfhir.gold.build  --config config/connection.yaml
 python -m sapfhir.graph.load  --config config/connection.yaml
 ```
@@ -64,8 +67,12 @@ python -m sapfhir.api.app          # http://127.0.0.1:8471/
 python -m sapfhir.mcp.server       # stdio-MCP für Claude Desktop / Supergateway→LibreChat
 ```
 
-Ohne DB ausprobieren: `python tools/seed_demo.py` erzeugt eine synthetische DuckDB, sodass
-Dashboard und MCP sofort testbar sind.
+## Ohne DB verproben (synthetische Demo)
+```bash
+python tools/seed_demo.py --pipeline   # Bronze-Seed inkl. CDC-Deltas + komplette Pipeline
+python -m sapfhir.api.app              # Dashboard öffnen: http://127.0.0.1:8471
+```
+Unter Windows übernimmt das `Start-Demo.bat` (wird von `installer/Setup.bat` erzeugt).
 
 ## Tests
 ```bash

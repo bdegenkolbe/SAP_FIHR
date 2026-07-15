@@ -1,0 +1,18 @@
+# Schmale Spaltenprojektion fuer NICP (Prozeduren/OPS).
+table: NICP
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - FALNR
+  - LFDNR      # VERIFY
+  - ICPML      # OPS-Kode VERIFY (alternativ ICPK1)
+  - ICPK1      # OPS-Kode alt VERIFY
+  - ICKAT      # Katalog/Jahresversion VERIFY
+  - LOKAL      # Seitenlokalisation VERIFY
+  - ICDAT      # Prozedurdatum VERIFY
+  - ICZEI      # Prozedurzeit VERIFY
+  - ORGID      # durchfuehrende OE VERIFY
+  - STORN      # VERIFY
+  - ERDAT
+  - UPDAT

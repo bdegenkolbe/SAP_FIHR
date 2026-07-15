@@ -1,0 +1,15 @@
+# Schmale Spaltenprojektion fuer N2TEXT (med. Texte, ~54 Mio Zeilen).
+# Ziel: DuckDB-FTS (doc_search), NICHT FHIR.
+table: N2TEXT
+schema: sap
+select:
+  - MANDT
+  - EINRI      # VERIFY
+  - TEXTID     # VERIFY Schluessel
+  - DOCID      # Referenz Dokumentkopf VERIFY
+  - FALNR      # VERIFY
+  - PATNR      # VERIFY
+  - TEXTTYP    # VERIFY
+  - TEXTINHALT # Volltext VERIFY (ggf. Zeilentabelle -> Aggregation noetig)
+  - ERDAT
+  - UPDAT

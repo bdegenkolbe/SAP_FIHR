@@ -1,0 +1,17 @@
+# Schmale Spaltenprojektion fuer NPAT (Patientenstamm).
+table: NPAT
+schema: sap
+select:
+  - MANDT
+  - PATNR
+  - GSCHL      # Geschlecht (1/2/3 VERIFY-Enum)
+  - GBDAT      # Geburtsdatum VERIFY
+  - NNAME      # Nachname VERIFY
+  - VNAME      # Vorname VERIFY
+  - GBNAM      # Geburtsname VERIFY
+  - ADRNR      # -> NADR Adresse
+  - TODKZ      # Verstorben-Kennzeichen VERIFY
+  - TODDT      # Sterbedatum VERIFY
+  - STORN      # Storno-Kennzeichen VERIFY
+  - ERDAT      # Erfassungsdatum (Partition)
+  - UPDAT      # Aenderungsdatum (Watermark-Fallback)

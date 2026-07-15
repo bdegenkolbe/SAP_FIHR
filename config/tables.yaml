@@ -21,7 +21,8 @@ tables:
     schema: sap
     fhir: Patient
     tier: 1
-    pk: [MANDT, EINRI, PATNR]
+    pk: [MANDT, PATNR]     # Patient ist einrichtungsunabhaengig (KEIN EINRI im Schluessel);
+                           # VERIFY gegen INFORMATION_SCHEMA der Replika (ANALYSE A6)
     cdc: ct
     partition_date: ERDAT
     notes: "Stammdaten. Adresse ueber NADR (ADRNR), Geschlecht GSCHL VERIFY-Enum."

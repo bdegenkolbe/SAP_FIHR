@@ -1,15 +1,23 @@
 # -*- coding: utf-8 -*-
-"""IS-H / i.s.h.med -> FHIR R4 Kernmapper.
+"""IS-H / i.s.h.med -> FHIR R4 Kernmapper (v2, CONCEPT §16).
 
-Jede Funktion nimmt eine Bronze-Zeile (dict) plus Kontext (ids-Namespace, privacy) und
-liefert eine FHIR-Ressource (dict). Feldkennungen, die noch nicht gegen Live-DB bzw.
-offizielle SAP-IS-H-Doku (sapdatasheet.org) verifiziert sind, sind mit # VERIFY markiert.
+Jede Funktion nimmt eine Bronze-Zeile (dict) plus Kontext (ids-Namespace, privacy,
+aufgeloeste PATNR) und liefert eine FHIR-Ressource (dict).
 
-Verifiziert gegen Live-replicate: NPAT-, NFAL-, NBEW-Spalten existieren wie referenziert.
-Enum-Belegungen (FALAR, BEWTY, GSCHL) sind fachlich zu bestaetigen -> # VERIFY.
+Invarianten (ANALYSE A4/A5):
+- Jede Ressource mit Patientenbezug traegt subject/patient-Referenz. Die PATNR wird
+  fuer NDIA/NICP/N2LABOR/NDOC ueber den FALNR->PATNR-Lookup (ndjson.py) uebergeben.
+- JEDES Datum laeuft durch priv.shift(patnr, ...) — auch Bewegungen, Diagnosen,
+  Prozeduren, Befunde, Dokumente. Nur so ist der Date-Shift nicht rueckrechenbar.
+
+Feldkennungen, die noch nicht gegen Live-DB bzw. offizielle SAP-IS-H-Doku
+(sapdatasheet.org) verifiziert sind, sind mit # VERIFY markiert.
+Verifiziert gegen Live-replicate: NPAT-, NFAL-, NBEW-Spalten existieren wie
+referenziert. Enum-Belegungen (FALAR, BEWTY, GSCHL) fachlich bestaetigen -> # VERIFY.
 """
 from __future__ import annotations
 from .. import ids as _ids
+from .. import terminology as T
 
 # --- Enum-Tabellen (VERIFY gegen Customizing der Einrichtung) ---------------
 GESCHLECHT = {  # NPAT.GSCHL   # VERIFY: IS-H nutzt i.d.R. 1=maennl., 2=weibl., 3=divers
@@ -32,6 +40,14 @@ def _shift(priv, pid, iso):
     return priv.shift(pid, iso) if priv else iso
 
 
+def _storniert(row: dict) -> bool:
+    return str(row.get("STORN") or "") not in ("", "0")
+
+
+def _patient_ref(ns, mandt, patnr) -> dict:
+    return {"reference": "Patient/" + _ids.rid(ns, "Patient", mandt, patnr)}
+
+
 def map_patient(row: dict, ns, priv=None, adr: dict | None = None) -> dict:
     pid = row.get("PATNR")
     res = {
@@ -44,6 +60,10 @@ def map_patient(row: dict, ns, priv=None, adr: dict | None = None) -> dict:
     gb = row.get("GBDAT")   # VERIFY Geburtsdatum-Spalte
     if gb:
         res["birthDate"] = _shift(priv, pid, gb)
+    if str(row.get("TODKZ") or "") not in ("", "0"):   # VERIFY Verstorben-Kz
+        tod = row.get("TODDT")
+        res["deceasedDateTime" if tod else "deceasedBoolean"] = (
+            _shift(priv, pid, tod) if tod else True)
     # Name/Adresse nur bei Klarbetrieb
     if priv is None or priv.mode == "off":
         nn = row.get("NNAME"); vn = row.get("VNAME")   # VERIFY
@@ -67,110 +87,149 @@ def map_encounter(row: dict, ns, priv=None) -> dict:
         "id": _ids.rid(ns, "Encounter", mandt, row.get("EINRI"), falnr),
         "identifier": [{"system": "urn:ish:falnr",
                         "value": f"{row.get('EINRI')}-{falnr}"}],
-        "status": "finished" if row.get("STORN") not in (None, "") and False else "finished",
-        "class": {"code": cls, "display": disp},
-        "subject": {"reference": "Patient/" + _ids.rid(ns, "Patient", mandt, pid)},
+        "status": "entered-in-error" if _storniert(row) else "finished",
+        "class": {"system": T.V3_ACTCODE, "code": cls, "display": disp},
+        "subject": _patient_ref(ns, mandt, pid),
         "period": {"start": _shift(priv, pid, row.get("BEGDT")),
                    "end": _shift(priv, pid, row.get("ENDAT"))},
         "meta": {"source": "sapfhir/NFAL"},
     }
-    if str(row.get("STORN") or "") not in ("", "0"):
-        res["status"] = "entered-in-error"
     return res
 
 
-def map_encounter_bewegung(row: dict, ns, priv=None) -> dict:
-    """NBEW -> Sub-Encounter je Bewegung (partOf Fall-Encounter)."""
-    pid = None  # NBEW hat keine PATNR; Verknuepfung ueber FALNR
+def map_encounter_bewegung(row: dict, ns, priv=None, patnr=None) -> dict:
+    """NBEW -> Sub-Encounter je Bewegung (partOf Fall-Encounter).
+    NBEW hat keine PATNR — sie kommt aus dem FALNR->PATNR-Lookup (fuer subject
+    UND Date-Shift; ANALYSE A4)."""
     mandt = row.get("MANDT"); einri = row.get("EINRI")
     falnr = row.get("FALNR"); lfdnr = row.get("LFDNR")
     res = {
         "resourceType": "Encounter",
         "id": _ids.rid(ns, "EncounterBew", mandt, einri, falnr, lfdnr),
-        "status": "finished",
-        "class": {"code": "IMP"},
+        "status": "entered-in-error" if _storniert(row) else "finished",
+        "class": {"system": T.V3_ACTCODE, "code": "IMP"},
         "type": [{"text": BEWEGUNGSART.get(str(row.get("BEWTY", "")), "Bewegung")}],  # VERIFY
         "partOf": {"reference": "Encounter/" + _ids.rid(ns, "Encounter", mandt, einri, falnr)},
-        "period": {"start": row.get("BWIDT"), "end": row.get("BWEDT")},
+        "period": {"start": _shift(priv, patnr, row.get("BWIDT")),
+                   "end": _shift(priv, patnr, row.get("BWEDT"))},
         "location": [{"location": {"display": row.get("ORGPF") or row.get("ORGFA")}}],
         "meta": {"source": "sapfhir/NBEW"},
     }
-    if str(row.get("STORN") or "") not in ("", "0"):
-        res["status"] = "entered-in-error"
+    if patnr:
+        res["subject"] = _patient_ref(ns, mandt, patnr)
     return res
 
 
-def map_condition(row: dict, ns, priv=None) -> dict:
+def map_condition(row: dict, ns, priv=None, patnr=None) -> dict:
     mandt = row.get("MANDT"); einri = row.get("EINRI")
     falnr = row.get("FALNR"); lfdnr = row.get("LFDNR")
+    patnr = patnr or row.get("PATNR")
     icd = row.get("DKEY1") or row.get("DIAID")   # VERIFY ICD-Spalte NDIA
+    coding = {"system": T.ICD10GM, "code": icd}
+    if row.get("DKAT1"):   # VERIFY Katalog-/Jahresversion
+        coding["version"] = str(row.get("DKAT1"))
     res = {
         "resourceType": "Condition",
         "id": _ids.rid(ns, "Condition", mandt, einri, falnr, lfdnr),
-        "code": {"coding": [{
-            "system": "http://fhir.de/CodeSystem/bfarm/icd-10-gm",
-            "code": icd}], "text": row.get("DIATX")},   # VERIFY Freitext-Spalte
+        "code": {"coding": [coding], "text": row.get("DIATX")},   # VERIFY Freitext-Spalte
         "encounter": {"reference": "Encounter/" + _ids.rid(ns, "Encounter", mandt, einri, falnr)},
-        "recordedDate": row.get("DIADT"),   # VERIFY
+        "recordedDate": _shift(priv, patnr, row.get("DIADT")),   # VERIFY
         "meta": {"source": "sapfhir/NDIA"},
     }
-    if str(row.get("STORN") or "") not in ("", "0"):
+    if patnr:
+        res["subject"] = _patient_ref(ns, mandt, patnr)
+    if _storniert(row):
         res["verificationStatus"] = {"coding": [{
-            "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
-            "code": "entered-in-error"}]}
+            "system": T.COND_VERSTATUS, "code": "entered-in-error"}]}
     return res
 
 
-def map_procedure(row: dict, ns, priv=None) -> dict:
+def map_procedure(row: dict, ns, priv=None, patnr=None) -> dict:
     mandt = row.get("MANDT"); einri = row.get("EINRI")
     falnr = row.get("FALNR"); lfdnr = row.get("LFDNR")
+    patnr = patnr or row.get("PATNR")
     ops = row.get("ICPML") or row.get("ICPK1")   # VERIFY OPS-Spalte NICP
-    return {
+    coding = {"system": T.OPS, "code": ops}
+    if row.get("ICKAT"):   # VERIFY Katalogversion
+        coding["version"] = str(row.get("ICKAT"))
+    res = {
         "resourceType": "Procedure",
         "id": _ids.rid(ns, "Procedure", mandt, einri, falnr, lfdnr),
-        "status": "completed",
-        "code": {"coding": [{
-            "system": "http://fhir.de/CodeSystem/bfarm/ops", "code": ops}]},
-        "subject": {"reference": "Encounter/" + _ids.rid(ns, "Encounter", mandt, einri, falnr)},
-        "performedDateTime": row.get("ICDAT"),   # VERIFY
+        "status": "entered-in-error" if _storniert(row) else "completed",
+        "code": {"coding": [coding]},
+        "encounter": {"reference": "Encounter/" + _ids.rid(ns, "Encounter", mandt, einri, falnr)},
+        "performedDateTime": _shift(priv, patnr, row.get("ICDAT")),   # VERIFY
         "meta": {"source": "sapfhir/NICP"},
     }
+    if patnr:
+        res["subject"] = _patient_ref(ns, mandt, patnr)
+    return res
 
 
-def map_observation_labor(row: dict, ns, priv=None, loinc: dict | None = None) -> dict:
+def map_observation_labor(row: dict, ns, priv=None, patnr=None,
+                          loinc=None) -> dict:
     mandt = row.get("MANDT"); einri = row.get("EINRI")
     falnr = row.get("FALNR"); lfdnr = row.get("LFDNR")
+    patnr = patnr or row.get("PATNR")
     code_local = row.get("PARCD") or row.get("LABCD")   # VERIFY i.s.h.med Laborcode
     coding = []
-    if loinc and code_local in loinc:
-        coding.append({"system": "http://loinc.org", "code": loinc[code_local]})
-    return {
+    lo = loinc.lookup(code_local) if loinc else None
+    if lo:
+        coding.append({"system": T.LOINC, "code": lo})
+    res = {
         "resourceType": "Observation",
         "id": _ids.rid(ns, "ObsLab", mandt, einri, falnr, lfdnr),
-        "status": "final",
-        "category": [{"coding": [{
-            "system": "http://terminology.hl7.org/CodeSystem/observation-category",
-            "code": "laboratory"}]}],
+        "status": "entered-in-error" if _storniert(row) else "final",
+        "category": [{"coding": [{"system": T.OBS_CATEGORY, "code": "laboratory"}]}],
         "code": {"coding": coding, "text": row.get("PARTX") or code_local},   # VERIFY
-        "valueQuantity": {"value": row.get("WERT"), "unit": row.get("EINH")},  # VERIFY
-        "referenceRange": [{"text": row.get("REFBER")}] if row.get("REFBER") else [],
+        "encounter": {"reference": "Encounter/" + _ids.rid(ns, "Encounter", mandt, einri, falnr)},
+        "effectiveDateTime": _shift(priv, patnr, row.get("BEFDT")),   # VERIFY
         "meta": {"source": "sapfhir/N2LABOR"},
     }
+    if patnr:
+        res["subject"] = _patient_ref(ns, mandt, patnr)
+    val = row.get("WERT")   # VERIFY
+    try:
+        vq = {"value": float(val)}
+    except (TypeError, ValueError):
+        vq = None
+    if vq is not None:
+        unit = row.get("EINH")   # VERIFY
+        if unit:
+            vq["unit"] = str(unit)
+            uc = T.ucum(unit)
+            if uc:
+                vq["system"] = T.UCUM
+                vq["code"] = uc
+        res["valueQuantity"] = vq
+    elif val not in (None, ""):
+        res["valueString"] = str(val)
+    if row.get("REFBER"):
+        res["referenceRange"] = [{"text": row.get("REFBER")}]
+    return res
 
 
-def map_document_reference(row: dict, ns, priv=None) -> dict:
+def map_document_reference(row: dict, ns, priv=None, patnr=None) -> dict:
     mandt = row.get("MANDT"); einri = row.get("EINRI")
     docid = row.get("DOCID")   # VERIFY
-    return {
+    patnr = patnr or row.get("PATNR")
+    falnr = row.get("FALNR")
+    res = {
         "resourceType": "DocumentReference",
         "id": _ids.rid(ns, "DocRef", mandt, einri, docid),
-        "status": "current",
+        "status": "entered-in-error" if _storniert(row) else "current",
         "type": {"text": row.get("DOCKA") or row.get("DOCTY")},   # VERIFY Dokumentkategorie
-        "date": row.get("DOCDT"),   # VERIFY
-        "description": priv.text(None, row.get("DOCTX")) if priv else row.get("DOCTX"),
+        "date": _shift(priv, patnr, row.get("DOCDT")),   # VERIFY
+        "description": priv.text(patnr, row.get("DOCTX")) if priv else row.get("DOCTX"),
         "meta": {"source": "sapfhir/NDOC"},
         # Volltext bewusst NICHT hier -> DuckDB-FTS (doc_search)
     }
+    if patnr:
+        res["subject"] = _patient_ref(ns, mandt, patnr)
+    if falnr:
+        res["context"] = {"encounter": [{"reference": "Encounter/" +
+                          _ids.rid(ns, "Encounter", mandt, einri, falnr)}]}
+    return res
 
 
 # Registry: FHIR-Ressourcentyp -> Mapperfunktion (fuer ndjson.py)

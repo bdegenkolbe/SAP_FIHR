@@ -148,10 +148,60 @@ class Source:
         info["core_tables"] = seen
         return info
 
+    def check_registry(self, registry: dict) -> dict:
+        """Validiert die tables.yaml-Registry gegen die Live-DB:
+        - existieren alle registrierten PK-Spalten? (faengt Fehler wie ein
+          faelschlich angenommenes EINRI in NPAT ab, ANALYSE A6)
+        - existieren die projizierten Spalten aus config/columns/?
+        - weicht der registrierte PK vom echten PRIMARY KEY ab?
+        Liefert je Tabelle {'pk_ok', 'missing_pk_cols', 'db_pk', 'missing_proj_cols'}."""
+        out = {}
+        for tname, reg in registry.items():
+            schema = reg.get("schema", "sap")
+            info: dict = {}
+            cols = {r["COLUMN_NAME"].upper() for r in self.query(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+                "WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?", (schema, tname))}
+            if not cols:
+                out[tname] = {"exists": False}
+                continue
+            info["exists"] = True
+            missing = [c for c in reg.get("pk", []) if c.upper() not in cols]
+            info["missing_pk_cols"] = missing
+            db_pk = [r["COLUMN_NAME"] for r in self.query(
+                "SELECT kcu.COLUMN_NAME "
+                "FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc "
+                "JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu "
+                "  ON kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME "
+                " AND kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA "
+                "WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY' "
+                "  AND tc.TABLE_SCHEMA = ? AND tc.TABLE_NAME = ? "
+                "ORDER BY kcu.ORDINAL_POSITION", (schema, tname))]
+            info["db_pk"] = db_pk
+            info["pk_ok"] = (not missing) and (
+                not db_pk or [c.upper() for c in reg.get("pk", [])] ==
+                [c.upper() for c in db_pk])
+            proj = _projection_for(tname)
+            info["missing_proj_cols"] = [c for c in (proj or [])
+                                         if c.upper() not in cols]
+            out[tname] = info
+        return out
+
     # -- CDC-Helfer (Qlik __ct) --------------------------------------------
     def max_change_seq(self, schema: str, table: str) -> str | None:
         """Hoechste change_seq der Qlik-Change-Table <table>__ct."""
         sql = (f"SELECT MAX([header__change_seq]) "
+               f"FROM {schema}.[{table}__ct]")
+        try:
+            return self.scalar(sql)
+        except Exception:
+            return None
+
+    def min_change_seq(self, schema: str, table: str) -> str | None:
+        """Aelteste noch verfuegbare change_seq — fuer die Retention-
+        Lueckenerkennung (CONCEPT §14): ist die eigene Watermark aelter,
+        wurden Aenderungen von Qlik bereits abgeraeumt."""
+        sql = (f"SELECT MIN([header__change_seq]) "
                f"FROM {schema}.[{table}__ct]")
         try:
             return self.scalar(sql)
@@ -177,17 +227,37 @@ def _load_cfg(path: str) -> dict:
         return yaml.safe_load(f)
 
 
+def _projection_for(table: str) -> list[str] | None:
+    p = os.path.join("config", "columns", f"{table}.yaml")
+    if os.path.exists(p):
+        return _load_cfg(p).get("select")
+    return None
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="IS-H Quell-DB Check")
     ap.add_argument("--config", required=True)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--registry", default="config/tables.yaml",
+                    help="tables.yaml fuer den PK-/Spalten-Abgleich")
     args = ap.parse_args(argv)
     cfg = _load_cfg(args.config)
     src = Source(cfg["source"]).connect()
     try:
         if args.check:
             import json
-            print(json.dumps(src.check(), indent=2, ensure_ascii=False, default=str))
+            info = src.check()
+            if os.path.exists(args.registry):
+                reg = _load_cfg(args.registry).get("tables", {})
+                info["registry"] = src.check_registry(reg)
+                bad = [t for t, r in info["registry"].items()
+                       if r.get("exists") and not r.get("pk_ok")]
+                info["registry_ok"] = not bad
+                if bad:
+                    info["registry_fix_needed"] = bad
+            print(json.dumps(info, indent=2, ensure_ascii=False, default=str))
+            if not info.get("registry_ok", True):
+                raise SystemExit(2)
     finally:
         src.close()
 

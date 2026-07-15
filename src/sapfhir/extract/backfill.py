@@ -21,6 +21,7 @@ import yaml
 from .dbsource import Source
 from .keyset import iter_keyset
 from .state import State
+from .window import Window
 
 
 def _load(path: str) -> dict:
@@ -48,7 +49,7 @@ def _year_of(row: dict, date_col: str | None) -> str:
 
 def backfill_table(src: Source, st: State, schema: str, table: str, reg: dict,
                    out_dir: str, batch_rows: int, target_s: float,
-                   scope: dict) -> int:
+                   scope: dict, window: Window | None = None) -> int:
     pk = reg["pk"]
     cols = _columns_for(table)
     date_col = reg.get("partition_date")
@@ -70,6 +71,8 @@ def backfill_table(src: Source, st: State, schema: str, table: str, reg: dict,
                                      batch_rows=batch_rows,
                                      start_cursor=start_cursor,
                                      where_extra=where_extra):
+        if window:
+            window.wait()   # Lastfenster durchsetzen; Cursor bleibt im State
         t0 = time.time()
         # nach Jahr gruppiert schreiben
         by_year: dict[str, list[dict]] = {}
@@ -103,6 +106,8 @@ def main(argv=None):
     ap.add_argument("--table", nargs="+", help="explizite Tabellenliste")
     ap.add_argument("--out", default="data")
     ap.add_argument("--registry", default="config/tables.yaml")
+    ap.add_argument("--ignore-window", action="store_true",
+                    help="Lastfenster nicht durchsetzen (manueller Lauf)")
     args = ap.parse_args(argv)
 
     cfg = _load(args.config)
@@ -118,6 +123,7 @@ def main(argv=None):
     else:
         raise SystemExit("Entweder --tier oder --table angeben.")
 
+    window = Window(ex.get("window"), enforce=not args.ignore_window)
     src = Source({**cfg["source"], **{"scope": scope}}).connect()
     st = State(os.path.join(args.out, "warehouse.duckdb"))
     try:
@@ -125,7 +131,8 @@ def main(argv=None):
             print(f"[backfill] {reg['schema']}.{tname} (Tier {reg.get('tier')})")
             backfill_table(src, st, reg["schema"], tname, reg, args.out,
                            int(ex.get("batch_rows", 100000)),
-                           float(ex.get("target_batch_seconds", 120)), scope)
+                           float(ex.get("target_batch_seconds", 120)), scope,
+                           window=window)
     finally:
         st.close()
         src.close()

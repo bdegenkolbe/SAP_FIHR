@@ -262,9 +262,12 @@ von Gold/Silver/MCP nie gelesen — Änderungen nach dem Backfill blieben unsich
 **Zielbild:**
 
 1. **Delta-Ablage als Parquet im Bronze-Schema.** CDC schreibt
-   `data/bronze/<tabelle>/_delta/seq=<von>-<bis>.parquet` mit identischem Spaltensatz
-   wie der Backfill (Projektion aus `config/columns/`) plus zwei Metaspalten:
-   `_op` (I/U/D) und `_seq` (`header__change_seq`). Keine Typverluste, kein VARCHAR-Cast.
+   `data/bronze/_delta/<tabelle>/*.parquet` (eigener Wurzelordner, damit die
+   Basis-Globs `<tabelle>/**` die Deltas nicht doppelt einsammeln) mit identischem
+   Spaltensatz wie der Backfill (Projektion aus `config/columns/`) plus zwei
+   Metaspalten: `_op` (I/U/D) und `_seq` (`header__change_seq`). Keine Typverluste,
+   kein VARCHAR-Cast. Eingefaltete Deltas wandern nach `_delta_archive/` (Horizont
+   Default 90 Tage), nicht in den Papierkorb.
 2. **Merge-View je Tabelle:** `bronze_current.<tabelle>` =
    „neueste Version je PK aus (Backfill ∪ Delta), Deletes ausgeblendet":
    ```sql

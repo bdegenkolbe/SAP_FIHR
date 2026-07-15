@@ -2,7 +2,7 @@
 <html lang="de"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SAP_FIHR Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
+<!-- bewusst KEINE externen Ressourcen (Fonts/CDN) — on-prem ohne Egress -->
 <style>
 :root{--p:#1A1A1A;--cy:#00BCFF;--mg:#EE00EE;--tl:#00C8BE;--bg:#F7F7F7;--bd:#E0E0E0;--mut:#888}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -37,6 +37,7 @@ footer{padding:14px 24px;font-size:11px;color:#AAA;font-style:italic}
   <div id="monitor" class="page act">
     <div class="kpis" id="mk"></div>
     <div class="card"><h2>Tabellenstatus</h2><table id="mt"><thead><tr><th>Tabelle</th><th>Phase</th><th class="num">Zeilen</th><th>Watermark</th></tr></thead><tbody></tbody></table></div>
+    <div class="card"><h2>Datenqualität — Reconciliation</h2><table id="dq"><thead><tr><th>Tabelle</th><th class="num">Quelle</th><th class="num">Lokal</th><th class="num">Δ</th><th>Status</th></tr></thead><tbody></tbody></table></div>
   </div>
   <div id="analytics" class="page">
     <div class="kpis" id="ak"></div>
@@ -57,6 +58,8 @@ async function load(){
   $('#mk').innerHTML=`<div class="kpi"><div class="l">Tabellen</div><div class="v">${st.length}</div></div>
     <div class="kpi"><div class="l">Zeilen gesamt</div><div class="v">${total.toLocaleString('de')}</div></div>`;
   $('#mt tbody').innerHTML=st.map(r=>`<tr><td>${r.table_name}</td><td>${r.phase}</td><td class="num">${Number(r.rows_seen||0).toLocaleString('de')}</td><td>${r.change_seq||'—'}</td></tr>`).join('');
+  const dq=await api('/api/monitor/reconciliation').catch(()=>[]);
+  $('#dq tbody').innerHTML=dq.map(r=>`<tr><td>${r.table_name}</td><td class="num">${r.source_rows==null?'—':Number(r.source_rows).toLocaleString('de')}</td><td class="num">${Number(r.local_rows||0).toLocaleString('de')}</td><td class="num">${r.delta==null?'—':r.delta}</td><td style="color:${r.status==='ALARM'?'#EE0000':r.status==='OK'?'#00A088':'#888'};font-weight:600">${r.status}</td></tr>`).join('');
   const vd=await api('/api/analytics/verweildauer').catch(()=>[{}]);
   const dx=await api('/api/analytics/top_diagnosen').catch(()=>[]);
   const fm=await api('/api/analytics/faelle_monat').catch(()=>[]);

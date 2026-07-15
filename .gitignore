@@ -10,3 +10,4 @@ config/loinc_map.csv
 *.kuzu
 *_stage/
 .DS_Store
+src/*.egg-info/

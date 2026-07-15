@@ -34,6 +34,17 @@ python -m sapfhir.extract.dbsource --check --config config/connection.yaml
 Prüft: Verbindung, `db_datareader`-Rolle (und dass **kein** `db_datawriter` vorliegt),
 Sichtbarkeit der Kerntabellen, PK-Registry gegen `INFORMATION_SCHEMA` (CONCEPT §5).
 
+## 2b. Ohne DB verproben (Abnahme der Installation)
+
+```bat
+Start-Demo.bat
+:: entspricht: python tools\seed_demo.py --pipeline && python -m sapfhir.api.app
+```
+Erzeugt 500 synthetische Patienten (inkl. CDC-Delta-Beispielen), baut die komplette
+Pipeline (bronze_current → FHIR → Gold → Graph → mcp.*-Views) und startet das
+Dashboard auf `http://127.0.0.1:8471`. Der MCP-Server (`Start-MCP.bat`) ist damit
+ebenfalls sofort testbar — ganz ohne Zugang zur Klinik-Replika.
+
 ## 3. Erstbefüllung (Backfill)
 
 ```bash

@@ -1,0 +1,17 @@
+# Schmale Spaltenprojektion fuer NLEI — GROESSTE Tabelle (~210 Mio Zeilen).
+# NIE mit SELECT * ziehen; jede Spalte hier kostet ~210 Mio Werte.
+table: NLEI
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - FALNR
+  - LFDNR      # VERIFY
+  - LEIST      # Leistungskode VERIFY
+  - LKZBE      # Leistungskennzeichen VERIFY
+  - ANZAH      # Anzahl VERIFY
+  - BEGDT      # Leistungsbeginn VERIFY
+  - ORGID      # erbringende OE VERIFY
+  - STORN      # VERIFY
+  - ERDAT
+  - UPDAT

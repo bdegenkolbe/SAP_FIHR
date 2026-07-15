@@ -1,0 +1,13 @@
+# Spaltenprojektion fuer NORG (Organisationseinheiten, klein -> grosszuegig).
+table: NORG
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - ORGID      # VERIFY Schluessel
+  - ORGNA      # Name VERIFY
+  - ORGKT      # Kurztext VERIFY
+  - ORGTY      # Typ (Fachabteilung/Pflege/...) VERIFY
+  - FACHR      # Fachrichtung VERIFY
+  - ERDAT
+  - UPDAT

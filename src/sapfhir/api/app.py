@@ -12,7 +12,7 @@ import yaml
 
 try:
     from fastapi import FastAPI
-    from fastapi.responses import JSONResponse, FileResponse
+    from fastapi.responses import JSONResponse
     from fastapi.staticfiles import StaticFiles
     import uvicorn
 except Exception:
@@ -22,7 +22,7 @@ CFG = {}
 if os.path.exists("config/connection.yaml"):
     with open("config/connection.yaml") as f:
         CFG = yaml.safe_load(f)
-WAREHOUSE = "data/warehouse.duckdb"
+WAREHOUSE = os.environ.get("SAPFHIR_WAREHOUSE", "data/warehouse.duckdb")
 
 app = FastAPI(title="SAP_FIHR Dashboard") if FastAPI else None
 
@@ -32,7 +32,10 @@ def _q(sql: str):
     try:
         cur = con.execute(sql)
         cols = [c[0] for c in cur.description]
-        return [dict(zip(cols, r)) for r in cur.fetchall()]
+        return [{c: (v.isoformat() if hasattr(v, "isoformat") else v)
+                 for c, v in zip(cols, r)} for r in cur.fetchall()]
+    except duckdb.Error:
+        return []
     finally:
         con.close()
 
@@ -44,6 +47,26 @@ if app:
             "SELECT schema_name, table_name, phase, rows_seen, change_seq, "
             "last_run_ts, last_duration FROM _meta.extract_state ORDER BY rows_seen DESC"))
 
+    @app.get("/api/monitor/reconciliation")
+    def monitor_reconciliation():
+        return JSONResponse(_q(
+            "SELECT table_name, source_rows, local_rows, delta, status, ts FROM ("
+            "  SELECT *, row_number() OVER (PARTITION BY table_name "
+            "         ORDER BY ts DESC) rn FROM _meta.reconciliation"
+            ") WHERE rn = 1 ORDER BY table_name"))
+
+    @app.get("/api/monitor/runs")
+    def monitor_runs():
+        return JSONResponse(_q(
+            "SELECT ts, schema_name, table_name, phase, rows, note "
+            "FROM _meta.run_log ORDER BY ts DESC LIMIT 100"))
+
+    @app.get("/api/monitor/silver")
+    def monitor_silver():
+        return JSONResponse(_q(
+            "SELECT run_id, table_name, rows, ts FROM silver.silver_runs "
+            "ORDER BY ts DESC LIMIT 100"))
+
     @app.get("/api/analytics/faelle_monat")
     def faelle_monat():
         return JSONResponse(_q("SELECT * FROM gold.faelle_monat"))
@@ -51,6 +74,10 @@ if app:
     @app.get("/api/analytics/top_diagnosen")
     def top_diagnosen():
         return JSONResponse(_q("SELECT * FROM gold.top_diagnosen"))
+
+    @app.get("/api/analytics/top_prozeduren")
+    def top_prozeduren():
+        return JSONResponse(_q("SELECT * FROM gold.top_prozeduren"))
 
     @app.get("/api/analytics/verweildauer")
     def verweildauer():
