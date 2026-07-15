@@ -31,6 +31,7 @@ import yaml
 from . import ids as _ids
 from .privacy import Privacy
 from .terminology import LoincMap
+from .lookups import Lookups
 from .mappers import core as M
 from ..extract import merge as _merge
 
@@ -164,6 +165,9 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
     con.execute(_DDL)
     if registry:
         _merge.create_views(con, registry, bronze)
+    # Katalog-Lookups (TN14T/NKDI/NORG/...): Klartexte statt Rohcodes, sobald
+    # die Kataloge entladen sind; sonst Fallback auf die verifizierten Enums.
+    lookups = Lookups(con)
 
     w = NdjsonWriter(out_dir, run_id)
     orphans: dict[str, int] = {}
@@ -206,6 +210,8 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
                         continue
                     if fn is M.map_observation_labor:
                         res = fn(row, ns, priv, patnr=patnr, loinc=loinc)
+                    elif fn in (M.map_encounter_bewegung, M.map_condition):
+                        res = fn(row, ns, priv, patnr=patnr, lookups=lookups)
                     elif needs_pat:
                         res = fn(row, ns, priv, patnr=patnr)
                     else:

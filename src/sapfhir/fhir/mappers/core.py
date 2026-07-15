@@ -25,12 +25,13 @@ FALLART = {     # NFAL.FALAR — Altbestand bestaetigt 1/2/3; Enum-Text aus TN24
     "2": ("AMB", "ambulant"),
     "3": ("SS",  "teilstationaer"),
 }
-# NBEW.BEWTY — KORRIGIERT nach Altbestand (produktive Bewegungs-Prozedur) +
-# Live-Zahlen (Aufnahmen 1,617 Mio ≈ '2' 1,614 Mio => 2=Entlassung, 3=Verlegung).
-# Autoritative Quelle ist der Katalog sap.TN14T (Referenzschicht) — Lookup folgt.
+# NBEW.BEWTY — offiziell bestaetigt (SAP-DDIC Domaene BEWTY, VERIFY_RESULTS_4 §2):
+# 1=admission, 2=discharge, 3=transfer, 4=outpatient, 6/7=absence start/end.
+# Hausindividuelle Texte kommen aus dem Katalog sap.TN14T (Lookup-Schicht),
+# dieses Dict ist der Fallback.
 BEWEGUNGSART = {
     "1": "Aufnahme",
-    "2": "Entlassung",              # Altbestand: Bewegung_Entlassung (NICHT Verlegung)
+    "2": "Entlassung",
     "3": "Verlegung",
     "4": "ambulanter Besuch",       # Massenfall (22,6 Mio)
     "6": "Beurlaubung",
@@ -126,21 +127,27 @@ def map_encounter(row: dict, ns, priv=None) -> dict:
     return res
 
 
-def map_encounter_bewegung(row: dict, ns, priv=None, patnr=None) -> dict:
-    """NBEW -> Sub-Encounter je Bewegung (partOf Fall-Encounter)."""
+def map_encounter_bewegung(row: dict, ns, priv=None, patnr=None,
+                           lookups=None) -> dict:
+    """NBEW -> Sub-Encounter je Bewegung (partOf Fall-Encounter).
+    Klartexte kommen aus den Katalogen (TN14T/NORG via lookups), sonst Fallback."""
     mandt = row.get("MANDT"); einri = row.get("EINRI")
     falnr = row.get("FALNR"); lfdnr = row.get("LFDNR")
     bewty = str(row.get("BEWTY", "")).strip()
+    typ_text = ((lookups.bewegungstyp(bewty) if lookups else None)
+                or BEWEGUNGSART.get(bewty, "Bewegung"))
+    oe = row.get("ORGPF") or row.get("ORGFA")
+    oe_text = (lookups.oe_name(oe) if lookups else None) or oe
     res = {
         "resourceType": "Encounter",
         "id": _ids.rid(ns, "EncounterBew", mandt, einri, falnr, lfdnr),
         "status": "entered-in-error" if _storniert(row) else "finished",
         "class": {"system": T.V3_ACTCODE, "code": "IMP"},
-        "type": [{"text": BEWEGUNGSART.get(bewty, "Bewegung")}],
+        "type": [{"text": typ_text}],
         "partOf": {"reference": "Encounter/" + _ids.rid(ns, "Encounter", mandt, einri, falnr)},
         "period": {"start": _shift(priv, patnr, row.get("BWIDT")),
                    "end": _shift(priv, patnr, _offenes_ende(row.get("BWEDT")))},
-        "location": [{"location": {"display": row.get("ORGPF") or row.get("ORGFA")}}],
+        "location": [{"location": {"display": oe_text}}],
         "meta": {"source": "sapfhir/NBEW"},
     }
     if patnr:
@@ -164,15 +171,17 @@ def _dia_kategorien(row: dict) -> list[dict]:
         ("EWDIA", "Einweisungsdiagnose"),
         ("BHDIA", "Behandlungsdiagnose"),
         ("OPDIA", "OP-Diagnose"),
-        ("DIAPR", "medizinische Nebendiagnose"),   # Altbestand
-        ("PODIA", "praeoperative Diagnose"),  # VERIFY-KONFLIKT: Altbestand 'praeoperativ', Runde 3 'postoperativ'
-        ("TUDIA", "Todesursache"),            # Altbestand (SAP: TU=Todesursache); Runde 3 'Tumordiagnose' war falsch
-        ("ARDIA", "Arbeitsdiagnose"),         # VERIFY-KONFLIKT: evtl. 'Arbeitsunfalldiagnose'
+        ("DIAPR", "medizinische Nebendiagnose"),
+        # PODIA/TUDIA/ARDIA offiziell bestaetigt (SAP-DDIC, VERIFY_RESULTS_4 §1):
+        # Preoperative / Cause of Death / Working Diagnosis Indicator.
+        ("PODIA", "praeoperative Diagnose"),
+        ("TUDIA", "Todesursache"),
+        ("ARDIA", "Arbeitsdiagnose"),
     ]
     return [{"text": txt} for f, txt in flags if _x(row.get(f))]
 
 
-def map_condition(row: dict, ns, priv=None, patnr=None) -> dict:
+def map_condition(row: dict, ns, priv=None, patnr=None, lookups=None) -> dict:
     # NDIA verifiziert (Runde 1+3 + Altbestand): DKEY1=ICD, DKAT1=Katalogversion,
     # DKEY2 i.d.R. DERSELBE Kode in aelterer Katalogversion -> nur bei DKEY1<>DKEY2
     # als 2. Coding (sonst ~14,4 Mio Dubletten). Klartext DITXT; Sicherheit DIAGW
@@ -192,7 +201,8 @@ def map_condition(row: dict, ns, priv=None, patnr=None) -> dict:
     if dkey2 and dkey2 != str(icd or "").strip():
         sys2 = DIA_KATALOG_SYSTEM.get(str(row.get("DKAT2") or "").strip(), system)
         coding.append({"system": sys2, "code": row.get("DKEY2")})
-    text = row.get("DITXT") or row.get("ALTERN_DIATXT") or row.get("KZTXT")
+    text = (row.get("DITXT") or row.get("ALTERN_DIATXT") or row.get("KZTXT")
+            or (lookups.icd_text(row.get("DKAT1"), icd) if lookups else None))
     res = {
         "resourceType": "Condition",
         "id": _ids.rid(ns, "Condition", mandt, einri, falnr, lfdnr),

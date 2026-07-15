@@ -29,10 +29,10 @@ select:
   - EWDIA       # Einweisungsdiagnose
   - BHDIA       # Behandlungsdiagnose (Default, ~96%)
   - OPDIA       # OP-Diagnose
-  - DIAPR       # medizinische Nebendiagnose (Altbestand)
-  - PODIA       # VERIFY-KONFLIKT: prae- vs. postoperative Diagnose
-  - TUDIA       # Todesursache (Altbestand; NICHT Tumordiagnose)
-  - ARDIA       # VERIFY-KONFLIKT: Arbeits- vs. Arbeitsunfalldiagnose
+  - DIAPR       # medizinische Nebendiagnose
+  - PODIA       # praeoperative Diagnose (offiziell bestaetigt, VERIFY_RESULTS_4)
+  - TUDIA       # Todesursache (offiziell bestaetigt; NICHT Tumordiagnose)
+  - ARDIA       # Arbeitsdiagnose / working diagnosis (offiziell bestaetigt)
   # --- DRG-Bezug ---
   - DRG_CATEGORY   # S=Neben-, P=Hauptdiagnose (Altbestand)
   - DRG_CC

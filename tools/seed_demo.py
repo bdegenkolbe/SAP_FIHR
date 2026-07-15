@@ -191,6 +191,18 @@ def main(argv=None):
     _w("napx_fal", napx_fal)
     _w("nksk", nksk)
 
+    # Katalogtabellen (Referenzschicht) — speisen die Lookup-Schicht (fhir/lookups.py)
+    _w("tn14t", [{"MANDT": "100", "EINRI": "0001", "BEWTY": b, "BEWTX": t}
+                 for b, t in [("1", "Aufnahme"), ("2", "Entlassung"),
+                              ("3", "interne Verlegung"), ("4", "ambulanter Besuch"),
+                              ("6", "Beurlaubung Beginn"), ("7", "Beurlaubung Ende")]])
+    _w("norg", [{"MANDT": "100", "EINRI": "0001", "ORGID": o, "ORGNA": n}
+                for o, n in [("KARD", "Klinik fuer Kardiologie"),
+                             ("UCHIR", "Klinik fuer Unfallchirurgie"),
+                             ("NEUR", "Klinik fuer Neurologie"),
+                             ("INN", "Klinik fuer Innere Medizin"),
+                             ("GYN", "Klinik fuer Gynaekologie")]])
+
     # --- CDC-Delta-Beispiel: 1 Fall verlaengert (U), 1 Fall geloescht (D) ----
     d0, d1 = nfal[0].copy(), nfal[1].copy()
     d0["ENDAT"] = "2026-06-30"; d0["_op"] = "U"; d0["_seq"] = "20260715000000001"

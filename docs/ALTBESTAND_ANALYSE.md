@@ -52,8 +52,8 @@ wiegt er schwer. **Konflikte, jetzt in Code/Registry nachgezogen:**
 | NBEW.BEWTY=3 | Entlassung | Verlegung | dito |
 | NDIA.TUDIA | „Tumordiagnose" | **Todesursache** (`Diagnose_ist_Todesursache`) | **Altbestand** (SAP-Namenskonvention TU=Todesursache; Tumordoku liegt in Credos) |
 | NDIA-Sicherheit | DIASI (im Haus leer) | **DIAGW** (`Diagnose_Sicherheit`) | beide Spalten mitnehmen, DIAGW primär |
-| NDIA.PODIA | „postoperative Diagnose" | „Präoperativ" | Konflikt offen → `# VERIFY-KONFLIKT`, gegen sapdatasheet auflösen |
-| NDIA.ARDIA | Arbeitsunfalldiagnose | „Arbeitsdiagnose" | dito |
+| NDIA.PODIA | „postoperative Diagnose" | „Präoperativ" | **AUFGELÖST (Runde 4):** offiziell „Preoperative Diagnosis Indicator" — Altbestand richtig |
+| NDIA.ARDIA | Arbeitsunfalldiagnose | „Arbeitsdiagnose" | **AUFGELÖST (Runde 4):** offiziell „Working Diagnosis Indicator" — Altbestand richtig |
 | NKDI | „Katalog Diagnosearten" | **ICD-Katalog des Hauses** (DKEY→DTEXT1–4 Klartext, GSCHL-Restriktion, ICD10GM_P301/P295) | **Altbestand** — NKDI ist die Klartext-Quelle für Diagnosen! Registry korrigiert |
 
 **Neue NDIA-Felder aus dem Altbestand** (in `config/columns/NDIA.yaml` ergänzt):
@@ -182,8 +182,10 @@ Stufe 3) relevant.
 
 ## 8. Offene Punkte aus dieser Analyse (in CONCEPT §20 gespiegelt)
 
-1. PODIA/ARDIA-Bedeutung gegen sapdatasheet/Customizing auflösen (`# VERIFY-KONFLIKT`).
-2. TN14T/TN14R einmalig entladen und die Mapper-Enums durch Katalog-Lookups ersetzen.
+1. ~~PODIA/ARDIA-Bedeutung auflösen~~ **erledigt** — `docs/VERIFY_RESULTS_4.md`
+   (offizielle DDIC-Doku bestätigt in allen Konflikten den Altbestand, inkl. BEWTY).
+2. TN14T/TN14R einmalig entladen und die Mapper-Enums durch Katalog-Lookups ersetzen
+   — Lookup-Schicht ist gebaut (`fhir/lookups.py`), es fehlt nur der Live-Entlad.
 3. SOOD/SRGBTBREL als Arztbrief-Quelle prüfen (Füllstand + Kategorien).
 4. NC301S-Struktur prüfen (Entgelte im §301-Strom; DIAS nutzt sie).
 5. Historisierungsbedarf klären: reicht `_delta_archive`, oder braucht eine
