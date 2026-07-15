@@ -1,0 +1,19 @@
+# Schmale Spaltenprojektion fuer NFAL (Original 121 Spalten).
+table: NFAL
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - FALNR
+  - FALAR      # Fallart (1=stationaer/2=ambulant/3=teilstat.) VERIFY
+  - PATNR      # -> Patient-Referenz
+  - BEGDT      # Fallbeginn
+  - ENDAT      # Fallende (Datum)
+  - ENTIM      # Fallende (Zeit)
+  - FACHR      # Fachrichtung
+  - STORN      # Storno
+  - STATU      # Status
+  - KRZAN      # Krankenhaus-Aufnahme-Kennzeichen
+  - NOTAN      # Notfall-Aufnahme
+  - ERDAT      # Erfassungsdatum
+  - UPDAT      # Aenderungsdatum (Watermark-Fallback)

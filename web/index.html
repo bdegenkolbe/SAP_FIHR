@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SAP_FIHR Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--p:#1A1A1A;--cy:#00BCFF;--mg:#EE00EE;--tl:#00C8BE;--bg:#F7F7F7;--bd:#E0E0E0;--mut:#888}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Exo 2',Arial,sans-serif;background:var(--bg);color:#333;font-size:14px}
+header{background:var(--p);color:#fff;padding:0 24px;height:60px;display:flex;align-items:center;gap:18px}
+.prod{font-weight:700}.prod span{color:var(--cy)}
+nav{background:#fff;border-bottom:1px solid var(--bd);display:flex;padding:0 24px}
+nav a{padding:12px 16px;color:var(--mut);text-decoration:none;font-weight:600;border-bottom:3px solid transparent;cursor:pointer}
+nav a.act{color:var(--p);border-color:var(--cy)}
+main{padding:22px 24px;max-width:1300px;margin:0 auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:20px}
+.kpi{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:16px;border-top:3px solid var(--cy)}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--mut);font-weight:600}
+.kpi .v{font-size:24px;font-weight:800;color:var(--p);margin-top:4px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:10px;padding:18px;margin-bottom:16px}
+.card h2{font-size:14px;margin-bottom:12px;color:var(--p)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;color:var(--mut);padding:7px 8px;border-bottom:2px solid var(--bd)}
+td{padding:7px 8px;border-bottom:1px solid #EFEFEF}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.bar{background:#EEE;border-radius:5px;height:8px}.bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--cy),var(--tl))}
+footer{padding:14px 24px;font-size:11px;color:#AAA;font-style:italic}
+.page{display:none}.page.act{display:block}
+</style></head>
+<body>
+<header><div class="prod">SAP_FIHR <span>· IS-H → FHIR</span></div><div style="margin-left:auto;font-size:12px;color:#ccc">read-only · on-prem</div></header>
+<nav>
+  <a class="act" data-p="monitor">Entlade-Monitor</a>
+  <a data-p="analytics">Klinik-Analytik</a>
+</nav>
+<main>
+  <div id="monitor" class="page act">
+    <div class="kpis" id="mk"></div>
+    <div class="card"><h2>Tabellenstatus</h2><table id="mt"><thead><tr><th>Tabelle</th><th>Phase</th><th class="num">Zeilen</th><th>Watermark</th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div id="analytics" class="page">
+    <div class="kpis" id="ak"></div>
+    <div class="card"><h2>Top-Diagnosen (ICD-10-GM)</h2><table id="at"><thead><tr><th>ICD</th><th class="num">Fälle</th><th>Anteil</th></tr></thead><tbody></tbody></table></div>
+  </div>
+</main>
+<footer>Erstellt mit Claude AI · GREENBAY healthcare GmbH</footer>
+<script>
+const $=s=>document.querySelector(s), api=p=>fetch(p).then(r=>r.json());
+document.querySelectorAll('nav a').forEach(a=>a.onclick=()=>{
+  document.querySelectorAll('nav a').forEach(x=>x.classList.remove('act'));
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('act'));
+  a.classList.add('act'); $('#'+a.dataset.p).classList.add('act');
+});
+async function load(){
+  const st=await api('/api/monitor/state').catch(()=>[]);
+  const total=st.reduce((s,r)=>s+Number(r.rows_seen||0),0);
+  $('#mk').innerHTML=`<div class="kpi"><div class="l">Tabellen</div><div class="v">${st.length}</div></div>
+    <div class="kpi"><div class="l">Zeilen gesamt</div><div class="v">${total.toLocaleString('de')}</div></div>`;
+  $('#mt tbody').innerHTML=st.map(r=>`<tr><td>${r.table_name}</td><td>${r.phase}</td><td class="num">${Number(r.rows_seen||0).toLocaleString('de')}</td><td>${r.change_seq||'—'}</td></tr>`).join('');
+  const vd=await api('/api/analytics/verweildauer').catch(()=>[{}]);
+  const dx=await api('/api/analytics/top_diagnosen').catch(()=>[]);
+  const fm=await api('/api/analytics/faelle_monat').catch(()=>[]);
+  const faelle=fm.reduce((s,r)=>s+Number(r.faelle||0),0);
+  $('#ak').innerHTML=`<div class="kpi"><div class="l">Fälle</div><div class="v">${faelle.toLocaleString('de')}</div></div>
+    <div class="kpi"><div class="l">Ø Verweildauer</div><div class="v">${(vd[0]&&vd[0].mittel?Number(vd[0].mittel).toFixed(1):'—')} T.</div></div>`;
+  const max=Math.max(...dx.map(d=>Number(d.n)),1);
+  $('#at tbody').innerHTML=dx.slice(0,15).map(d=>`<tr><td>${d.icd}</td><td class="num">${Number(d.n).toLocaleString('de')}</td><td><div class="bar"><i style="width:${Math.round(d.n/max*100)}%"></i></div></td></tr>`).join('');
+}
+load();
+</script>
+</body></html>

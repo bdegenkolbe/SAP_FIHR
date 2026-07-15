@@ -1,0 +1,12 @@
+# No-Admin: alle als Wheels installierbar, kein Compiler, kein ODBC-Treiber noetig
+python-tds>=1.15        # pure-Python MSSQL-Treiber (No-Admin); pyodbc optional
+duckdb>=1.1
+kuzu>=0.6               # eingebettete Graph-DB (Cypher)
+pyarrow>=17
+PyYAML>=6
+fastapi>=0.115
+uvicorn>=0.30
+mcp>=1.2                # MCP-SDK (stdio-Server)
+# optional:
+# pyodbc>=5             # nur falls ODBC-Treiber vorhanden (nicht No-Admin)
+# fhir.resources>=7     # FHIR-Validierung im CI (nicht im Massenpfad)

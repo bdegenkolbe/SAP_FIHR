@@ -1,0 +1,60 @@
+# Verbindungs- und Laufzeitkonfiguration — Kopie nach connection.yaml, Werte setzen.
+# connection.yaml ist gitignored (enthaelt Secrets).
+
+source:
+  host: sql-replica.klinik.intern      # MSSQL-Host der Qlik-Replika
+  port: 1433
+  database: replicate
+  # Auth: entweder SQL-Login ODER Windows/NTLM (pytds unterstuetzt beides).
+  # Fuer No-Admin + read-only: dedizierter Login mit db_datareader.
+  auth: sql                            # sql | ntlm
+  username: svc_sapfhir_ro
+  password: ""                         # NICHT committen; leer -> Prompt / Env SAPFHIR_DB_PW
+  prefer: pytds                        # pytds (No-Admin) | pyodbc
+  encrypt: true
+  trust_server_certificate: false
+  cafile: null
+  read_only_intent: true
+
+scope:
+  mandt: "100"                         # VERIFY Zielmandant
+  einri: null                          # null = alle; sonst z.B. "0001"
+
+extract:
+  out_dir: data
+  batch_rows: 100000                   # Startgroesse, adaptiv
+  target_batch_seconds: 120
+  max_connections: 2                   # Replika schonen
+  window:                              # optionales Lastfenster (Backfill)
+    start: "01:00"
+    end: "06:00"
+  parquet_compression: zstd
+  parquet_level: 3
+
+privacy:
+  mode: pseudonymize                   # off | pseudonymize | anonymize
+  secret_env: SAPFHIR_PRIVACY_SECRET   # HMAC-Secret aus Umgebungsvariable
+  date_shift: true
+  free_text_deid: true
+  keep_filenames: false
+  gate: enforce                        # enforce | warn | off
+
+fhir:
+  profile: r4                          # r4 | isik | mii   (Profil-Layer)
+  id_namespace: "sapfhir"              # uuid5-Namensraum-Salt
+
+terminology:
+  loinc_map: config/loinc_map.csv      # hauseigene Laborcodes -> LOINC (optional)
+
+graph:
+  wiederaufnahme_tage: 30              # Schwelle fuer abgeleitete WIEDERAUFNAHME-Kante
+
+api:
+  host: 127.0.0.1
+  port: 8471
+
+mcp:
+  audit_log: data/audit/mcp.jsonl
+  row_limit: 1000
+  query_timeout_s: 30
+  pseudonymize_view: true              # Namen/Adressen im MCP maskieren

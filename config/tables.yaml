@@ -1,0 +1,202 @@
+# Export-Registry — IS-H/i.s.h.med → FHIR R4
+# Tier 1 = klinischer Kern (Pflicht für Patient-360 + FHIR)
+# Tier 2 = Analytik/Abrechnung (optional nachladbar)
+# Tier 3 = on demand
+#
+# Schluessel im IS-H immer mandantenscharf. PK-Reihenfolge = Keyset-Sortierung.
+# cdc: 'ct'       -> Qlik-Change-Table <tabelle>__ct (Spalte header__change_seq)
+#      'watermark'-> Fallback ueber UPDAT/ERDAT (Datum, +1 Tag Ueberlappung + Dedup)
+#      'full'     -> kein Delta (kleine Stammtabellen), immer Vollabzug
+# storno: Spalte, deren Belegung -> FHIR status = entered-in-error
+
+defaults:
+  mandt: "100"          # VERIFY: Mandant der Ziel-Einrichtung
+  einri: null           # null = alle Einrichtungen; sonst fest verdrahten
+  partition_by: jahr    # abgeleitet aus fachlichem Datum bzw. ERDAT
+
+tables:
+
+  # ---- Tier 1: klinischer Kern -------------------------------------------
+  NPAT:
+    schema: sap
+    fhir: Patient
+    tier: 1
+    pk: [MANDT, EINRI, PATNR]
+    cdc: ct
+    partition_date: ERDAT
+    notes: "Stammdaten. Adresse ueber NADR (ADRNR), Geschlecht GSCHL VERIFY-Enum."
+
+  NFAL:
+    schema: sap
+    fhir: [Encounter, Account]
+    tier: 1
+    pk: [MANDT, EINRI, FALNR]
+    cdc: ct
+    storno: STORN
+    partition_date: BEGDT
+    notes: "Fall. FALAR -> Encounter.class (1=stationaer/2=ambulant/3=teilstat. VERIFY).
+            PATNR-Referenz auf NPAT. ENDAT/ENTIM Fallende, BEGDT Fallbeginn."
+
+  NBEW:
+    schema: sap
+    fhir: Encounter        # Sub-Encounter je Bewegung + Encounter.location
+    tier: 1
+    pk: [MANDT, EINRI, FALNR, LFDNR]
+    cdc: ct
+    storno: STORN
+    partition_date: BWIDT
+    notes: "Bewegung. BEWTY (Aufnahme/Verlegung/Entlassung/amb. Besuch VERIFY),
+            ORGFA/ORGPF -> OE, Zeitraum BWIDT/BWIZT-BWEDT/BWEZT, LFDREF/VGNREF Kette."
+
+  NDIA:
+    schema: sap
+    fhir: Condition
+    tier: 1
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY: PK NDIA
+    cdc: ct
+    storno: STORN                      # VERIFY: Storno-Kennzeichen NDIA
+    partition_date: DIADT              # VERIFY
+    notes: "Diagnose. ICD in DKEY1 (VERIFY), Diagnosetyp/-verwendung ueber NDIP;
+            Aufnahme-/Entlass-/Nebendiagnose. Referenz FALNR."
+
+  NDIP:
+    schema: sap
+    fhir: null            # anreichernd, kein eigener Ressourcentyp
+    tier: 1
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Diagnose-Verwendung/Position -> Condition.category (HD/ND) VERIFY."
+
+  NICP:
+    schema: sap
+    fhir: Procedure
+    tier: 1
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    cdc: ct
+    storno: STORN                      # VERIFY
+    partition_date: ICDAT              # VERIFY
+    notes: "Prozedur (OPS). OPS-Kode ICPML/ICPK1 VERIFY, durchfuehrende OE, Datum."
+
+  N2LABOR:
+    schema: sap
+    fhir: Observation      # category=laboratory
+    tier: 1
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY (i.s.h.med-Schluessel weicht ab)
+    cdc: ct
+    partition_date: null   # VERIFY Befunddatum
+    notes: "Laborbefund i.s.h.med. Wert/Einheit/Referenzbereich. LOINC-Map als Konfig
+            (Start: hauseigene Codes als CodeableConcept.text)."
+
+  NDOC:
+    schema: sap
+    fhir: DocumentReference
+    tier: 1
+    pk: [MANDT, EINRI, DOCID]          # VERIFY
+    cdc: ct
+    partition_date: null               # VERIFY
+    notes: "Dokument-Kopf. Volltext liegt in N2TEXT, NICHT in FHIR (nur Referenz +
+            Kategorie). Binary optional."
+
+  N2TEXT:
+    schema: sap
+    fhir: null             # Volltext -> DuckDB-FTS, nicht FHIR
+    tier: 1
+    pk: [MANDT, EINRI, TEXTID]         # VERIFY
+    cdc: ct
+    notes: "Med. Texte/Dokumentinhalte. Ziel: FTS5/DuckDB-FTS fuer doc_search."
+
+  NORG:
+    schema: sap
+    fhir: [Organization, Location]
+    tier: 1
+    pk: [MANDT, EINRI, ORGID]          # VERIFY
+    cdc: full
+    notes: "Organisationseinheiten. Hierarchie zusaetzlich aus hrp.HRP1001."
+
+  NADR:
+    schema: sap
+    fhir: null             # Adresse -> Patient.address (bei privacy=off)
+    tier: 1
+    pk: [MANDT, ADRNR]                 # VERIFY
+    cdc: ct
+    notes: "Adressen. Join ueber NPAT.ADRNR."
+
+  # ---- Tier 2: Analytik / Abrechnung -------------------------------------
+  NDRG:
+    schema: sap
+    fhir: null             # -> Encounter-Extension + optional Claim; CMI im Gold-Layer
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "DRG-Gruppierung. DRG-Kode, Bewertungsrelation -> CMI."
+
+  NLEI:
+    schema: sap
+    fhir: null             # -> ChargeItem (Analytik), sehr gross (~210 Mio)
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "Leistungen. GROESSTE Tabelle. Backfill 1-2 Naechte. Schmale Projektion Pflicht."
+
+  NLEM:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "Leistungspositionen (Detail zu NLEI)."
+
+  N1CORDER:
+    schema: sap
+    fhir: ServiceRequest
+    tier: 2
+    pk: [MANDT, EINRI, ORDID]          # VERIFY
+    cdc: ct
+    notes: "Klinische Auftraege i.s.h.med."
+
+  NAPP:
+    schema: sap
+    fhir: Appointment
+    tier: 2
+    pk: [MANDT, EINRI, APPID]          # VERIFY
+    cdc: ct
+    notes: "Termine."
+
+  NFPZ:
+    schema: sap
+    fhir: [Coverage, Organization]
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Versicherungsverhaeltnis je Fall. Kostentraeger als Organization."
+
+  # ---- HR / Orga (hrp) ----------------------------------------------------
+  HRP1000:
+    schema: hrp
+    fhir: null
+    tier: 2
+    pk: [MANDT, PLVAR, OTYPE, OBJID]   # VERIFY SAP-OM-Schluessel
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "OM-Objekte (Orgeinheiten/Planstellen). -> Organization-Baum."
+
+  HRP1001:
+    schema: hrp
+    fhir: null
+    tier: 2
+    pk: [MANDT, PLVAR, OTYPE, OBJID, SUBTY, ISTAT, BEGDA, SEQNR]  # VERIFY
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "OM-Verknuepfungen (A/B 002/003) -> OE-Hierarchie."
+
+  PA0002:
+    schema: hrp
+    fhir: Practitioner
+    tier: 3
+    pk: [MANDT, PERNR, SUBTY, OBJPS, SPRPS, ENDDA, BEGDA, SEQNR]  # VERIFY PA-Schluessel
+    cdc: watermark
+    watermark_col: null
+    notes: "Personalstammdaten -> Practitioner. Pseudonymisierbar (Konfig-Schalter)."

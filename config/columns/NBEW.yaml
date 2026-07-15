@@ -1,0 +1,25 @@
+# Schmale Spaltenprojektion fuer NBEW (Original 120 Spalten -> ~20 benoetigte).
+# Reduziert Netz-/Disk-Last beim Backfill erheblich.
+table: NBEW
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - FALNR
+  - LFDNR
+  - BEWTY      # Bewegungsart (Aufnahme/Verlegung/Entlassung/amb.) VERIFY
+  - BWART      # Bewegungsart-Detail
+  - BWIDT      # Bewegung von (Datum)
+  - BWIZT      # Bewegung von (Zeit)
+  - BWEDT      # Bewegung bis (Datum)
+  - BWEZT      # Bewegung bis (Zeit)
+  - ORGFA      # Fachabteilung (OE)
+  - ORGPF      # Pflege-OE
+  - ORGAU      # aufnehmende OE
+  - ZIMMR      # Zimmer
+  - BETT       # Bett
+  - FACHR      # Fachrichtung
+  - LFDREF     # Referenz Vorbewegung (Kette)
+  - VGNREF     # Referenz Nachbewegung (Kette)
+  - STORN      # Storno-Kennzeichen
+  - ERDAT      # Erfassungsdatum (Partition-Fallback)
