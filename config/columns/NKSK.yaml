@@ -1,0 +1,17 @@
+# Kostenuebernahme je Fall -> Coverage (verifiziert Runde 2).
+table: NKSK
+schema: sap
+select:
+  - MANDT
+  - BELNR      # Kopf-PK (verifiziert)
+  - EINRI
+  - FALNR      # -> Fall
+  - KOSTR      # -> NKTR (0009999999 = Selbstzahler-Platzhalter)
+  - KSTYP      # Kostentraegertyp ('N' Normalfall)
+  - KSART      # Kostenuebernahme-Art
+  - BEGDT      # Gueltigkeit von
+  - ENDDT      # Gueltigkeit bis
+  - BSTAT      # Status
+  - STORN
+  - ERDAT
+  - UPDAT

@@ -43,8 +43,15 @@ SAP_FIHR bleibt Read-only-Analytik.
 ## Verifikationsdisziplin
 Feldkennungen und Enum-Kodierungen, die noch nicht gegen die Live-DB bzw. offizielle
 Doku (sapdatasheet.org, SAP IS-H Datenmodell) geprüft sind, sind im Code mit `# VERIFY`
-markiert. Vor Produktivlauf auflösen — nicht raten. NPAT/NFAL/NBEW sind gegen die
-Live-`replicate` verifiziert; NDIA/NICP/N2LABOR-Detailfelder sind `# VERIFY`.
+markiert. Vor Produktivlauf auflösen — nicht raten.
+**Verifiziert (Live-Runden 1–3, `docs/VERIFY_RESULTS*.md`):** NPAT, NFAL, NBEW, NDIA,
+NICP (PK=LNRIC!), NAPX/NAPX_FAL (Fallzusammenführung), NGPA, NKTR, NKSK (Coverage-
+Quelle), NGEB, NBAU. **Altbestand-Abgleich (`docs/ALTBESTAND_ANALYSE.md`):** BEWTY
+2=Entlassung/3=Verlegung (korrigiert!), BWEDT=9999=offen, DIAGW=Diagnosesicherheit,
+Katalogtabellen TN14T/TN14R/TN14U/TN14W/TN24T/NKDI, NFAL.STASP=Statistiksperre.
+Offen: N2LABOR/NDOC/N2TEXT-Details, PODIA/ARDIA-Konflikt (CONCEPT §20).
+Die historischen Ladeprozesse des Hauses liegen als Referenz unter `legacy/`
+(nur Semantik übernehmen, NIE das T-SQL-Framework).
 
 ## Baureihenfolge (Roadmap — Details + Akzeptanzkriterien in docs/CONCEPT.md §12)
 Phase 1:  dbsource + Rechte-/PK-Check + `tables.yaml`-Registry + Spaltenkataloge aller

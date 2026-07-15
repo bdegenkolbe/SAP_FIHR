@@ -11,9 +11,21 @@ select:
   - ENDAT      # Fallende (Datum)
   - ENTIM      # Fallende (Zeit)
   - FACHR      # Fachrichtung
+  - FATYP      # Fall-Typ (Altbestand)
   - STORN      # Storno
-  - STATU      # Status
+  - STDAT      # Stornodatum (Altbestand-Bereinigungsregeln)
+  - STATU      # Status: I=aktuell / E=abgeschlossen / P=Plan (Altbestand)
   - KRZAN      # Krankenhaus-Aufnahme-Kennzeichen
   - NOTAN      # Notfall-Aufnahme
+  # --- aus dem Altbestand uebernommene Analytik-Felder (ALTBESTAND_ANALYSE §2) ---
+  - STASP      # Statistiksperre -> Ausschluss aus Analytik/MCP!
+  - FSPER      # Fakturasperre
+  - ABRKZ      # Abrechnungsstatus: 0=nicht/1=zwischen/2=end/3=vorlaeufig
+  - BEKAT      # Behandlungskategorie -> TN24T (Klartext)
+  - FOREI      # Auslandsfall
+  - EINZG      # Einzugsgebiet
+  - TOB        # Tage ohne Berechnung (Pflege)
+  - MDTOB      # Tage ohne Berechnung (MD)
+  - MDVSTAT    # Status nach MD-Verfahren
   - ERDAT      # Erfassungsdatum
   - UPDAT      # Aenderungsdatum (Watermark-Fallback)

@@ -7,8 +7,16 @@ select:
   - EINRI
   - FALNR
   - LFDNR
-  - BEWTY      # Bewegungsart (Aufnahme/Verlegung/Entlassung/amb.) VERIFY
-  - BWART      # Bewegungsart-Detail
+  - BEWTY      # Bewegungstyp: 1=Aufnahme/2=Entlassung/3=Verlegung/4=ambulant/
+               # 6=Beurlaubung/7=Rueckkehr (Altbestand-korrigiert; Katalog TN14T)
+  - BWART      # Bewegungsart-Detail (VB=vorstationaer, AO=AOP; Katalog TN14U)
+  - BWGR1      # Bewegungsgrund 1 -> TN14R (BEWTY=1+BWGR1=3: teilstationaer;
+               # BWGR1 in 01/02/08: PruefVV-relevant — Altbestand)
+  - BWGR2      # Bewegungsgrund 2 -> TN14R
+  - STATU      # Bewegungsstatus (Altbestand)
+  - PLANB      # P=Planbewegung (Altbestand)
+  - BWPDT      # geplantes Datum
+  - BWPZT      # geplante Zeit
   - BWIDT      # Bewegung von (Datum)
   - BWIZT      # Bewegung von (Zeit)
   - BWEDT      # Bewegung bis (Datum)

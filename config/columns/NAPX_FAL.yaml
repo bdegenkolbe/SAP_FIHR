@@ -1,0 +1,13 @@
+# Fallzusammenfuehrung: APXNR<->FALNR (verifiziert Runde 1 + Altbestand).
+table: NAPX_FAL
+schema: sap
+select:
+  - MANDT
+  - EINRI
+  - APXNR      # Zusammenfuehrungs-Nummer (Klammer)
+  - FALNR      # zusammengefuehrter Fall
+  - LEAD       # 'X' = fuehrender Fall der Gruppe
+  - REASON     # WA/KO/WP/RV/FW/OG/MD/RP (Klartexte: ALTBESTAND_ANALYSE §4)
+  - STORN
+  - ERDAT
+  - UPDAT

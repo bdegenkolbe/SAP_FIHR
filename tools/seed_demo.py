@@ -58,7 +58,10 @@ def main(argv=None):
 
     npat, nadr, nfal, nbew, ndia, nicp, n2labor, ndoc, n2text = \
         [], [], [], [], [], [], [], [], []
+    napx_fal, nksk = [], []
     doc_id = 0
+    lnric = 0
+    apxnr = 0
     for pi in range(1, args.patienten + 1):
         patnr = f"{7700000+pi:010d}"
         adrnr = f"{880000+pi:08d}"
@@ -72,10 +75,12 @@ def main(argv=None):
                      "PSTLZ": "12345", "ORT01": "Musterstadt", "LAND1": "DE",
                      "ERDAT": "2020-01-01", "UPDAT": "2020-01-01"})
         vorfall_ende = None
+        vorfalnr = None
         for fi in range(random.randint(1, 4)):
             falnr = f"{4400000+pi*10+fi:010d}"
             # Wiederaufnahme-Kandidaten: manchmal kurz nach dem Vorfall beginnen
-            if vorfall_ende and random.random() < 0.2:
+            wiederaufnahme = bool(vorfall_ende and random.random() < 0.2)
+            if wiederaufnahme:
                 beg = vorfall_ende + dt.timedelta(days=random.randint(3, 25))
             else:
                 beg = dt.date(2026, random.randint(1, 6), random.randint(1, 28))
@@ -86,29 +91,72 @@ def main(argv=None):
                          "FALAR": fal_art, "PATNR": patnr,
                          "BEGDT": beg.isoformat(),
                          "ENDAT": end.isoformat() if fal_art == "1" else None,
-                         "FACHR": random.choice(OES), "STORN": "",
+                         "FACHR": random.choice(OES), "STATU": "E",
+                         "ABRKZ": "2", "STASP": "", "STORN": "", "STDAT": None,
                          "ERDAT": beg.isoformat(), "UPDAT": end.isoformat()})
-            vorfall_ende = end if fal_art == "1" else vorfall_ende
+            # formale Fallzusammenfuehrung (NAPX_FAL) fuer einen Teil der
+            # Wiederaufnahmen — speist die Graph-Kante FUEHRT_ZUSAMMEN
+            if wiederaufnahme and vorfalnr and random.random() < 0.6:
+                apxnr += 1
+                ax = f"{apxnr:010d}"
+                reason = random.choice(["WA", "KO", "RV", "OG"])
+                napx_fal.append({"MANDT": "100", "EINRI": "0001", "APXNR": ax,
+                                 "FALNR": vorfalnr, "LEAD": "X",
+                                 "REASON": reason, "STORN": "",
+                                 "ERDAT": beg.isoformat(), "UPDAT": beg.isoformat()})
+                napx_fal.append({"MANDT": "100", "EINRI": "0001", "APXNR": ax,
+                                 "FALNR": falnr, "LEAD": "",
+                                 "REASON": reason, "STORN": "",
+                                 "ERDAT": beg.isoformat(), "UPDAT": beg.isoformat()})
+            if fal_art == "1":
+                vorfall_ende, vorfalnr = end, falnr
+            # Kostenuebernahme (NKSK -> Coverage)
+            nksk.append({"MANDT": "100", "BELNR": f"{9900000+pi*10+fi:010d}",
+                         "EINRI": "0001", "FALNR": falnr,
+                         "KOSTR": random.choice(["0001000101", "0001000202",
+                                                 "0009999999"]),
+                         "KSTYP": "N", "BEGDT": beg.isoformat(),
+                         "ENDDT": end.isoformat(), "STORN": ""})
             # Bewegungskette: Aufnahme -> (Verlegung) -> Entlassung
+            # (BEWTY Altbestand-korrigiert: 2=Entlassung, 3=Verlegung)
             oes = random.sample(OES, k=random.randint(1, 2))
             lfd = 0
             for j, oe in enumerate(oes):
                 lfd += 1
                 b_beg = beg + dt.timedelta(days=j * 2)
+                bewty = "1" if j == 0 else "3"
                 nbew.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
-                             "LFDNR": f"{lfd:05d}",
-                             "BEWTY": "1" if j == 0 else "2",
+                             "LFDNR": f"{lfd:05d}", "BEWTY": bewty,
+                             "BWART": None, "BWGR1": "01",
                              "BWIDT": b_beg.isoformat(),
                              "BWEDT": end.isoformat() if fal_art == "1" else None,
                              "ORGFA": oe, "ORGPF": None, "STORN": "",
                              "ERDAT": b_beg.isoformat()})
+            if fal_art == "1":
+                lfd += 1
+                nbew.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
+                             "LFDNR": f"{lfd:05d}", "BEWTY": "2",   # Entlassung
+                             "BWART": None, "BWGR1": "01",
+                             "BWIDT": end.isoformat(), "BWEDT": end.isoformat(),
+                             "ORGFA": oes[-1], "ORGPF": None, "STORN": "",
+                             "ERDAT": end.isoformat()})
+            haupt = random.random() < 0.9
             ndia.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
-                         "LFDNR": "001", "DKEY1": icd,
-                         "DIADT": beg.isoformat(), "DIATX": None, "STORN": ""})
+                         "LFDNR": "001", "DKAT1": "56", "DKEY1": icd,
+                         "DKEY2": None, "DITXT": f"Demo-Diagnose {icd}",
+                         "DIAGW": "", "DIADT": beg.isoformat(),
+                         "KHDIA": "X" if haupt else "", "FHDIA": "X" if haupt else "",
+                         "AFDIA": "X", "ENDIA": "X" if fal_art == "1" else "",
+                         "EWDIA": "", "BHDIA": "X", "OPDIA": "", "STORN": ""})
             if random.random() < 0.5:
-                nicp.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
-                             "LFDNR": "001", "ICPML": random.choice(OPS),
-                             "ICPK1": None, "ICDAT": beg.isoformat(), "STORN": ""})
+                lnric += 1
+                nicp.append({"MANDT": "100", "LNRIC": f"{lnric:010d}",
+                             "EINRI": "0001", "FALNR": falnr, "LFDNR": "001",
+                             "ICPML": random.choice(OPS), "ICPMK": "36",
+                             "ICPK1": None, "BTEXT": "Demo-Prozedur",
+                             "BGDOP": beg.isoformat(), "ENDOP": beg.isoformat(),
+                             "ORGFA": oes[0], "ICDAT": beg.isoformat(),
+                             "STORN": ""})
             for k in range(random.randint(0, 3)):
                 code, txt, einh, lo, hi = random.choice(LABS)
                 n2labor.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
@@ -136,10 +184,12 @@ def main(argv=None):
     _w("nfal", nfal, part_date="BEGDT")
     _w("nbew", nbew, part_date="BWIDT")
     _w("ndia", ndia, part_date="DIADT")
-    _w("nicp", nicp, part_date="ICDAT")
+    _w("nicp", nicp, part_date="BGDOP")
     _w("n2labor", n2labor)
     _w("ndoc", ndoc)
     _w("n2text", n2text)
+    _w("napx_fal", napx_fal)
+    _w("nksk", nksk)
 
     # --- CDC-Delta-Beispiel: 1 Fall verlaengert (U), 1 Fall geloescht (D) ----
     d0, d1 = nfal[0].copy(), nfal[1].copy()
@@ -165,7 +215,8 @@ def main(argv=None):
     for t, n in [("NPAT", len(npat)), ("NADR", len(nadr)), ("NFAL", len(nfal)),
                  ("NBEW", len(nbew)), ("NDIA", len(ndia)), ("NICP", len(nicp)),
                  ("N2LABOR", len(n2labor)), ("NDOC", len(ndoc)),
-                 ("N2TEXT", len(n2text))]:
+                 ("N2TEXT", len(n2text)), ("NAPX_FAL", len(napx_fal)),
+                 ("NKSK", len(nksk))]:
         con.execute("INSERT INTO _meta.extract_state VALUES "
                     "('sap',?,'backfill',NULL,NULL,?,now(),1.0)", [t, n])
     con.execute("INSERT INTO _meta.extract_state VALUES "

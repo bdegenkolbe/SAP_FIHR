@@ -41,6 +41,7 @@ def _load(path):
 
 
 # Bronze-Tabelle -> (FHIR-Typ, Mapper, braucht_patnr_lookup)
+# Mapper duerfen auch Listen liefern (map_geburt -> mehrere Observations).
 TABLE_TO_FHIR = {
     "npat":    ("Patient", M.map_patient, False),
     "nfal":    ("Encounter", M.map_encounter, False),
@@ -49,6 +50,9 @@ TABLE_TO_FHIR = {
     "nicp":    ("Procedure", M.map_procedure, True),
     "n2labor": ("Observation", M.map_observation_labor, True),
     "ndoc":    ("DocumentReference", M.map_document_reference, True),
+    "nksk":    ("Coverage", M.map_coverage, False),
+    "ngeb":    ("Observation", M.map_geburt, False),
+    "nbau":    ("Location", M.map_location_bau, False),
 }
 
 _DDL = """
@@ -209,8 +213,9 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
                     idx_pat = patnr
                     if idx_pat and priv and priv.mode != "off":
                         idx_pat = priv.pseudonym(idx_pat)
-                    w.write(res, patnr=idx_pat)
-                    nrows += 1
+                    for r_out in (res if isinstance(res, list) else [res]):
+                        w.write(r_out, patnr=idx_pat)
+                        nrows += 1
             max_seq = _delta_max_seq(con, bronze, table) or ""
             con.execute("INSERT INTO silver.silver_runs VALUES (?,?,?,?,now())",
                         [run_id, table, max_seq, nrows])

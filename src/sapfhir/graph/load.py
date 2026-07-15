@@ -91,6 +91,29 @@ _REL_SQL = {
         "(SELECT FALNR FROM bronze_current.nfal)", "nicp"),
 }
 
+# FUEHRT_ZUSAMMEN: echte Fallzusammenfuehrung aus NAPX_FAL (fuehrender Fall LEAD='X'
+# -> untergeordnete Faelle derselben APXNR). REASON-Klartexte aus dem produktiven
+# Altbestand (docs/ALTBESTAND_ANALYSE.md §4).
+_ZUSAMMEN_SQL = (
+    "WITH lead AS (SELECT APXNR, FALNR FROM bronze_current.napx_fal "
+    "  WHERE LEAD = 'X' AND COALESCE(STORN,'') NOT IN ('X')), "
+    "sub AS (SELECT APXNR, FALNR, REASON FROM bronze_current.napx_fal "
+    "  WHERE COALESCE(LEAD,'') <> 'X' AND COALESCE(STORN,'') NOT IN ('X')) "
+    "SELECT l.FALNR, s.FALNR, s.REASON, "
+    "CASE s.REASON "
+    "  WHEN 'RV' THEN 'Rueckverlegung' "
+    "  WHEN 'WA' THEN 'Wiederaufnahme' "
+    "  WHEN 'KO' THEN 'Komplikation' "
+    "  WHEN 'OG' THEN 'Wiederaufnahme nach §2(1) FPV' "
+    "  WHEN 'MD' THEN 'Wiederaufnahme nach §2(2) FPV' "
+    "  WHEN 'WP' THEN 'Wiederaufnahme Psychiatrie/Psychosomatik' "
+    "  WHEN 'RP' THEN 'Rueckverlegung Psychiatrie/Psychosomatik' "
+    "  WHEN 'FW' THEN 'Fehlbelegung/Fallwechsel' "
+    "  ELSE 'Sonstiges' END AS reason_text "
+    "FROM lead l JOIN sub s USING (APXNR) "
+    "WHERE l.FALNR IN (SELECT FALNR FROM bronze_current.nfal) "
+    "  AND s.FALNR IN (SELECT FALNR FROM bronze_current.nfal)")
+
 # WIEDERAUFNAHME: < {tage} Tage + gleiche ICD-Dreisteller-Gruppe der Hauptdiagnose
 _WIEDERAUFNAHME_SQL = (
     "WITH f AS (SELECT PATNR, FALNR, TRY_CAST(BEGDT AS DATE) beg, "
@@ -163,6 +186,9 @@ def load(db_path: str = "data/graph.kuzu",
             stage_and_copy("WIEDERAUFNAHME", "rel_wiederaufnahme",
                            _WIEDERAUFNAHME_SQL.format(tage=int(wieder_tage)),
                            "nfal")
+        if _has(d, "napx_fal"):
+            stage_and_copy("FUEHRT_ZUSAMMEN", "rel_fuehrt_zusammen",
+                           _ZUSAMMEN_SQL, "napx_fal")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
         d.close()

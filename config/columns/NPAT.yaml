@@ -8,10 +8,18 @@ select:
   - GBDAT      # Geburtsdatum VERIFY
   - NNAME      # Nachname VERIFY
   - VNAME      # Vorname VERIFY
-  - GBNAM      # Geburtsname VERIFY
-  - ADRNR      # -> NADR Adresse
-  - TODKZ      # Verstorben-Kennzeichen VERIFY
-  - TODDT      # Sterbedatum VERIFY
-  - STORN      # Storno-Kennzeichen VERIFY
+  - GBNAM      # Geburtsname
+  - FAMST      # Familienstand: 0=ledig/1=verh./2=verwitwet/3=gesch./5=getrennt (Altbestand)
+  - ADRNR      # -> NADR Adresse (verifiziert)
+  - RFPAT      # Merge-Referenz Patient -> Patient.link replaces (verifiziert, 26.388)
+  - INSID      # eindeutige Versichertennr eGK (verifiziert, 798.403)
+  - TODKZ      # Verstorben-Kennzeichen 'X' (verifiziert, 32.379)
+  - TODDT      # Sterbedatum
+  - TODZT      # Sterbezeit (Altbestand)
+  - VIPKZ      # VIP-Kennzeichen -> Privacy-Gate (verifiziert)
+  - RISKF      # Risiko-Info -> Privacy-Gate (verifiziert)
+  - TESTP      # Testpatient (Live: 0 — sauber)
+  - INACT      # inaktiv
+  - STORN      # Storno-Kennzeichen (verifiziert, 30.152)
   - ERDAT      # Erfassungsdatum (Partition)
   - UPDAT      # Aenderungsdatum (Watermark-Fallback)

@@ -26,7 +26,12 @@ RELS = [
     "CREATE REL TABLE IF NOT EXISTS HAT_DIAGNOSE(FROM Fall TO Diagnose)",
     "CREATE REL TABLE IF NOT EXISTS HAT_PROZEDUR(FROM Fall TO Prozedur)",
     "CREATE REL TABLE IF NOT EXISTS FOLGT_AUF(FROM Bewegung TO Bewegung)",
+    # heuristische Kante — nur Ergaenzung fuer Faelle OHNE formale Zusammenfuehrung
     "CREATE REL TABLE IF NOT EXISTS WIEDERAUFNAHME(FROM Fall TO Fall, tage INT64)",
+    # echte, GKV-rechtliche Fallzusammenfuehrung aus NAPX_FAL (FPV/KFPV):
+    # fuehrender Fall (LEAD='X') -> untergeordneter Fall, mit Grund-Kode+Klartext
+    "CREATE REL TABLE IF NOT EXISTS FUEHRT_ZUSAMMEN(FROM Fall TO Fall, "
+    "reason STRING, reason_text STRING)",
 ]
 
 DDL = NODES + RELS

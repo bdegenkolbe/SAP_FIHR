@@ -160,14 +160,20 @@ def patient_360(patnr: str) -> dict:
                 "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0') "
                 "ORDER BY BEGDT DESC LIMIT 50", [patnr])
             dx = _fetch(con,
-                "SELECT d.FALNR, d.DKEY1 AS icd, d.DIADT FROM mcp.diagnose d "
+                "SELECT d.FALNR, d.DKEY1 AS icd, d.DITXT AS text, d.DIADT, "
+                "CASE WHEN d.KHDIA='X' THEN 'Hauptdiagnose' "
+                "     WHEN d.ENDIA='X' THEN 'Entlassdiagnose' "
+                "     WHEN d.AFDIA='X' THEN 'Aufnahmediagnose' "
+                "     ELSE 'Nebendiagnose' END AS typ "
+                "FROM mcp.diagnose d "
                 "JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ? "
                 "AND COALESCE(d.STORN,'') IN ('','0') "
                 "ORDER BY d.DIADT DESC LIMIT 200", [patnr])
             ops = _fetch(con,
-                "SELECT p.FALNR, COALESCE(CAST(p.ICPML AS VARCHAR), CAST(p.ICPK1 AS VARCHAR)) AS ops, p.ICDAT "
+                "SELECT p.FALNR, COALESCE(CAST(p.ICPML AS VARCHAR), CAST(p.ICPK1 AS VARCHAR)) AS ops, "
+                "p.BTEXT AS text, COALESCE(p.BGDOP, p.ICDAT) AS datum "
                 "FROM mcp.prozedur p JOIN mcp.fall f USING (FALNR) "
-                "WHERE f.PATNR = ? ORDER BY p.ICDAT DESC LIMIT 200", [patnr])
+                "WHERE f.PATNR = ? ORDER BY datum DESC LIMIT 200", [patnr])
             labs = []
             if _table_exists(con, "labor"):
                 labs = _fetch(con,

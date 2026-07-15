@@ -490,3 +490,9 @@ Embeddings-Suche über N2TEXT (lokales Modell, kein Egress) als `doc_search`-Upg
 10. N2LABOR/N2TEXT/NDOC-Schlüsselstruktur (i.s.h.med weicht vom NFAL-Muster ab) gegen Live-DB verifizieren. *(Phase 1/3)*
 11. Umgang mit historischen Datenbeständen: ab welchem Jahr ist die Datenqualität für Analytik belastbar (Migrationsaltlasten)? Ggf. `min_jahr`-Filter je Mart. *(Phase 4)*
 12. Aufbewahrung/Löschkonzept mit Datenschutz abstimmen: Delta-Archiv-Horizont (§14.4, Default 90 Tage), Audit-Log-Retention, Verzeichnis-Wipe-Prozedur. *(Phase 6)*
+13. NDIA.PODIA/ARDIA-Deutungskonflikt (Altbestand vs. Verifikationsrunde 3) gegen sapdatasheet/Customizing auflösen — s. `docs/ALTBESTAND_ANALYSE.md §2`. *(Phase 3)*
+14. Katalogtabellen TN14T/TN14R/TN14U/TN14W/TN24T/NKDI einmalig entladen und die hartkodierten Mapper-Enums (BEWTY!) durch Katalog-Lookups ersetzen. *(Phase 3/4)*
+15. SOOD/SRGBTBREL (SAP-Office) als tatsächliche Arztbrief-Quelle prüfen — der DIAS-Baum nutzt sie; N2TEXT-Briefkategorien sind dünn. *(Phase 3)*
+16. NC301S-Struktur prüfen (Entgeltsätze; einzige vom Haus aktiv ausgewertete NC301-Tabelle). *(Tier 3, on demand)*
+17. Historisierungsbedarf klären: reicht `_delta_archive`, oder braucht eine Auswertung echte SCD2-Gültigkeitsintervalle (dann View über Archiv-Deltas statt eigenem Framework)? *(Phase 4+)*
+18. Consent-Quelle identifizieren („DM Einwilligungen für DIZ" im DIAS-Baum) → FHIR Consent / MII-Stufe. *(§19.1 Stufe 3)*

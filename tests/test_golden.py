@@ -33,9 +33,10 @@ ROW_NBEW = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
 ROW_NDIA = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
             "LFDNR": "001", "DKEY1": "I50.14", "DIADT": "2026-02-02",
             "DIATX": None, "STORN": ""}
-ROW_NICP = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
-            "LFDNR": "001", "ICPML": "8-800.c0", "ICDAT": "2026-02-03",
-            "STORN": ""}
+ROW_NICP = {"MANDT": "100", "LNRIC": "0000012345", "EINRI": "0001",
+            "FALNR": "0004499001", "ICPML": "8-800.c0", "ICPMK": "36",
+            "BTEXT": "Herzkatheter", "BGDOP": "2026-02-03",
+            "ENDOP": "2026-02-03", "ORGFA": "KARD", "STORN": ""}
 ROW_LAB = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
            "LFDNR": "001", "PARCD": "KREA", "PARTX": "Kreatinin",
            "WERT": "1.1", "EINH": "mg/dl", "REFBER": "0.6-1.4",
@@ -100,9 +101,31 @@ def test_golden_condition():
     assert "verificationStatus" not in res
 
 
+def test_golden_condition_flags_und_dkey2():
+    # Diagnose-Flags -> category[] (nicht exklusiv, VERIFY_RESULTS_3)
+    row = dict(ROW_NDIA, KHDIA="X", FHDIA="X", BHDIA="X", DITXT="Herzinsuffizienz")
+    res = M.map_condition(row, NS, None, patnr=PATNR)
+    kats = [c["text"] for c in res["category"]]
+    assert kats == ["Krankenhaushauptdiagnose", "Fachabteilungshauptdiagnose",
+                    "Behandlungsdiagnose"]
+    assert res["code"]["text"] == "Herzinsuffizienz"
+    # DKEY2 = gleicher Kode in anderer Katalogversion -> KEIN zweites Coding
+    row2 = dict(ROW_NDIA, DKAT1="56", DKEY2="I50.14", DKAT2="53")
+    res2 = M.map_condition(row2, NS, None, patnr=PATNR)
+    assert len(res2["code"]["coding"]) == 1
+    # echt abweichender Zweitkode -> zweites Coding
+    row3 = dict(ROW_NDIA, DKEY2="E10.30", DKAT2="56")
+    res3 = M.map_condition(row3, NS, None, patnr=PATNR)
+    assert len(res3["code"]["coding"]) == 2
+
+
 def test_golden_procedure_und_observation():
     proc = M.map_procedure(dict(ROW_NICP), NS, None, patnr=PATNR)
-    assert proc["code"]["coding"][0] == {"system": T.OPS, "code": "8-800.c0"}
+    assert proc["code"]["coding"][0]["system"] == T.OPS
+    assert proc["code"]["coding"][0]["code"] == "8-800.c0"
+    assert proc["code"]["text"] == "Herzkatheter"
+    assert proc["id"] == I.rid(NS, "Procedure", "100", "0000012345")  # PK=LNRIC
+    assert proc["performedPeriod"] == {"start": "2026-02-03", "end": "2026-02-03"}
     assert proc["status"] == "completed"
     obs = M.map_observation_labor(dict(ROW_LAB), NS, None, patnr=PATNR)
     assert obs["valueQuantity"]["value"] == 1.1

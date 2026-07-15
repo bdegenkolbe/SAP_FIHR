@@ -1,17 +1,46 @@
-# Schmale Spaltenprojektion fuer NDIA (Diagnosen).
+# Schmale Spaltenprojektion fuer NDIA (72 Spalten -> ~35 benoetigte).
+# Verifiziert Runde 1+3 + Altbestand (Diagnosen-Prozedur). Flags NICHT exklusiv.
 table: NDIA
 schema: sap
 select:
   - MANDT
   - EINRI
   - FALNR
-  - LFDNR      # VERIFY Schluesselspalte (ggf. LFDDIA)
-  - DKEY1      # ICD-Kode VERIFY
-  - DKAT1      # Katalog/Jahresversion VERIFY
-  - LOKAL      # Seitenlokalisation VERIFY
-  - DIADT      # Diagnosedatum VERIFY
-  - DIATX      # Freitext VERIFY
-  - PATNR      # VERIFY: falls vorhanden, spart FALNR->PATNR-Lookup
-  - STORN      # Storno VERIFY
-  - ERDAT
-  - UPDAT
+  - LFDNR
+  - LFDBEW      # Bewegungsbezug (verbindet Diagnose mit NBEW)
+  - DKAT1       # Diagnosekatalog ('56'=aktuelle ICD-10-GM, '49'-'55' aeltere)
+  - DKEY1       # ICD-10-GM-Kode (Primaer)
+  - DKAT2       # Katalog des Zweitkodes (meist aeltere ICD-Version)
+  - DKEY2       # Zweitkode (nur bei DKEY1<>DKEY2 echte Sekundaerdiagnose)
+  - DITXT       # Diagnose-Klartext (100)
+  - ALTERN_DIATXT  # alternativer Klartext (264)
+  - KZTXT       # Bemerkung (Altbestand)
+  - DIAGW       # Diagnosesicherheit (Altbestand; primaer vor DIASI)
+  - DIASI       # Diagnosesicherheit alt (im Haus leer, generisch behalten)
+  - DIALO       # Seitenlokalisation (Altbestand)
+  - DTYP1       # Diagnose-Zusatz (Altbestand)
+  - DIADT       # Diagnosedatum
+  - DIAZT       # Diagnosezeit (mit DIADT kombinieren, Altbestand)
+  # --- Diagnosetyp-Flags (Verwendung; NICHT exklusiv, s. VERIFY_RESULTS_3) ---
+  - KHDIA       # Krankenhaushauptdiagnose
+  - FHDIA       # Fachabteilungshauptdiagnose
+  - AFDIA       # Aufnahmediagnose
+  - ENDIA       # Entlassdiagnose
+  - EWDIA       # Einweisungsdiagnose
+  - BHDIA       # Behandlungsdiagnose (Default, ~96%)
+  - OPDIA       # OP-Diagnose
+  - DIAPR       # medizinische Nebendiagnose (Altbestand)
+  - PODIA       # VERIFY-KONFLIKT: prae- vs. postoperative Diagnose
+  - TUDIA       # Todesursache (Altbestand; NICHT Tumordiagnose)
+  - ARDIA       # VERIFY-KONFLIKT: Arbeits- vs. Arbeitsunfalldiagnose
+  # --- DRG-Bezug ---
+  - DRG_CATEGORY   # S=Neben-, P=Hauptdiagnose (Altbestand)
+  - DRG_CC
+  - CCL         # Complication/Comorbidity Level
+  - DRG_RELVANT
+  # --- seltene Erkrankungen / Zusatz ---
+  - ALPHAID     # Alpha-ID
+  - ORPHACODE   # Orpha-Kennung
+  - SPERR       # Sperre
+  - STORN       # Storno
+  - ERDAT       # Erfassungsdatum (Partition-Fallback)

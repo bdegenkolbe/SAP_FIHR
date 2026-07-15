@@ -22,16 +22,17 @@ _SPEC = {
               "TODKZ", "STORN"]),
     "nfal": ("fall",
              ["MANDT", "EINRI", "FALNR", "PATNR", "FALAR", "BEGDT", "ENDAT",
-              "FACHR", "STORN"]),
+              "FACHR", "STATU", "ABRKZ", "STORN"]),
     "nbew": ("bewegung",
-             ["MANDT", "EINRI", "FALNR", "LFDNR", "BEWTY", "BWIDT", "BWEDT",
-              "ORGFA", "ORGPF", "STORN"]),
+             ["MANDT", "EINRI", "FALNR", "LFDNR", "BEWTY", "BWART", "BWGR1",
+              "BWIDT", "BWEDT", "ORGFA", "ORGPF", "STORN"]),
     "ndia": ("diagnose",
-             ["MANDT", "EINRI", "FALNR", "LFDNR", "DKEY1", "DIADT", "DIATX",
-              "STORN"]),
+             ["MANDT", "EINRI", "FALNR", "LFDNR", "DKEY1", "DKEY2", "DITXT",
+              "DIAGW", "DIADT", "KHDIA", "FHDIA", "AFDIA", "ENDIA", "BHDIA",
+              "OPDIA", "STORN"]),
     "nicp": ("prozedur",
-             ["MANDT", "EINRI", "FALNR", "LFDNR", "ICPML", "ICPK1", "ICDAT",
-              "STORN"]),
+             ["MANDT", "EINRI", "FALNR", "LNRIC", "LFDNR", "ICPML", "ICPK1",
+              "BTEXT", "BGDOP", "ENDOP", "ORGFA", "ICDAT", "STORN"]),
     "n2labor": ("labor",
                 ["MANDT", "EINRI", "FALNR", "LFDNR", "PARCD", "PARTX", "WERT",
                  "EINH", "REFBER", "BEFDT", "STORN"]),
@@ -72,8 +73,12 @@ def build(con: duckdb.DuckDBPyConnection, pseudonymize: bool = True) -> list[str
         sel = _select_list(avail, cols, pseudonymize)
         if not sel:
             continue
+        # Statistiksperre (NFAL.STASP, Altbestand): gesperrte Faelle erreichen
+        # weder Analytik noch MCP.
+        where = ("WHERE COALESCE(STASP, '') <> 'X'"
+                 if src == "nfal" and "STASP" in avail else "")
         con.execute(f'CREATE OR REPLACE TABLE mcp."{name}" AS '
-                    f'SELECT {", ".join(sel)} FROM bronze_current."{src}"')
+                    f'SELECT {", ".join(sel)} FROM bronze_current."{src}" {where}')
         made.append(name)
     # Merkzettel fuer den Server: mit welcher Maskierung wurde gebaut?
     con.execute("CREATE OR REPLACE TABLE mcp._built AS SELECT ? AS pseudonymize, "

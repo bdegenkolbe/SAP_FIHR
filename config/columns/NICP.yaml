@@ -1,18 +1,27 @@
-# Schmale Spaltenprojektion fuer NICP (Prozeduren/OPS).
+# Schmale Spaltenprojektion fuer NICP (46 Spalten). Verifiziert Runde 1:
+# PK = MANDT+LNRIC (eigene Prozedur-Nr., NICHT FALNR/LFDNR).
 table: NICP
 schema: sap
 select:
   - MANDT
+  - LNRIC      # Prozedur-PK (verifiziert)
   - EINRI
-  - FALNR
-  - LFDNR      # VERIFY
-  - ICPML      # OPS-Kode VERIFY (alternativ ICPK1)
-  - ICPK1      # OPS-Kode alt VERIFY
-  - ICKAT      # Katalog/Jahresversion VERIFY
+  - FALNR      # denormalisiert vorhanden (verifiziert)
+  - LFDBEW     # Bewegungsbezug (verbindet Prozedur mit NBEW)
+  - ICPML      # OPS-Kode (verifiziert)
+  - ICPMK      # OPS-Katalog ('36'=OPS, verifiziert)
+  - BTEXT      # Klartext (verifiziert)
+  - BGDOP      # OP-Datum von (verifiziert; Partition)
+  - ENDOP      # OP-Datum bis
+  - BZTOP      # OP-Zeit von
+  - EZTOP      # OP-Zeit bis
+  - ORGFA      # durchfuehrende Fach-OE (verifiziert)
+  - ORGPF      # Pflege-OE
+  - OPART      # OP-Art
   - LOKAL      # Seitenlokalisation VERIFY
-  - ICDAT      # Prozedurdatum VERIFY
-  - ICZEI      # Prozedurzeit VERIFY
-  - ORGID      # durchfuehrende OE VERIFY
-  - STORN      # VERIFY
+  - DRG_RELEVANT
+  - DRG_CATEGORY
+  - CCL
+  - STORN
   - ERDAT
   - UPDAT
