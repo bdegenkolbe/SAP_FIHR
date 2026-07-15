@@ -31,5 +31,5 @@ Skill `windows-infra-preflight` ausführen — PC-A vs. PC-B unterscheiden
 ## Datenschutzentscheidung (offen)
 Claude Desktop nutzt Anthropic-Endpunkte — nur mit freigegebener AVV/Konzern-Policy.
 Andernfalls LibreChat + lokales Modell. Diese Wahl steht vor Produktivnutzung an
-(siehe docs/CONCEPT.md §13). Der MCP-Server selbst gibt keine Daten nach außen; die
+(siehe docs/CONCEPT.md §20). Der MCP-Server selbst gibt keine Daten nach außen; die
 Datenweitergabe entsteht erst durch das gewählte LLM-Frontend.

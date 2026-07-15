@@ -46,14 +46,24 @@ Doku (sapdatasheet.org, SAP IS-H Datenmodell) geprüft sind, sind im Code mit `#
 markiert. Vor Produktivlauf auflösen — nicht raten. NPAT/NFAL/NBEW sind gegen die
 Live-`replicate` verifiziert; NDIA/NICP/N2LABOR-Detailfelder sind `# VERIFY`.
 
-## Baureihenfolge (Roadmap)
-Phase 1: dbsource + Rechte-Check + `tables.yaml`-Registry + Keyset-Backfill Tier 1 → Parquet.
-Phase 2: CDC über `__ct` + Merge + Watermark-State (DuckDB `_meta.extract_state`).
-Phase 3: FHIR-Mapper Kern (Patient, Encounter, Condition, Procedure, Observation,
-         DocumentReference) gegen Golden-Record-Patient.
-Phase 4: Gold-Marts (DuckDB) + Dashboard (FastAPI 127.0.0.1:8471).
-Phase 5: Kuzu-Graph + MCP-Server (7 Tools, SELECT-only-Guard, Audit).
-Phase 6: Härtung — Pseudonymisierung, Benutzerverwaltung, DSFA-Freigabe.
+## Baureihenfolge (Roadmap — Details + Akzeptanzkriterien in docs/CONCEPT.md §12)
+Phase 1:  dbsource + Rechte-/PK-Check + `tables.yaml`-Registry + Spaltenkataloge aller
+          Tier-1-Tabellen + Keyset-Backfill Tier 1 → Parquet (Lastfenster durchgesetzt).
+Phase 2a: CDC über `__ct` als Delta-Parquet + Watermark-State + Retention-Lückenerkennung.
+Phase 2b: Merge-Views `bronze_current.*` + nächtliche Compaction (CONCEPT §14) —
+          ohne diesen Schritt sehen Gold/Silver/MCP keine CDC-Änderungen!
+Phase 3:  FHIR-Mapper Kern (Patient, Encounter, Condition, Procedure, Observation,
+          DocumentReference) mit subject-Lookup FALNR→PATNR, durchgängigem Date-Shift,
+          Provenance + FHIR-Index (CONCEPT §16), gegen Golden-Record-Patient.
+Phase 4:  Gold-Marts (DuckDB, über bronze_current) + Dashboard (FastAPI 127.0.0.1:8471)
+          inkl. DQ-Kacheln (CONCEPT §15).
+Phase 5:  Kuzu-Graph + MCP-Server (7 Tools) mit Härtung nach CONCEPT §17
+          (Sandbox-DuckDB, mcp.*-Views, Timeouts, Parameter-Hash-Audit).
+Phase 6:  Härtung — Pseudonymisierung End-to-End, Benutzerverwaltung, DSFA-Freigabe.
+
+Vor Implementierungsarbeit an einer Phase: `docs/ANALYSE.md` lesen — dort sind die
+bekannten Lücken des v0.1-Skeletts (z. B. CDC-Merge fehlt, MCP liest Bronze-Klardaten,
+Date-Shift inkonsistent, NPAT-PK fraglich) mit Datei-/Zeilenbezug priorisiert.
 
 ## Konventionen
 - Python 3.11+, stdlib-first. DB treiberfrei über `pytds` (No-Admin); `pyodbc` optional.
@@ -70,4 +80,4 @@ Sollwerten für einen bekannten Testfall (`tests/test_golden.py`).
 Verarbeitung besonderer Kategorien (Art. 9 DSGVO). AV/Rechtsgrundlage vor Produktivbetrieb
 klären (Christopher Schrey). Re-ID-Vault getrennt sichern, niemals in Exporte/Analysezone.
 MCP-Server hat keinen Netz-Egress. LLM-Frontend-Entscheidung (Claude Desktop vs. LibreChat
-+ lokales Modell) ist eine Datenschutzentscheidung — siehe `docs/CONCEPT.md` §13.
++ lokales Modell) ist eine Datenschutzentscheidung — siehe `docs/CONCEPT.md` §20.

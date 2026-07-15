@@ -17,7 +17,10 @@ Schwesterprojekt `Ingolf` (Praxis/medatixx) liefert die bewährten Bausteine; SA
 SAP_FIHR/
 ├── CLAUDE.md                 # Arbeitsanleitung für Claude Code (zuerst lesen)
 ├── docs/
-│   └── CONCEPT.md            # Gesamtkonzept + Zielarchitektur + Mengengerüst + Mapping
+│   ├── CONCEPT.md            # Gesamtkonzept v0.2 + Architektur + Mengengerüst + Mapping
+│   ├── ANALYSE.md            # Review-Befunde v0.1 → v0.2 (Lücken, Risiken, Prioritäten)
+│   ├── DEPLOYMENT.md         # No-Admin-Installation, Scheduling, Betrieb, Backup
+│   └── MCP_SETUP.md          # Claude Desktop / LibreChat-Anbindung
 ├── config/
 │   ├── connection.example.yaml
 │   ├── tables.yaml           # Datenlandkarte / Export-Registry (Tier, PK, CDC, FHIR)
