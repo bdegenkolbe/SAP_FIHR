@@ -43,7 +43,8 @@ Lies ZUERST `docs/Analyse_Datenbank.md` — sie definiert das komplette Vorgehen
 
 ## Repo-Betrieb (Ergänzung zur Methode — Details in docs/)
 - Gesamtkonzept: `docs/CONCEPT.md` (+ `CONCEPT_EXT.md`, `ALTBESTAND_ANALYSE.md`,
-  `GESAMTREVIEW.md`); Verifikationshistorie: `docs/VERIFY_RESULTS*.md` (R1-R4, remote)
+  `GESAMTREVIEW.md`, `INGOLF_FUNKTIONSVERGLEICH.md` = Uebernahme-Roadmap aus der
+  Schwesterplattform Ingolf: Governance/RBAC, Kohorten, MII-KDS, Dok-Intelligence); Verifikationshistorie: `docs/VERIFY_RESULTS*.md` (R1-R4, remote)
   und `docs/VERIFY_LOG_R8-R13.md` (R8-R16, lokal gegen 10.50.8.250).
 - Pipeline (alles user-space, No-Admin): Keyset-Backfill + `__ct`-CDC (Delta-Parquet,
   Retention-Waechter) -> `bronze_current`-Merge-Views + Compaction (`extract/merge.py`)
