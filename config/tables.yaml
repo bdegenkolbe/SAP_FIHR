@@ -998,3 +998,50 @@ tables:
     pk: [MANDT, BEKAT]                 # VERIFY (BLTXT = Text, lt. Altbestand-Join)
     cdc: full
     notes: "Behandlungskategorie-Texte (NFAL.BEKAT -> BLTXT; Altbestand-verjoint)."
+
+  # ---- DIAS-Abdeckungs-Kandidaten (GESAMTREVIEW §2.2 Kat. 1) ---------------
+  # PKs noch NICHT live uniqueness-getestet -> vor Backfill Dreiklang fahren.
+  NAPX_BEW:
+    schema: sap
+    fhir: null                         # Zusammenfuehrungs-Detail Bewegungen
+    tier: 2
+    pk: [MANDT, EINRI, APXNR, LFDBEW_NEW]   # VERIFY (Altbestand: Splits moeglich!)
+    cdc: ct
+    notes: "Bewegungs-Mapping alt->neu je Zusammenfuehrung (FALNR_OLD/LFDBEW_OLD ->
+            LFDBEW_NEW). Fuer DRG-Neugruppierung des Gesamtfalls; DIAS-genutzt."
+  NAPX_DIA:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, APXNR, LFDNR_NEW]      # VERIFY
+    cdc: ct
+    notes: "Diagnose-Mapping alt->neu (DRG_DIA_SEQNO/DRG_CATEGORY/CCL); DIAS-genutzt."
+  NAPX_ICP:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, APXNR, LNRIC]          # VERIFY
+    cdc: ct
+    notes: "Prozedur-Mapping je Zusammenfuehrung (LNRIC, DRG_SEQNO); DIAS-genutzt."
+  NAPX_DRG:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, APXNR]                 # VERIFY
+    cdc: ct
+    notes: "DRG-Ergebnis des zusammengefuehrten Gesamtfalls; DIAS-genutzt."
+  NTMN:
+    schema: sap
+    fhir: null                         # nur-Analytik (R14); Appointment-Kandidat
+    tier: 3
+    pk: [MANDT, EINRI, TMNID]          # VERIFY
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "Termine klassisch IS-H (11,5 Mio; R14: nur-Analytik). DIAS-genutzt."
+  TNDRG:
+    schema: sap
+    fhir: null                         # -> DRG-Katalog (Klartexte, Bewertungsrelation)
+    tier: 2
+    pk: [MANDT, DRG]                   # VERIFY (jahresversioniert?)
+    cdc: full
+    notes: "DRG-Katalog; loest NDRG-Codes auf; Altbestand+DIAS-genutzt."

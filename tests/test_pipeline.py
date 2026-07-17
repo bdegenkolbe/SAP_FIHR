@@ -162,3 +162,29 @@ def test_nkdi_kodetext_lookup(tmp_path):
     assert res["code"]["coding"][0]["display"] == "Herzinsuffizienz (Haustext)"
     res2 = M.map_condition(row, ns, None, kodetext=None)
     assert "display" not in res2["code"]["coding"][0]
+
+
+def test_practitioner_merge_ngpa_nper():
+    """R13: GPART==PERNR -> EINE Ressource; NGPA-Name + NPER-LANR vereinigt,
+    identifier je System dedupliziert."""
+    from sapfhir.fhir.ndjson import _merge_practitioner
+    from sapfhir.fhir.mappers import core as M
+    from sapfhir.fhir import ids as I
+    ns = I.make_ns()
+    a = M.map_practitioner({"MANDT": "100", "GPART": "0005500001",
+                            "NAME1": "Muster", "NAME2": "Alex",
+                            "TITEL": "Dr.", "LOEKZ": ""}, ns, None)
+    b = M.map_practitioner_nper({"MANDT": "100", "PERNR": "0005500001",
+                                 "FIXLANR": "700000001", "FACHR": "KARD",
+                                 "ARZT": "X", "LOEKZ": ""}, ns, None)
+    assert a["id"] == b["id"]   # gemeinsames ID-Schema (R13)
+    m = _merge_practitioner(a, b)
+    systems = [i["system"] for i in m["identifier"]]
+    assert "urn:ish:gpart" in systems and "urn:ish:pernr" in systems
+    assert "http://fhir.de/sid/kbv/lanr" in systems
+    assert len(systems) == len(set(systems))   # dedupliziert
+    assert m["name"][0]["family"] == "Muster"
+    assert m["qualification"]
+    # einseitige Saetze bleiben nutzbar
+    assert _merge_practitioner(a, None) is a
+    assert _merge_practitioner(None, b) is b

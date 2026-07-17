@@ -99,6 +99,33 @@ def profile(con) -> int:
     return n
 
 
+def dias_coverage(index_path: str = "legacy/dias/OBJEKTBAUM_INDEX.md",
+                  registry_path: str = "config/tables.yaml",
+                  con=None) -> dict:
+    """DIAS-Abdeckungsdiff (Analyse_Datenbank §5, automatisiert): jede im
+    DIAS-Baum genutzte sap-Tabelle ohne Registry-Eintrag ist eine Luecke.
+    Ergebnis nach _meta.dias_coverage (Dashboard-Kachel) + Rueckgabe."""
+    if not os.path.exists(index_path):
+        return {"error": f"{index_path} fehlt"}
+    idx = open(index_path, encoding="utf-8").read()
+    dias = set()
+    for m in re.finditer(r"\| (?:Replicate|Analysen)\.(\w+)\.(\w+) \|", idx):
+        if m.group(1).lower() == "sap" and not m.group(2).upper().endswith("__CT__BAK"):
+            dias.add(m.group(2).upper())
+    reg = set(t.upper() for t in
+              yaml.safe_load(open(registry_path, encoding="utf-8"))["tables"])
+    fehlt = sorted(dias - reg)
+    out = {"dias_genutzt": len(dias), "in_registry": len(dias & reg),
+           "luecken": fehlt}
+    if con is not None:
+        con.execute("CREATE TABLE IF NOT EXISTS _meta.dias_coverage ("
+                    "ts TIMESTAMP, dias_genutzt INT, in_registry INT, "
+                    "luecken VARCHAR)")
+        con.execute("INSERT INTO _meta.dias_coverage VALUES (now(),?,?,?)",
+                    [out["dias_genutzt"], out["in_registry"], ",".join(fehlt)])
+    return out
+
+
 def verify_report(roots=("src", "config")) -> list[dict]:
     """Alle offenen # VERIFY-Marker mit Datei/Zeile (Phase-3-Gate, CONCEPT §15.4)."""
     hits = []
@@ -124,9 +151,10 @@ def run(warehouse: str = "data/warehouse.duckdb", source=None) -> dict:
         con.execute(_DDL)
         rec = reconcile(con, source)
         prof = profile(con)
+        dias = dias_coverage(con=con)
     finally:
         con.close()
-    return {"reconciliation": rec, "profiles": prof}
+    return {"reconciliation": rec, "profiles": prof, "dias": dias}
 
 
 def main(argv=None):

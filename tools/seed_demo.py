@@ -59,6 +59,16 @@ def main(argv=None):
     npat, nadr, nfal, nbew, ndia, nicp, n2labor, ndoc, n2text = \
         [], [], [], [], [], [], [], [], []
     napx_fal, napx, nksk, n2labor001 = [], [], [], []
+    nfpz, nvvp, ngpa, nper = [], [], [], []
+    # 20 fiktive Behandler (NGPA-Person == NPER, GPART==PERNR — R13)
+    for di in range(1, 21):
+        gp = f"{5500000+di:010d}"
+        ngpa.append({"MANDT": "100", "GPART": gp, "PERS": "X", "GSCHL": "1",
+                     "NAME1": random.choice(NAMEN), "NAME2": random.choice(VORNAMEN),
+                     "TITEL": "Dr.", "LOEKZ": ""})
+        nper.append({"MANDT": "100", "PERNR": gp, "FIXLANR": f"{700000000+di}",
+                     "FACHR": random.choice(OES), "ARZT": "X", "PFLEG": "",
+                     "BARZT": "", "LOEKZ": ""})
     doc_id = 0
     lab_id = 0
     lnric = 0
@@ -114,6 +124,12 @@ def main(argv=None):
                                  "ERDAT": beg.isoformat(), "UPDAT": beg.isoformat()})
             if fal_art == "1":
                 vorfall_ende, vorfalnr = end, falnr
+            # behandelnde Person am Fall (NFPZ -> Encounter.participant)
+            nfpz.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
+                         "PERNR": f"{5500000+random.randint(1,20):010d}",
+                         "LFDNR": "001", "FARZT": random.choice(["1", "2", "5"]),
+                         "BEGDT": beg.isoformat(), "ENDDT": end.isoformat(),
+                         "STORN": ""})
             # Kostenuebernahme (NKSK -> Coverage)
             nksk.append({"MANDT": "100", "BELNR": f"{9900000+pi*10+fi:010d}",
                          "EINRI": "0001", "FALNR": falnr,
@@ -121,6 +137,12 @@ def main(argv=None):
                                                  "0009999999"]),
                          "KSTYP": "N", "BEGDT": beg.isoformat(),
                          "ENDDT": end.isoformat(), "STORN": ""})
+            kostr_f = nksk[-1]["KOSTR"]
+            if kostr_f != "0009999999" and random.random() < 0.8:
+                nvvp.append({"MANDT": "100", "PATNR": patnr, "LFDNR": f"{len(nvvp)+1:05d}",
+                             "KOSTR": kostr_f,
+                             "VERNR": f"X{random.randint(100000000, 999999999)}",
+                             "MGART": "1"})
             # Bewegungskette: Aufnahme -> (Verlegung) -> Entlassung
             # (BEWTY Altbestand-korrigiert: 2=Entlassung, 3=Verlegung)
             oes = random.sample(OES, k=random.randint(1, 2))
@@ -213,6 +235,10 @@ def main(argv=None):
     _w("napx_fal", napx_fal)
     _w("nksk", nksk)
     _w("n2labor001", n2labor001)
+    _w("nfpz", nfpz)
+    _w("nvvp", nvvp)
+    _w("ngpa", ngpa)
+    _w("nper", nper)
 
     # Katalogtabellen (Referenzschicht) — speisen die Lookup-Schicht (fhir/lookups.py)
     _w("tn14t", [{"MANDT": "100", "SPRAS": "D", "EINRI": "0001", "BEWTY": b, "BEWTX": t}
@@ -252,7 +278,8 @@ def main(argv=None):
                  ("N2LABOR", len(n2labor)), ("NDOC", len(ndoc)),
                  ("N2TEXT", len(n2text)), ("NAPX", len(napx)),
                  ("NAPX_FAL", len(napx_fal)), ("NKSK", len(nksk)),
-                 ("N2LABOR001", len(n2labor001))]:
+                 ("N2LABOR001", len(n2labor001)), ("NFPZ", len(nfpz)),
+                 ("NVVP", len(nvvp)), ("NGPA", len(ngpa)), ("NPER", len(nper))]:
         con.execute("INSERT INTO _meta.extract_state VALUES "
                     "('sap',?,'backfill',NULL,NULL,?,now(),1.0)", [t, n])
     con.execute("INSERT INTO _meta.extract_state VALUES "

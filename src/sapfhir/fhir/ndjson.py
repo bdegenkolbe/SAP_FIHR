@@ -201,6 +201,44 @@ def _lookup_napx_faelle(con) -> dict:
     return out
 
 
+def _list_agg(con, table: str, key: str, fields: list[str],
+              where: str = "") -> str | None:
+    """SQL-Fragment: LEFT-JOIN-faehige LIST(STRUCT)-Aggregation je Schluessel —
+    schiebt das Gruppieren in DuckDB statt Python-Dicts ueber Millionen Zeilen
+    (Broadcast-Join, Analyse_Datenbank §8.1). None, wenn Tabelle/Spalten fehlen."""
+    if not _view_exists(con, table):
+        return None
+    avail = _cols(con, table)
+    use = [f for f in fields if f in avail]
+    if key not in avail or not use:
+        return None
+    packed = ", ".join(f'"{f}" := "{f}"' for f in use)
+    return (f'(SELECT "{key}" AS _k, LIST(STRUCT_PACK({packed})) AS _lst '
+            f'FROM bronze_current."{table}" {where} GROUP BY 1)')
+
+
+def _merge_practitioner(ngpa_res: dict | None, nper_res: dict | None) -> dict:
+    """NGPA(Name/Titel/IK) + NPER(LANR/FACHR/Rollen) -> EINE Practitioner-Ressource.
+    R13: GPART == PERNR fuer alle 236.114 Personen — gleiche ID, Attribute vereinigen.
+    NGPA ist die Basis (Name), NPER ergaenzt; identifier werden je System dedupliziert."""
+    if not ngpa_res:
+        return nper_res
+    if not nper_res:
+        return ngpa_res
+    res = dict(ngpa_res)
+    seen = {i.get("system") for i in res.get("identifier", [])}
+    for ident in nper_res.get("identifier", []):
+        if ident.get("system") not in seen:
+            res.setdefault("identifier", []).append(ident)
+    for fld in ("qualification", "extension"):
+        if nper_res.get(fld):
+            res.setdefault(fld, []).extend(nper_res[fld])
+    res["active"] = bool(ngpa_res.get("active", True)) and \
+        bool(nper_res.get("active", True))
+    res["meta"] = {"source": "sapfhir/NGPA+NPER"}
+    return res
+
+
 def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
         bronze: str = "data/bronze", out_dir: str = "data/silver",
         registry_path: str = "config/tables.yaml", full: bool = False,
@@ -225,12 +263,37 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
     kodetext = _lookup_kodetext(con)
     napx_faelle = _lookup_napx_faelle(con)
 
+    # Fall-Kontext als DuckDB-seitige LIST(STRUCT)-Aggregate (kein Python-Dict
+    # ueber 28 Mio NBEW-Zeilen): Aufnahme-/Entlassbewegung, NFPZ-Personal,
+    # NFFZ-Verknuepfungen je FALNR.
+    bew_agg = _list_agg(con, "nbew", "FALNR",
+                        ["BEWTY", "STORN", "RFSRC", "UNFAV", "BWGR1", "EZUST"],
+                        "WHERE CAST(BEWTY AS VARCHAR) IN ('1','2')")
+    pers_agg = _list_agg(con, "nfpz", "FALNR",
+                         ["PERNR", "FARZT", "BEGDT", "ENDDT", "STORN"])
+    verkn_agg = _list_agg(con, "nffz", "FALN1",
+                          ["EINRI", "FALN2", "REFA1", "REFA2", "STORN"])
+    vvp_agg = _list_agg(con, "nvvp", "PATNR",
+                        ["KOSTR", "VERNR", "MGART"])
+
+    def _nfal_kwargs(row, pat):
+        return {"apxnr": apx_by_fal.get(str(row.get("FALNR") or "").strip()),
+                "bewegungen": row.pop("_bewegungen", None),
+                "personal": row.pop("_personal", None),
+                "verknuepfungen": row.pop("_verknuepfungen", None)}
+
+    def _nksk_kwargs(row, pat):
+        # NVVP-Zeile desselben Patienten mit gleichem Kostentraeger (R15)
+        vvps = row.pop("_vvp", None) or []
+        kostr = str(row.get("KOSTR") or "").strip()
+        vvp = next((v for v in vvps
+                    if str(v.get("KOSTR") or "").strip() == kostr), None)
+        return {"vvp": vvp}
+
     # Tabelle -> (mapper, braucht FALNR->PATNR-Join, kwargs-Fabrik)
     PLAN: dict[str, tuple] = {
         "npat":      (M.map_patient, False, None),
-        "nfal":      (M.map_encounter, False,
-                      lambda row, pat: {"apxnr": apx_by_fal.get(
-                          str(row.get("FALNR") or "").strip())}),
+        "nfal":      (M.map_encounter, False, _nfal_kwargs),
         "nbew":      (M.map_encounter_bewegung, True, None),
         "ndia":      (M.map_condition, True,
                       lambda row, pat: {"kodetext": kodetext}),
@@ -238,7 +301,7 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
                       lambda row, pat: {"patnr": pat}),
         "ndoc":      (M.map_document_reference, False, None),
         "n2labor":   (M.map_diagnosticreport_labor, False, None),
-        "nksk":      (M.map_coverage, True, None),
+        "nksk":      (M.map_coverage, True, _nksk_kwargs),
         "ngeb":      (M.map_geburt, False, None),
         "nbau":      (M.map_location_bau, False, None),
         "nrsf":      (M.map_risikofaktor, False, None),
@@ -246,9 +309,8 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
         "n1corder":  (M.map_servicerequest, False, None),
         "nktr":      (M.map_organization_kostentraeger, False, None),
         "norg":      (M.map_organization_norg, False, None),
-        "nper":      (M.map_practitioner_nper, False, None),
         "napx":      (None, False, None),   # Sonderpfad Account (Kopf+Faelle)
-        # n2labor001 hat einen Sonderpfad (Header-Join), s.u.
+        # Sonderpfade: n2labor001 (Header-Join), ngpa+nper (Practitioner-Merge)
     }
 
     w = NdjsonWriter(out_dir, run_id)
@@ -302,15 +364,32 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
                 record_run(table, nrows)
                 continue
 
+            # Zusatz-Selects/-Joins je Tabelle (LIST-Aggregate, s.o.)
+            extra_cols, extra_joins = [], []
+            if table == "nfal":
+                for agg, alias, out in ((bew_agg, "bew", "_bewegungen"),
+                                        (pers_agg, "prs", "_personal"),
+                                        (verkn_agg, "vkn", "_verknuepfungen")):
+                    if agg:
+                        extra_cols.append(f"{alias}._lst AS {out}")
+                        extra_joins.append(
+                            f'LEFT JOIN {agg} {alias} ON t."FALNR" = {alias}._k')
+            if table == "nksk" and vvp_agg:
+                extra_cols.append("vvp._lst AS _vvp")
+                extra_joins.append(f'LEFT JOIN {vvp_agg} vvp ON f."PATNR" = vvp._k')
+
+            cols_sql = ", ".join(["t.*"] + extra_cols)
             if join_pat and _view_exists(con, "nfal"):
                 falnr_col = "FALN1" if table == "ngeb" else "FALNR"
-                sel = (f'SELECT t.*, f."PATNR" AS _patnr '
+                sel = (f'SELECT {cols_sql}, f."PATNR" AS _patnr '
                        f'FROM bronze_current."{table}" t '
                        f'LEFT JOIN (SELECT DISTINCT "FALNR", "PATNR" '
                        f'           FROM bronze_current.nfal) f '
-                       f'ON t."{falnr_col}" = f."FALNR" {where}')
+                       f'ON t."{falnr_col}" = f."FALNR" '
+                       + " ".join(extra_joins) + f' {where}')
             else:
-                sel = f'SELECT t.* FROM bronze_current."{table}" t {where}'
+                sel = (f'SELECT {cols_sql} FROM bronze_current."{table}" t '
+                       + " ".join(extra_joins) + f' {where}')
             cur = con.execute(sel)
             cols = [c[0] for c in cur.description]
             while True:
@@ -327,6 +406,40 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
                     kwargs = kw_fn(row, patnr) if kw_fn else {}
                     nrows += emit(fn(row, ns, priv, **kwargs), patnr)
             record_run(table, nrows)
+
+        # Practitioner: NGPA (Name/Titel/IK) + NPER (LANR/FACHR) -> EINE Ressource
+        # je GPART==PERNR (R13). FULL OUTER JOIN, damit auch einseitige Saetze kommen.
+        have_ngpa, have_nper = _view_exists(con, "ngpa"), _view_exists(con, "nper")
+        if have_ngpa or have_nper:
+            nrows = 0
+            if have_ngpa and have_nper:
+                # DESCRIBE VOR dem Join ausfuehren — eine DuckDB-Connection hat
+                # genau ein aktives Resultset, ein zweites execute() kippt den Cursor.
+                ng = len(con.execute("DESCRIBE bronze_current.ngpa").fetchall())
+                cur = con.execute(
+                    "SELECT g.*, p.* FROM "
+                    "(SELECT * FROM bronze_current.ngpa "
+                    " WHERE COALESCE(PERS,'') = 'X') g "
+                    "FULL OUTER JOIN bronze_current.nper p "
+                    "ON g.\"GPART\" = p.\"PERNR\"")
+                cols = [c[0] for c in cur.description]
+                for r in cur.fetchall():
+                    grow = {k: v for k, v in zip(cols[:ng], r[:ng])}
+                    prow = {k: v for k, v in zip(cols[ng:], r[ng:])}
+                    a = M.map_practitioner(grow, ns, priv) if grow.get("GPART") else None
+                    b = (M.map_practitioner_nper(prow, ns, priv)
+                         if prow.get("PERNR") else None)
+                    nrows += emit(_merge_practitioner(a, b), None)
+            else:
+                src, fn2 = (("ngpa", M.map_practitioner) if have_ngpa
+                            else ("nper", M.map_practitioner_nper))
+                cur = con.execute(f"SELECT * FROM bronze_current.{src}"
+                                  + (" WHERE COALESCE(PERS,'')='X'"
+                                     if src == "ngpa" else ""))
+                cols = [c[0] for c in cur.description]
+                for r in cur.fetchall():
+                    nrows += emit(fn2(dict(zip(cols, r)), ns, priv), None)
+            record_run("practitioner", nrows)
 
         # N2LABOR001-Werte mit N2LABOR-Kopf (DVS-Schluessel-Join, R6/R8)
         if _view_exists(con, "n2labor001") and _view_exists(con, "n2labor"):
