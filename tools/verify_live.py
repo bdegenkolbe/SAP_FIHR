@@ -1,22 +1,26 @@
 # -*- coding: utf-8 -*-
-"""Sammelt ALLE offenen Live-Verifikationen in einem read-only-Lauf gegen die
-Replika und schreibt einen Bericht (Markdown + JSON) zum Hochladen/Review.
+"""Sammelt die OFFENEN Live-Verifikationen (Stand GESAMTREVIEW §4, nach R16) in
+einem read-only-Lauf gegen die Replika und schreibt einen Bericht (MD + JSON).
 
-Ausfuehren im Klinik-/Analytiknetz (dauert wenige Minuten, nur TOP-/COUNT-Queries):
+Ausfuehren im Klinik-/Analytiknetz — idealerweise im LASTFENSTER (Punkt 2/4
+scannen grosse Tabellen):
 
     python tools/verify_live.py --config config/connection.yaml
     -> data/verify_live_report.md  +  data/verify_live_report.json
 
-Deckt ab (Stand nach VERIFY_RESULTS_4 / ALTBESTAND_ANALYSE):
-  1. Registry-/PK-Abgleich aller tables.yaml-Eintraege (INFORMATION_SCHEMA)
-  2. Fuellstaende der neu aufgenommenen Tabellen (Kataloge, NKSK, NGEB, NBAU, ...)
-  3. Spaltenlisten + TOP-20-Stichproben der Katalogtabellen
-     (TN14T/TN14R/TN14U/TN14W/TN24T/NKDI) -> finale Lookup-Spaltennamen
-  4. NDOC-Dokumentkategorien-Verteilung + N2TEXT-Struktur (Arztbrief-Frage)
-  5. SOOD/SRGBTBREL-Fuellstand (SAP-Office als Arztbrief-Pfad, DIAS-Befund)
-  6. NC301S-Struktur + Fuellstand (einzige aktiv genutzte NC301-Tabelle)
-  7. N2LABOR-Spalten (PARCD/WERT/EINH offen aus Runde 1)
-  8. Qlik-__ct-Spannen (min/max change_seq) der Tier-1-Tabellen -> Retention
+Deckt ab (Nummern = GESAMTREVIEW §4):
+  A. PK-Uniqueness der neuen Registry-Kandidaten (#3): NAPX_BEW/DIA/ICP/DRG,
+     NTMN, TNDRG (+ alle noch offenen # VERIFY-PKs der Registry)
+  B. NICP<->N1LSTEAM-Joinpfad (#2): Deckungsgrade der Kandidatenpfade
+     (NICP.LFDBEW->NLEI und N2OPDIAGNOSEN.LNRLS)
+  C. SOOD/SRGBTBREL-Audit (#4): Struktur, Fuellstand, Objekttyp-Verteilung
+     (Arztbrief-Pfad; KEINE Inhalte — Verkryptungsregel §4)
+  D. NFFZ-REFA-Verteilung (#6): Paar-Kombinationen fuer die Q/T/S-Deutung
+  E. Katalog-Strukturen TN14U/TN14W/TN24T/TNDRG (Lookup-Spaltennamen final)
+  F. Fill-Audit NDOC-Kernfelder (54 Mio — nur SUM/CASE, ein Scan)
+
+Verkryptungsregel (Analyse_Datenbank §4) ist eingehalten: keine Namen, keine
+Freitexte, keine EDIFACT-Inhalte — nur Zaehlwerte, Schluessel und Codes.
 """
 from __future__ import annotations
 import argparse
@@ -29,13 +33,18 @@ import yaml
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from sapfhir.extract.dbsource import Source  # noqa: E402
 
-KATALOGE = ["TN14T", "TN14R", "TN14U", "TN14W", "TN14B", "TN14V",
-            "TN24", "TN24T", "NKDI", "TNK00", "TN10S", "TN10B", "TN10H", "NOEK"]
-NEUE_TABELLEN = ["NKSK", "NKSD", "NGEB", "NBAU", "NAPX", "NAPX_FAL", "NAPX_BEW",
-                 "NAPX_DIA", "NAPX_ICP", "NGPA", "NKTR", "NPER", "NEHC", "NKSP",
-                 "N2OPDIAGNOSEN", "NC301S", "SOOD", "SRGBTBREL", "N2LABOR"]
-TIER1_CT = ["NPAT", "NFAL", "NBEW", "NDIA", "NICP", "N2LABOR", "NDOC", "N2TEXT",
-            "NKSK", "NAPX_FAL"]
+# A: Registry-Kandidaten mit noch unverifiziertem PK
+PK_KANDIDATEN = {
+    "NAPX_BEW": ["MANDT", "EINRI", "APXNR", "LFDBEW_NEW"],
+    "NAPX_DIA": ["MANDT", "APXNR", "LFDNR_NEW"],
+    "NAPX_ICP": ["MANDT", "APXNR", "LNRIC"],
+    "NAPX_DRG": ["MANDT", "APXNR"],
+    "NTMN":     ["MANDT", "EINRI", "TMNID"],
+    "TNDRG":    ["MANDT", "DRG"],
+    "TN14U":    ["MANDT", "EINRI", "BEWTY", "BWART"],
+    "TN14W":    ["MANDT", "ENTLZ"],
+    "TN24T":    ["MANDT", "BEKAT"],
+}
 
 
 def _cols(src, table):
@@ -56,112 +65,133 @@ def _count(src, table):
         return f"ERR: {e}"
 
 
-def _sample(src, table, n=20):
+def _uniq(src, table, pk):
+    """PK-Uniqueness: COUNT(*) vs COUNT(DISTINCT CONCAT(pk))."""
+    cols = set(_cols(src, table))
+    missing = [c for c in pk if c not in cols]
+    if missing:
+        return {"ok": False, "missing_cols": missing, "spalten": sorted(cols)}
+    concat = "CONCAT(" + ", '|', ".join(f"[{c}]" for c in pk) + ")"
     try:
-        return src.query(f"SELECT TOP {int(n)} * FROM sap.[{table}]")
+        r = src.query(f"SELECT COUNT(*) AS n, COUNT(DISTINCT {concat}) AS d "
+                      f"FROM sap.[{table}]")[0]
+        return {"ok": r["n"] == r["d"], "n": r["n"], "d": r["d"]}
     except Exception as e:
-        return [{"ERROR": str(e)}]
+        return {"ok": False, "err": str(e)}
 
 
 def run(cfg_path: str, out_dir: str = "data") -> dict:
     with open(cfg_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
-    with open("config/tables.yaml", encoding="utf-8") as f:
-        registry = yaml.safe_load(f)["tables"]
-
     rep: dict = {}
     src = Source(cfg["source"]).connect()
     try:
-        print("[1/8] Verbindungs-/Rechte-Check ...")
-        rep["check"] = src.check()
+        print("[A] PK-Uniqueness der Registry-Kandidaten ...")
+        rep["pk_checks"] = {t: _uniq(src, t, pk)
+                            for t, pk in PK_KANDIDATEN.items()}
 
-        print("[2/8] Registry-/PK-Abgleich ...")
-        rep["registry"] = src.check_registry(registry)
+        print("[B] NICP<->N1LSTEAM-Joinpfade (#2, LASTFENSTER!) ...")
+        rep["nicp_lfdbew_belegt"] = src.scalar(
+            "SELECT COUNT(*) FROM sap.NICP WHERE LTRIM(RTRIM(ISNULL(LFDBEW,'')))"
+            " NOT IN ('','0','00000')")
+        rep["nicp_gesamt"] = _count(src, "NICP")
+        # Kandidatenpfad ueber N2OPDIAGNOSEN (LNRLS -> N1LSTEAM.LNRLS)
+        rep["n2opdiag_spalten"] = _cols(src, "N2OPDIAGNOSEN")
+        try:
+            rep["n2opdiag_lnrls_in_lsteam"] = src.query(
+                "SELECT TOP 1 COUNT(*) AS gesamt, "
+                "SUM(CASE WHEN t.LNRLS IS NOT NULL THEN 1 ELSE 0 END) AS treffer "
+                "FROM (SELECT TOP 100000 LNRLS FROM sap.N2OPDIAGNOSEN "
+                "      WHERE LNRLS IS NOT NULL) o "
+                "LEFT JOIN (SELECT DISTINCT LNRLS FROM sap.N1LSTEAM) t "
+                "  ON o.LNRLS = t.LNRLS")
+        except Exception as e:
+            rep["n2opdiag_lnrls_in_lsteam"] = f"ERR: {e}"
 
-        print("[3/8] Fuellstaende neue Tabellen ...")
-        rep["counts"] = {t: _count(src, t) for t in NEUE_TABELLEN + KATALOGE}
+        print("[C] SOOD/SRGBTBREL (#4, Arztbrief-Pfad) ...")
+        for t in ("SOOD", "SRGBTBREL"):
+            rep[t.lower()] = {"columns": _cols(src, t), "rows": _count(src, t)}
+        # Objekttyp-Verteilung der Relationen (welche IS-H-Objekte haengen an Docs?)
+        try:
+            rep["srgbtbrel_typen"] = src.query(
+                "SELECT TOP 25 TYPEID_A, TYPEID_B, COUNT(*) AS n "
+                "FROM sap.SRGBTBREL GROUP BY TYPEID_A, TYPEID_B "
+                "ORDER BY n DESC")
+        except Exception as e:
+            rep["srgbtbrel_typen"] = f"ERR: {e}"
 
-        print("[4/8] Katalog-Strukturen + Stichproben ...")
-        rep["kataloge"] = {t: {"columns": _cols(src, t),
-                               "sample": _sample(src, t)}
-                           for t in KATALOGE if _cols(src, t)}
+        print("[D] NFFZ-REFA-Paarverteilung (#6) ...")
+        try:
+            rep["nffz_refa"] = src.query(
+                "SELECT REFA1, REFA2, COUNT(*) AS n FROM sap.NFFZ "
+                "WHERE ISNULL(STORN,'') IN ('','0') "
+                "GROUP BY REFA1, REFA2 ORDER BY n DESC")
+        except Exception as e:
+            rep["nffz_refa"] = f"ERR: {e}"
 
-        print("[5/8] NDOC-Kategorien / N2TEXT (Arztbrief-Frage) ...")
-        rep["ndoc_spalten"] = _cols(src, "NDOC")
-        for col in ("DOCKA", "DOCTY", "DOKAR"):   # Kandidaten fuer Kategorie
-            if col in rep["ndoc_spalten"]:
-                rep[f"ndoc_verteilung_{col}"] = src.query(
-                    f"SELECT TOP 50 [{col}], COUNT(*) AS n FROM sap.NDOC "
-                    f"GROUP BY [{col}] ORDER BY n DESC")
-        rep["n2text_spalten"] = _cols(src, "N2TEXT")
+        print("[E] Katalog-Strukturen + Stichproben ...")
+        rep["kataloge"] = {}
+        for t in ("TN14U", "TN14W", "TN24T", "TNDRG"):
+            cols = _cols(src, t)
+            sample = []
+            if cols:
+                try:
+                    sample = src.query(f"SELECT TOP 10 * FROM sap.[{t}]")
+                except Exception as e:
+                    sample = [{"ERROR": str(e)}]
+            rep["kataloge"][t] = {"columns": cols, "sample": sample}
 
-        print("[6/8] SOOD/SRGBTBREL (SAP-Office-Dokumente) ...")
-        rep["sood"] = {"columns": _cols(src, "SOOD"), "rows": _count(src, "SOOD")}
-        rep["srgbtbrel"] = {"columns": _cols(src, "SRGBTBREL"),
-                            "rows": _count(src, "SRGBTBREL")}
-
-        print("[7/8] NC301S + N2LABOR Strukturen ...")
-        rep["nc301s"] = {"columns": _cols(src, "NC301S"),
-                         "rows": _count(src, "NC301S"),
-                         "sample": _sample(src, "NC301S", 5)}
-        rep["n2labor_spalten"] = _cols(src, "N2LABOR")
-        rep["n2labor_sample"] = _sample(src, "N2LABOR", 5)
-
-        print("[8/8] __ct-Spannen (Retention) ...")
-        rep["ct_spannen"] = {}
-        for t in TIER1_CT:
-            rep["ct_spannen"][t] = {"min": src.min_change_seq("sap", t),
-                                    "max": src.max_change_seq("sap", t)}
+        print("[F] NDOC-Fill-Audit (54 Mio, ein Scan — LASTFENSTER!) ...")
+        try:
+            rep["ndoc_fill"] = src.query(
+                "SELECT COUNT(*) AS n, "
+                "SUM(CASE WHEN LTRIM(RTRIM(ISNULL(PATNR,''))) NOT IN "
+                "  ('','0000000000') THEN 1 ELSE 0 END) AS patnr_belegt, "
+                "SUM(CASE WHEN LTRIM(RTRIM(ISNULL(FALNR,''))) <> '' "
+                "  THEN 1 ELSE 0 END) AS falnr_belegt, "
+                "SUM(CASE WHEN LTRIM(RTRIM(ISNULL(DTID,''))) <> '' "
+                "  THEN 1 ELSE 0 END) AS dtid_belegt, "
+                "SUM(CASE WHEN MEDOK='X' THEN 1 ELSE 0 END) AS medok "
+                "FROM sap.NDOC")
+        except Exception as e:
+            rep["ndoc_fill"] = f"ERR: {e}"
     finally:
         src.close()
 
     os.makedirs(out_dir, exist_ok=True)
-    jpath = os.path.join(out_dir, "verify_live_report.json")
-    with open(jpath, "w", encoding="utf-8") as f:
+    with open(os.path.join(out_dir, "verify_live_report.json"), "w",
+              encoding="utf-8") as f:
         json.dump(rep, f, ensure_ascii=False, indent=2, default=str)
 
-    mpath = os.path.join(out_dir, "verify_live_report.md")
-    with open(mpath, "w", encoding="utf-8") as f:
-        f.write("# SAP_FIHR — Live-Verifikationsbericht\n\n")
-        f.write("## 1. Verbindung/Rechte\n```json\n"
-                + json.dumps(rep["check"], indent=2, default=str) + "\n```\n")
-        f.write("\n## 2. Registry-/PK-Abgleich (nur Abweichungen)\n\n")
-        for t, r in sorted(rep["registry"].items()):
-            if not r.get("exists"):
-                f.write(f"- **{t}: existiert nicht!**\n")
-            elif not r.get("pk_ok") or r.get("missing_proj_cols"):
-                f.write(f"- **{t}**: db_pk={r.get('db_pk')} "
-                        f"missing_pk={r.get('missing_pk_cols')} "
-                        f"missing_proj={r.get('missing_proj_cols')}\n")
-        f.write("\n## 3. Fuellstaende\n\n| Tabelle | Zeilen |\n|---|---:|\n")
-        for t, n in sorted(rep["counts"].items(),
-                           key=lambda kv: -(kv[1] if isinstance(kv[1], int) else -1)):
-            f.write(f"| {t} | {n} |\n")
-        f.write("\n## 4. Katalog-Spalten\n\n")
+    with open(os.path.join(out_dir, "verify_live_report.md"), "w",
+              encoding="utf-8") as f:
+        f.write("# SAP_FIHR — Live-Verifikationsbericht (Backlog nach R16)\n\n")
+        f.write("## A — PK-Uniqueness (Registry-Kandidaten)\n\n"
+                "| Tabelle | ok | n | distinct | Anmerkung |\n|---|---|---:|---:|---|\n")
+        for t, r in rep["pk_checks"].items():
+            note = ("fehlende Spalten: " + ",".join(r.get("missing_cols", []))
+                    if r.get("missing_cols") else r.get("err", ""))
+            f.write(f"| {t} | {r.get('ok')} | {r.get('n','-')} | "
+                    f"{r.get('d','-')} | {note} |\n")
+        f.write(f"\n## B — NICP↔N1LSTEAM\n\n- NICP.LFDBEW belegt: "
+                f"{rep['nicp_lfdbew_belegt']} / {rep['nicp_gesamt']}\n"
+                f"- N2OPDIAGNOSEN.LNRLS→N1LSTEAM (Stichprobe 100k): "
+                f"{json.dumps(rep['n2opdiag_lnrls_in_lsteam'], default=str)}\n")
+        f.write(f"\n## C — SAP-Office\n\n- SOOD: {rep['sood']['rows']} Zeilen\n"
+                f"- SRGBTBREL: {rep['srgbtbrel']['rows']} Zeilen\n"
+                f"- Relation-Typen (Top):\n```json\n"
+                + json.dumps(rep["srgbtbrel_typen"], indent=2, default=str)[:3000]
+                + "\n```\n")
+        f.write("\n## D — NFFZ-REFA-Paare\n```json\n"
+                + json.dumps(rep["nffz_refa"], indent=2, default=str)[:3000] + "\n```\n")
+        f.write("\n## E — Katalog-Spalten\n\n")
         for t, k in rep["kataloge"].items():
-            f.write(f"- **{t}**: {', '.join(k['columns'])}\n")
-        for key in ("ndoc_verteilung_DOCKA", "ndoc_verteilung_DOCTY",
-                    "ndoc_verteilung_DOKAR"):
-            if key in rep:
-                f.write(f"\n## {key}\n```json\n"
-                        + json.dumps(rep[key][:20], indent=2, default=str) + "\n```\n")
-        f.write("\n## SOOD/SRGBTBREL\n"
-                f"- SOOD: {rep['sood']['rows']} Zeilen\n"
-                f"- SRGBTBREL: {rep['srgbtbrel']['rows']} Zeilen\n")
-        f.write("\n## NC301S\n"
-                f"- {rep['nc301s']['rows']} Zeilen, Spalten: "
-                f"{', '.join(rep['nc301s']['columns'] or ['-'])}\n")
-        f.write("\n## N2LABOR-Spalten\n- "
-                + ", ".join(rep["n2labor_spalten"] or ["-"]) + "\n")
-        f.write("\n## __ct-Spannen (Retention-Check)\n\n"
-                "| Tabelle | min seq | max seq |\n|---|---|---|\n")
-        for t, s in rep["ct_spannen"].items():
-            f.write(f"| {t} | {s['min']} | {s['max']} |\n")
+            f.write(f"- **{t}**: {', '.join(k['columns']) or 'NICHT VORHANDEN'}\n")
+        f.write("\n## F — NDOC-Fill\n```json\n"
+                + json.dumps(rep["ndoc_fill"], indent=2, default=str) + "\n```\n")
 
-    print(f"\nBericht: {mpath}  +  {jpath}")
-    print("Beide Dateien bitte fuer die naechste Runde hochladen "
-          "(enthalten KEINE Patientendaten — nur Strukturen, Zaehlwerte und "
-          "Katalog-Stichproben; NDOC/N2LABOR-Samples vor Weitergabe pruefen!).")
+    print(f"\nBericht: {out_dir}/verify_live_report.md + .json — bitte hochladen "
+          f"bzw. committen (enthaelt nur Zaehlwerte/Schluessel, keine Klardaten).")
     return rep
 
 

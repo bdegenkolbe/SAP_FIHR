@@ -32,6 +32,7 @@ footer{padding:14px 24px;font-size:11px;color:#AAA;font-style:italic}
 <nav>
   <a class="act" data-p="monitor">Entlade-Monitor</a>
   <a data-p="analytics">Klinik-Analytik</a>
+  <a data-p="p360">Patient 360</a>
 </nav>
 <main>
   <div id="monitor" class="page act">
@@ -41,7 +42,17 @@ footer{padding:14px 24px;font-size:11px;color:#AAA;font-style:italic}
   </div>
   <div id="analytics" class="page">
     <div class="kpis" id="ak"></div>
-    <div class="card"><h2>Top-Diagnosen (ICD-10-GM)</h2><table id="at"><thead><tr><th>ICD</th><th class="num">Fälle</th><th>Anteil</th></tr></thead><tbody></tbody></table></div>
+    <div class="card"><h2>Top-Diagnosen (ICD-10-GM)</h2><table id="at"><thead><tr><th>ICD</th><th>Klartext</th><th class="num">Fälle</th><th>Anteil</th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div id="p360" class="page">
+    <div class="card"><h2>Patient 360 — Zeitstrahl (read-only, maskierte mcp.*-Schicht)</h2>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input id="p360in" placeholder="PATNR, z.B. 0007700003" style="flex:0 0 260px;padding:8px 10px;border:1px solid var(--bd);border-radius:8px">
+        <button id="p360go" style="padding:8px 16px;border:0;border-radius:8px;background:var(--cy);color:#fff;font-weight:700;cursor:pointer">Laden</button>
+      </div>
+      <div class="kpis" id="pk3"></div>
+      <table id="pt3"><thead><tr><th>Datum</th><th>Typ</th><th>Fall</th><th>Detail</th></tr></thead><tbody></tbody></table>
+    </div>
   </div>
 </main>
 <footer>Erstellt mit Claude AI · GREENBAY healthcare GmbH</footer>
@@ -69,8 +80,16 @@ async function load(){
   $('#ak').innerHTML=`<div class="kpi"><div class="l">Fälle</div><div class="v">${faelle.toLocaleString('de')}</div></div>
     <div class="kpi"><div class="l">Ø Verweildauer</div><div class="v">${(vd[0]&&vd[0].mittel?Number(vd[0].mittel).toFixed(1):'—')} T.</div></div>`;
   const max=Math.max(...dx.map(d=>Number(d.n)),1);
-  $('#at tbody').innerHTML=dx.slice(0,15).map(d=>`<tr><td>${d.icd}</td><td class="num">${Number(d.n).toLocaleString('de')}</td><td><div class="bar"><i style="width:${Math.round(d.n/max*100)}%"></i></div></td></tr>`).join('');
+  $('#at tbody').innerHTML=dx.slice(0,15).map(d=>`<tr><td>${d.icd}</td><td>${d.text||'—'}</td><td class="num">${Number(d.n).toLocaleString('de')}</td><td><div class="bar"><i style="width:${Math.round(d.n/max*100)}%"></i></div></td></tr>`).join('');
 }
 load();
+$('#p360go').onclick=async()=>{
+  const p=$('#p360in').value.trim(); if(!p)return;
+  const d=await api('/api/patient360/'+encodeURIComponent(p)).catch(()=>null);
+  if(!d){$('#pk3').innerHTML='<div class="kpi"><div class="l">Fehler</div><div class="v">—</div></div>';return;}
+  $('#pk3').innerHTML=`<div class="kpi"><div class="l">Fälle</div><div class="v">${d.faelle.length}</div></div>
+    <div class="kpi"><div class="l">Ereignisse</div><div class="v">${d.timeline.length}</div></div>`;
+  $('#pt3 tbody').innerHTML=d.timeline.map(r=>`<tr><td>${String(r.datum).slice(0,10)}</td><td>${r.typ}</td><td>${r.ref}</td><td>${r.detail||'—'}</td></tr>`).join('');
+};
 </script>
 </body></html>

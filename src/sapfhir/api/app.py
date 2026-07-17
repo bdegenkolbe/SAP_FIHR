@@ -27,10 +27,10 @@ WAREHOUSE = os.environ.get("SAPFHIR_WAREHOUSE", "data/warehouse.duckdb")
 app = FastAPI(title="SAP_FIHR Dashboard") if FastAPI else None
 
 
-def _q(sql: str):
+def _q(sql: str, params: list | None = None):
     con = duckdb.connect(WAREHOUSE, read_only=True)
     try:
-        cur = con.execute(sql)
+        cur = con.execute(sql, params or [])
         cols = [c[0] for c in cur.description]
         return [{c: (v.isoformat() if hasattr(v, "isoformat") else v)
                  for c, v in zip(cols, r)} for r in cur.fetchall()]
@@ -94,6 +94,38 @@ if app:
     @app.get("/api/analytics/belegung")
     def belegung():
         return JSONResponse(_q("SELECT * FROM gold.belegung_oe"))
+
+    # Patient 360 (CONCEPT §8, Seite 3): Read-only-Zeitstrahl aus der
+    # MASKIERTEN mcp.*-Schicht — dieselbe Datenoberflaeche wie der MCP-Server,
+    # d.h. pseudonymize_view greift auch hier.
+    @app.get("/api/patient360/{patnr}")
+    def patient360(patnr: str):
+        faelle = _q(
+            "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR FROM mcp.fall "
+            "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0') "
+            "ORDER BY BEGDT DESC LIMIT 50", [patnr])
+        timeline = _q(
+            "SELECT * FROM ("
+            " SELECT BEGDT AS datum, 'Fall' AS typ, FALNR AS ref,"
+            "        FALAR AS detail FROM mcp.fall WHERE PATNR = ?"
+            " UNION ALL SELECT b.BWIDT, 'Bewegung', b.FALNR,"
+            "   COALESCE(rb.\"TEXT\", CAST(b.BEWTY AS VARCHAR))"
+            "   FROM mcp.bewegung b JOIN mcp.fall f USING (FALNR)"
+            "   LEFT JOIN ref.bewegungstyp rb"
+            "     ON CAST(b.BEWTY AS VARCHAR) = rb.\"BEWTY\" WHERE f.PATNR = ?"
+            " UNION ALL SELECT d.DIADT, 'Diagnose', d.FALNR,"
+            "   COALESCE(d.DITXT, d.DKEY1)"
+            "   FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"
+            " UNION ALL SELECT p.BGDOP, 'Prozedur', p.FALNR,"
+            "   COALESCE(p.BTEXT, CAST(p.ICPML AS VARCHAR))"
+            "   FROM mcp.prozedur p JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"
+            " UNION ALL SELECT l.BEFDT, 'Labor', l.FALNR,"
+            "   l.KATTEXT || ': ' || l.WERT || ' ' || COALESCE(l.EINH,'')"
+            "   FROM mcp.labor l WHERE l.PATNR = ?"
+            ") WHERE datum IS NOT NULL ORDER BY datum DESC LIMIT 300",
+            [patnr] * 5)
+        return JSONResponse({"patnr": patnr, "faelle": faelle,
+                             "timeline": timeline})
 
     web_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "web")
     if os.path.isdir(web_dir):
