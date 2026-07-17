@@ -23,6 +23,7 @@ Tools:
   doc_search       Volltext (FTS/BM25) ueber N2TEXT
   fhir_get         FHIR-Ressource per Typ+ID ueber den Index (kein Datei-Scan)
   fhir_search      FHIR-Index-Suche (Typ, Patient)
+  resolve_code     Rohcode -> Haus-Klartext (ref.*-Kataloge, CONCEPT_EXT §8)
 
 Start: python -m sapfhir.mcp.server   (liest config/connection.yaml)
 """
@@ -328,6 +329,42 @@ def fhir_search(resource_type: str, patnr: str = "", limit: int = 50) -> list[di
     return _logged("fhir_search", {"rt": resource_type, "patnr": patnr}, go)
 
 
+_REF_KATALOGE = {   # Katalog -> Schluesselspalten der ref.*-Tabelle (fhir/lookups.py)
+    "icd": ["DKAT", "DKEY"],
+    "bewegungstyp": ["BEWTY"],
+    "bewegungsart": ["BEWTY", "BWART"],
+    "behandlungskategorie": ["BEKAT"],
+    "oe": ["ORGID"],
+    "kostentraeger": ["KOSTR"],
+}
+
+
+def resolve_code(katalog: str, code: str, version: str = "") -> list[dict]:
+    """Loest einen Rohcode in den Haus-Klartext auf (ref.*-Schicht, CONCEPT_EXT §8).
+    katalog: icd | bewegungstyp | bewegungsart | behandlungskategorie | oe |
+    kostentraeger. Bei zweiteiligen Schluesseln (icd: Katalogversion, Default '56';
+    bewegungsart: BEWTY) gehoert der erste Teil in `version`."""
+    def go():
+        kat = katalog.strip().lower()
+        keys = _REF_KATALOGE.get(kat)
+        if not keys:
+            raise GuardError(f"Unbekannter Katalog '{katalog}' — erlaubt: "
+                             + ", ".join(sorted(_REF_KATALOGE)))
+        params: list = []
+        conds = []
+        if len(keys) == 2:
+            v = (version or ("56" if kat == "icd" else "")).strip()
+            if not v:
+                raise GuardError(f"Katalog '{kat}' braucht `version` ({keys[0]}).")
+            conds.append(f'"{keys[0]}" = ?'); params.append(v)
+        conds.append(f'"{keys[-1]}" = ?'); params.append(str(code).strip())
+        return _run_sql(
+            f'SELECT *, \'{kat}\' AS katalog FROM ref."{kat}" '
+            f'WHERE {" AND ".join(conds)} LIMIT 20', params)
+    return _logged("resolve_code", {"katalog": katalog, "code": code,
+                                    "version": version}, go)
+
+
 def _read_ndjson_line(path: str, line_no: int) -> dict | None:
     if not os.path.exists(path):
         return None
@@ -354,6 +391,7 @@ if app:
     app.tool()(doc_search)
     app.tool()(fhir_get)
     app.tool()(fhir_search)
+    app.tool()(resolve_code)
 
 
 def main():

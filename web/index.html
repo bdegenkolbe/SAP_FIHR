@@ -58,6 +58,8 @@ async function load(){
   $('#mk').innerHTML=`<div class="kpi"><div class="l">Tabellen</div><div class="v">${st.length}</div></div>
     <div class="kpi"><div class="l">Zeilen gesamt</div><div class="v">${total.toLocaleString('de')}</div></div>`;
   $('#mt tbody').innerHTML=st.map(r=>`<tr><td>${r.table_name}</td><td>${r.phase}</td><td class="num">${Number(r.rows_seen||0).toLocaleString('de')}</td><td>${r.change_seq||'—'}</td></tr>`).join('');
+  const di=await api('/api/monitor/dias').catch(()=>[]);
+  if(di.length){$('#mk').innerHTML+=`<div class="kpi"><div class="l">DIAS-Abdeckung</div><div class="v">${di[0].in_registry}/${di[0].dias_genutzt}</div></div>`;}
   const dq=await api('/api/monitor/reconciliation').catch(()=>[]);
   $('#dq tbody').innerHTML=dq.map(r=>`<tr><td>${r.table_name}</td><td class="num">${r.source_rows==null?'—':Number(r.source_rows).toLocaleString('de')}</td><td class="num">${Number(r.local_rows||0).toLocaleString('de')}</td><td class="num">${r.delta==null?'—':r.delta}</td><td style="color:${r.status==='ALARM'?'#EE0000':r.status==='OK'?'#00A088':'#888'};font-weight:600">${r.status}</td></tr>`).join('');
   const vd=await api('/api/analytics/verweildauer').catch(()=>[{}]);

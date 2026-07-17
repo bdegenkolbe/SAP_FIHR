@@ -89,6 +89,26 @@ class Lookups:
         return self.text("oe", orgid)
 
 
+def build_ref_tables(con: duckdb.DuckDBPyConnection) -> list[str]:
+    """Materialisiert die Kataloge als ref.*-Tabellen im Warehouse (CONCEPT_EXT §8):
+    Grundlage fuer Klartext-Marts und das MCP-Tool resolve_code. Materialisiert
+    (kein read_parquet im Anfragepfad) -> Sandbox-kompatibel (CONCEPT §17.1)."""
+    con.execute("CREATE SCHEMA IF NOT EXISTS ref")
+    made = []
+    lk = Lookups(con)
+    for name in lk.loaded:
+        keys = _CATALOGS[name][1]
+        m = lk._maps.get(name) or {}
+        rows = [list(k) + [v] for k, v in m.items()]
+        cols = ", ".join(f'"{k}" VARCHAR' for k in keys) + ', "TEXT" VARCHAR'
+        con.execute(f'CREATE OR REPLACE TABLE ref."{name}" ({cols})')
+        if rows:
+            ph = ",".join("?" * (len(keys) + 1))
+            con.executemany(f'INSERT INTO ref."{name}" VALUES ({ph})', rows)
+        made.append(name)
+    return made
+
+
 def from_warehouse(warehouse: str = "data/warehouse.duckdb") -> Lookups:
     try:
         con = duckdb.connect(warehouse, read_only=True)

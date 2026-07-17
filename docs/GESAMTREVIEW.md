@@ -108,16 +108,16 @@ NFAL.STASP-Statistiksperre bleibt als Analytik-/MCP-Ausschluss aktiv.
 
 | # | Punkt | Quelle | Pfad |
 |---|---|---|---|
-| 1 | NGPA+NPER-Merge in der Ausleitung (eine Practitioner-Ressource, Attribute vereinigt) | R13 | lokal (Code, ohne DB) |
+| 1 | ~~NGPA+NPER-Merge~~ **erledigt** (FULL OUTER JOIN, dedupliziertes identifier-Set) | R13 | — |
 | 2 | NICP↔N1LSTEAM-Joinpfad (LNRLM leer; Kandidat N2OPDIAGNOSEN.LNRLS) + Fill-Audit NDOC/N2LABOR | R15/R16 | **Lastfenster (mssql)** |
-| 3 | NAPX_BEW/DIA/ICP/DRG + NTMN + TNDRG in Registry aufnehmen (Warteschlange §2) | Review §2.2 | lokal (mssql für PK-Check) |
+| 3 | ~~Registry-Aufnahme NAPX_BEW/DIA/ICP/DRG + NTMN + TNDRG~~ **erledigt** (PKs noch # VERIFY → mssql-PK-Check offen) | Review §2.2 | mssql (PK-Check) |
 | 4 | SOOD/SRGBTBREL-Audit (Arztbrief-Pfad) | DIAS/R-Serie | **Lastfenster (mssql)** |
-| 5 | ref_*-Loader für die 19 replizierten Kataloge; Rest zur Replikation anmelden (TN14K/O, N2DT, TN26B/D) | §8 Paket | lokal + Qlik-Antrag |
+| 5 | ~~ref_*-Loader~~ **erledigt** (`lookups.build_ref_tables` + Klartext-Marts + MCP-Tool `resolve_code`); offen bleibt der Qlik-Antrag für TN14K/O, N2DT, TN26B/D | §8 Paket | Qlik-Antrag |
 | 6 | NFFZ-REFA-Katalog klären (Q/T/S-Deutung) | R15 | mssql/Fachbereich |
 | 7 | Echtzeit-/Historisierungs-Trennung als eigener Batch-Strang (CDPOS) | §6.2 | Konzept → später |
 | 8 | COPRA5/6-Adapter für Medikation/Vitalwerte | R10/R14 | neues Arbeitspaket |
-| 9 | vvp-/personal-/team-/bewegungen-Lookups in ndjson (heute: apxnr+kodetext+Labor-Header) | Review | lokal (Code) |
-| 10 | DIAS-Abdeckungsdiff als DQ-Job automatisieren (`gold/quality.py`) | §5 Paket | lokal (Code) |
+| 9 | ~~vvp-/personal-/bewegungen-Lookups~~ **erledigt** (LIST(STRUCT)-Broadcast-Joins); offen bleibt `team` (haengt am NICP↔N1LSTEAM-Joinpfad, #2) | Review | mit #2 |
+| 10 | ~~DIAS-Abdeckungsdiff als DQ-Job~~ **erledigt** (`_meta.dias_coverage` + Dashboard-Kachel) | §5 Paket | — |
 
 ## 5. Prüfergebnis
 

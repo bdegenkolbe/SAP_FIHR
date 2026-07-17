@@ -61,6 +61,12 @@ if app:
             "SELECT ts, schema_name, table_name, phase, rows, note "
             "FROM _meta.run_log ORDER BY ts DESC LIMIT 100"))
 
+    @app.get("/api/monitor/dias")
+    def monitor_dias():
+        return JSONResponse(_q(
+            "SELECT ts, dias_genutzt, in_registry, luecken "
+            "FROM _meta.dias_coverage ORDER BY ts DESC LIMIT 1"))
+
     @app.get("/api/monitor/silver")
     def monitor_silver():
         return JSONResponse(_q(

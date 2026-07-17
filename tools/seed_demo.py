@@ -245,6 +245,8 @@ def main(argv=None):
                  for b, t in [("1", "Aufnahme"), ("2", "Entlassung"),
                               ("3", "interne Verlegung"), ("4", "ambulanter Besuch"),
                               ("6", "Beurlaubung Beginn"), ("7", "Beurlaubung Ende")]])
+    _w("nkdi", [{"MANDT": "100", "SPRAS": "D", "DKAT": "56", "DKEY": c,
+                 "DTEXT1": f"Demo-Klartext {c}"} for c in ICDS])
     _w("norg", [{"MANDT": "100", "EINRI": "0001", "ORGID": o, "ORGNA": n}
                 for o, n in [("KARD", "Klinik fuer Kardiologie"),
                              ("UCHIR", "Klinik fuer Unfallchirurgie"),
