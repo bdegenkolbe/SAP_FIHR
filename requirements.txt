@@ -1,7 +1,7 @@
 # No-Admin: alle als Wheels installierbar, kein Compiler, kein ODBC-Treiber noetig
 python-tds>=1.15        # pure-Python MSSQL-Treiber (No-Admin); pyodbc optional
 duckdb>=1.1
-kuzu>=0.6               # eingebettete Graph-DB (Cypher)
+kuzu>=0.6; python_version < "3.14"   # Graph-DB; fuer 3.14 noch kein Wheel -> optional (s. Setup.bat)
 pyarrow>=17
 PyYAML>=6
 fastapi>=0.115

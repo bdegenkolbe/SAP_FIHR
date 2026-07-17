@@ -16,6 +16,14 @@ python -m venv .venv
 call .venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
+if errorlevel 1 (
+  echo FEHLER: Abhaengigkeiten konnten nicht installiert werden — Ausgabe oben pruefen.
+  pause & exit /b 1
+)
+REM kuzu (Graph) optional nachziehen: nur fertige Wheels, nie aus Quellcode bauen.
+REM Auf Python 3.14 gibt es (noch) kein Windows-Wheel -> Graph-Schritt wird uebersprungen.
+python -m pip install --only-binary=:all: "kuzu>=0.6" >nul 2>&1
+if errorlevel 1 echo Hinweis: kuzu nicht verfuegbar — Kuzu-Graph wird uebersprungen (Rest laeuft normal).
 python -m pip install -e .
 python installer\first_run.py
 python -m pytest tests -q
