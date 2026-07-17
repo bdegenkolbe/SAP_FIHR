@@ -4,6 +4,7 @@ duckdb>=1.1
 kuzu>=0.6; python_version < "3.14"   # Graph-DB; fuer 3.14 noch kein Wheel -> optional (s. Setup.bat)
 pyarrow>=17
 PyYAML>=6
+tzdata>=2024.1          # IANA-Zeitzonen fuer zoneinfo — Windows hat keine System-TZ-DB (DST!)
 fastapi>=0.115
 uvicorn>=0.30
 mcp>=1.2                # MCP-SDK (stdio-Server)
