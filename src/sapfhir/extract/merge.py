@@ -43,7 +43,22 @@ def view_sql(table: str, pk: list[str], bronze: str = "data/bronze") -> str | No
     delta_glob = os.path.join(bronze, "_delta", t, "*.parquet")
     if not _has_files(base_glob):
         return None
-    part = ", ".join(f'"{c}"' for c in pk)
+    # PK gegen real vorhandene Spalten pruefen (Registry kann Spalten nennen,
+    # die eine schmale Projektion/Seed nicht traegt) — Teil-PK mit Warnung.
+    import duckdb as _duck
+    try:
+        avail = {r[0].upper() for r in _duck.connect().execute(
+            f"DESCRIBE SELECT * FROM read_parquet('{base_glob}', "
+            f"union_by_name=true) LIMIT 0").fetchall()}
+    except _duck.Error:
+        avail = set()
+    eff_pk = [c for c in pk if c.upper() in avail] if avail else list(pk)
+    if not eff_pk:
+        return None
+    if len(eff_pk) < len(pk):
+        print(f"  [merge] {t}: PK-Spalten {sorted(set(pk)-set(eff_pk))} fehlen "
+              f"in Bronze — dedupliziere ueber {eff_pk}")
+    part = ", ".join(f'"{c}"' for c in eff_pk)
     base = (f"SELECT *, CAST(NULL AS VARCHAR) AS _op, '' AS _seq "
             f"FROM read_parquet('{base_glob}', union_by_name=true)")
     if _has_files(delta_glob):

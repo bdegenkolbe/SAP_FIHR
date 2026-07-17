@@ -8,8 +8,8 @@ select:
   - EINRI
   - FALNR      # denormalisiert vorhanden (verifiziert)
   - LFDBEW     # Bewegungsbezug (verbindet Prozedur mit NBEW)
-  - ICPML      # OPS-Kode (verifiziert)
-  - ICPMK      # OPS-Katalog ('36'=OPS, verifiziert)
+  - ICPML      # OPS-Kode (verifiziert; ICPK1 existiert nicht)
+  - ICPMK      # OPS-Katalog ('36'=OPS, verifiziert) -> TNK01
   - BTEXT      # Klartext (verifiziert)
   - BGDOP      # OP-Datum von (verifiziert; Partition)
   - ENDOP      # OP-Datum bis
@@ -17,8 +17,8 @@ select:
   - EZTOP      # OP-Zeit bis
   - ORGFA      # durchfuehrende Fach-OE (verifiziert)
   - ORGPF      # Pflege-OE
-  - OPART      # OP-Art
-  - LOKAL      # Seitenlokalisation VERIFY
+  - OPART      # OP-Art -> TN14O (R16: im Haus LEER — defensiv behalten)
+  - LSLOK      # Lokalisation -> TN26E (13% befuellt, R16)
   - DRG_RELEVANT
   - DRG_CATEGORY
   - CCL

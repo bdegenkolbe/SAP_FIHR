@@ -156,7 +156,7 @@ def patient_360(patnr: str) -> dict:
         con = _con()
         try:
             faelle = _fetch(con,
-                "SELECT FALNR, FALAR, BEGDT, ENDAT, FACHR FROM mcp.fall "
+                "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR FROM mcp.fall "
                 "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0') "
                 "ORDER BY BEGDT DESC LIMIT 50", [patnr])
             dx = _fetch(con,
@@ -170,21 +170,21 @@ def patient_360(patnr: str) -> dict:
                 "AND COALESCE(d.STORN,'') IN ('','0') "
                 "ORDER BY d.DIADT DESC LIMIT 200", [patnr])
             ops = _fetch(con,
-                "SELECT p.FALNR, COALESCE(CAST(p.ICPML AS VARCHAR), CAST(p.ICPK1 AS VARCHAR)) AS ops, "
-                "p.BTEXT AS text, COALESCE(p.BGDOP, p.ICDAT) AS datum "
+                "SELECT p.FALNR, CAST(p.ICPML AS VARCHAR) AS ops, "
+                "p.BTEXT AS text, p.BGDOP AS datum "
                 "FROM mcp.prozedur p JOIN mcp.fall f USING (FALNR) "
                 "WHERE f.PATNR = ? ORDER BY datum DESC LIMIT 200", [patnr])
             labs = []
             if _table_exists(con, "labor"):
                 labs = _fetch(con,
-                    "SELECT l.FALNR, l.PARTX, l.WERT, l.EINH, l.BEFDT "
-                    "FROM mcp.labor l JOIN mcp.fall f USING (FALNR) "
-                    "WHERE f.PATNR = ? ORDER BY l.BEFDT DESC LIMIT 50", [patnr])
+                    "SELECT l.FALNR, l.KATTEXT, l.WERT, l.EINH, l.REFBER, l.BEFDT "
+                    "FROM mcp.labor l WHERE l.PATNR = ? "
+                    "ORDER BY l.BEFDT DESC LIMIT 50", [patnr])
             doks = []
             if _table_exists(con, "dokument"):
                 doks = _fetch(con,
-                    "SELECT DOCID, DOCTY, DOCDT FROM mcp.dokument "
-                    "WHERE PATNR = ? ORDER BY DOCDT DESC LIMIT 50", [patnr])
+                    "SELECT DOKAR, DOKNR, DTID, DODAT FROM mcp.dokument "
+                    "WHERE PATNR = ? ORDER BY DODAT DESC LIMIT 50", [patnr])
         finally:
             con.close()
         return {"patnr": patnr, "faelle": faelle, "diagnosen": dx,
@@ -205,15 +205,14 @@ def patient_timeline(patnr: str, von: str = "", bis: str = "") -> list[dict]:
                 ("SELECT d.DIADT, 'Diagnose', d.FALNR, d.DKEY1 "
                  "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
                  "WHERE f.PATNR = ?"),
-                ("SELECT p.ICDAT, 'Prozedur', p.FALNR, "
-                 "COALESCE(CAST(p.ICPML AS VARCHAR), CAST(p.ICPK1 AS VARCHAR)) FROM mcp.prozedur p "
+                ("SELECT p.BGDOP, 'Prozedur', p.FALNR, "
+                 "CAST(p.ICPML AS VARCHAR) FROM mcp.prozedur p "
                  "JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"),
             ]
             if _table_exists(con, "labor"):
                 parts.append(
-                    "SELECT l.BEFDT, 'Labor', l.FALNR, l.PARTX "
-                    "FROM mcp.labor l JOIN mcp.fall f USING (FALNR) "
-                    "WHERE f.PATNR = ?")
+                    "SELECT l.BEFDT, 'Labor', l.FALNR, l.KATTEXT "
+                    "FROM mcp.labor l WHERE l.PATNR = ?")
             sql = " UNION ALL ".join(parts)
             params = [patnr] * len(parts)
             where = ""

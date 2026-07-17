@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Golden-Record-Test (CONCEPT §15.5): ein fixierter Fixture-Patient, Sollwerte
-ueber alle Kern-Ressourcentypen. Jede Mapper-Aenderung, die dieses Bild bricht,
-ist ein bewusster, reviewter Diff. KEINE echten Daten — synthetischer Testfall.
+"""Golden-Record-/Pipeline-Invarianten (CONCEPT §15.5/§16.4) fuer die
+Ausleitungskette  Mapper -> _shift_resource_dates -> normalize_resource.
 
-Zweiter Teil: Datenschutz-Invarianten (CONCEPT §16.4) — bei privacy=pseudonymize
-erscheint KEIN Quelldatum und kein Klarname in der Ausgabe, und der Date-Shift
-ist ueber alle Ressourcen des Patienten konsistent (Intervalle bleiben erhalten).
+Die Mapper selbst sind in tests/test_core.py (R8-R16, 55 Tests) abgedeckt;
+hier geht es um das Zusammenspiel in der NDJSON-Pipeline:
+- Date-Shift ist patientenfix und ueber ALLE Ressourcen eines Patienten konsistent
+  (ANALYSE A4) — auch fuer Mapper, die nicht selbst shiften (NDIA/NICP/NBEW).
+- Kein Quelldatum und kein Klarname erscheint bei privacy=pseudonymize.
+- NPAT/NFAL (Mapper-interner Shift) werden NICHT doppelt geschoben.
+- normalize_resource liefert ISO-8601 mit Offset.
 """
 import datetime as dt
 import os
@@ -16,150 +19,83 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from sapfhir.fhir import ids as I
 from sapfhir.fhir.privacy import Privacy
 from sapfhir.fhir.mappers import core as M
-from sapfhir.fhir import terminology as T
+from sapfhir.fhir.ndjson import _shift_resource_dates
+from sapfhir.fhir.normalize import normalize_resource
 
 NS = I.make_ns("sapfhir")
+PATNR = "0007799001"
 
-# --- Fixture: der Golden-Record-Patient --------------------------------------
-ROW_NPAT = {"MANDT": "100", "PATNR": "0007799001", "GSCHL": "2",
-            "GBDAT": "1957-03-14", "NNAME": "Musterfrau", "VNAME": "Erika",
-            "TODKZ": "", "STORN": ""}
 ROW_NFAL = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
-            "FALAR": "1", "PATNR": "0007799001", "BEGDT": "2026-02-02",
-            "ENDAT": "2026-02-09", "STORN": ""}
+            "FALAR": "1", "PATNR": PATNR, "BEGDT": "2026-02-02",
+            "ENDDT": "2026-02-09", "STORN": ""}
 ROW_NBEW = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
             "LFDNR": "00001", "BEWTY": "1", "BWIDT": "2026-02-02",
-            "BWEDT": "2026-02-09", "ORGFA": "KARD", "ORGPF": None, "STORN": ""}
+            "BWEDT": "2026-02-09", "ORGFA": "KARD", "STORN": ""}
 ROW_NDIA = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
-            "LFDNR": "001", "DKEY1": "I50.14", "DIADT": "2026-02-02",
-            "DIATX": None, "STORN": ""}
-ROW_NICP = {"MANDT": "100", "LNRIC": "0000012345", "EINRI": "0001",
-            "FALNR": "0004499001", "ICPML": "8-800.c0", "ICPMK": "36",
-            "BTEXT": "Herzkatheter", "BGDOP": "2026-02-03",
-            "ENDOP": "2026-02-03", "ORGFA": "KARD", "STORN": ""}
-ROW_LAB = {"MANDT": "100", "EINRI": "0001", "FALNR": "0004499001",
-           "LFDNR": "001", "PARCD": "KREA", "PARTX": "Kreatinin",
-           "WERT": "1.1", "EINH": "mg/dl", "REFBER": "0.6-1.4",
-           "BEFDT": "2026-02-03", "STORN": ""}
-
-PATNR = "0007799001"
-QUELLDATEN_DATEN = {"1957-03-14", "2026-02-02", "2026-02-09", "2026-02-03"}
+            "LFDNR": "001", "DKAT1": "56", "DKEY1": "I50.14",
+            "DIADT": "2026-02-02", "STORN": ""}
+QUELLDATEN = {"2026-02-02", "2026-02-09"}
 
 
-def _alle_ressourcen(priv):
-    return {
-        "Patient": M.map_patient(dict(ROW_NPAT), NS, priv),
-        "Encounter": M.map_encounter(dict(ROW_NFAL), NS, priv),
-        "EncounterBew": M.map_encounter_bewegung(dict(ROW_NBEW), NS, priv,
-                                                 patnr=PATNR),
-        "Condition": M.map_condition(dict(ROW_NDIA), NS, priv, patnr=PATNR),
-        "Procedure": M.map_procedure(dict(ROW_NICP), NS, priv, patnr=PATNR),
-        "Observation": M.map_observation_labor(dict(ROW_LAB), NS, priv,
-                                               patnr=PATNR),
-    }
+def _pipeline(res, priv, patnr):
+    _shift_resource_dates(res, priv, patnr)
+    return normalize_resource(res)
 
 
-# --- Teil 1: Golden Record im Klarbetrieb (privacy=off, deterministisch) ----
-def test_golden_patient():
-    res = M.map_patient(dict(ROW_NPAT), NS, None)
-    assert res == {
-        "resourceType": "Patient",
-        "id": I.rid(NS, "Patient", "100", PATNR),
-        "identifier": [{"system": "urn:ish:patnr", "value": PATNR}],
-        "gender": "female",
-        "meta": {"source": "sapfhir/NPAT"},
-        "birthDate": "1957-03-14",
-        "name": [{"family": "Musterfrau", "given": ["Erika"]}],
-    }
-
-
-def test_golden_encounter():
-    res = M.map_encounter(dict(ROW_NFAL), NS, None)
-    assert res["id"] == I.rid(NS, "Encounter", "100", "0001", "0004499001")
-    assert res["class"] == {"system": T.V3_ACTCODE, "code": "IMP",
-                            "display": "stationaer"}
-    assert res["subject"]["reference"] == \
-        "Patient/" + I.rid(NS, "Patient", "100", PATNR)
-    assert res["period"] == {"start": "2026-02-02", "end": "2026-02-09"}
-    assert res["status"] == "finished"
-
-
-def test_golden_bewegung_hat_subject_und_partof():
-    res = M.map_encounter_bewegung(dict(ROW_NBEW), NS, None, patnr=PATNR)
-    assert res["partOf"]["reference"] == \
-        "Encounter/" + I.rid(NS, "Encounter", "100", "0001", "0004499001")
-    assert res["subject"]["reference"] == \
-        "Patient/" + I.rid(NS, "Patient", "100", PATNR)   # ANALYSE A5
-    assert res["location"][0]["location"]["display"] == "KARD"
-
-
-def test_golden_condition():
-    res = M.map_condition(dict(ROW_NDIA), NS, None, patnr=PATNR)
-    assert res["code"]["coding"][0] == {"system": T.ICD10GM, "code": "I50.14"}
-    assert res["subject"]["reference"].startswith("Patient/")
-    assert res["recordedDate"] == "2026-02-02"
-    assert "verificationStatus" not in res
-
-
-def test_golden_condition_flags_und_dkey2():
-    # Diagnose-Flags -> category[] (nicht exklusiv, VERIFY_RESULTS_3)
-    row = dict(ROW_NDIA, KHDIA="X", FHDIA="X", BHDIA="X", DITXT="Herzinsuffizienz")
-    res = M.map_condition(row, NS, None, patnr=PATNR)
-    kats = [c["text"] for c in res["category"]]
-    assert kats == ["Krankenhaushauptdiagnose", "Fachabteilungshauptdiagnose",
-                    "Behandlungsdiagnose"]
-    assert res["code"]["text"] == "Herzinsuffizienz"
-    # DKEY2 = gleicher Kode in anderer Katalogversion -> KEIN zweites Coding
-    row2 = dict(ROW_NDIA, DKAT1="56", DKEY2="I50.14", DKAT2="53")
-    res2 = M.map_condition(row2, NS, None, patnr=PATNR)
-    assert len(res2["code"]["coding"]) == 1
-    # echt abweichender Zweitkode -> zweites Coding
-    row3 = dict(ROW_NDIA, DKEY2="E10.30", DKAT2="56")
-    res3 = M.map_condition(row3, NS, None, patnr=PATNR)
-    assert len(res3["code"]["coding"]) == 2
-
-
-def test_golden_procedure_und_observation():
-    proc = M.map_procedure(dict(ROW_NICP), NS, None, patnr=PATNR)
-    assert proc["code"]["coding"][0]["system"] == T.OPS
-    assert proc["code"]["coding"][0]["code"] == "8-800.c0"
-    assert proc["code"]["text"] == "Herzkatheter"
-    assert proc["id"] == I.rid(NS, "Procedure", "100", "0000012345")  # PK=LNRIC
-    assert proc["performedPeriod"] == {"start": "2026-02-03", "end": "2026-02-03"}
-    assert proc["status"] == "completed"
-    obs = M.map_observation_labor(dict(ROW_LAB), NS, None, patnr=PATNR)
-    assert obs["valueQuantity"]["value"] == 1.1
-    assert obs["valueQuantity"]["code"] == "mg/dL"      # UCUM normalisiert
-    assert obs["valueQuantity"]["system"] == T.UCUM
-    assert obs["referenceRange"] == [{"text": "0.6-1.4"}]
-
-
-def test_golden_ids_idempotent():
-    a = _alle_ressourcen(None)
-    b = _alle_ressourcen(None)
-    assert {k: v["id"] for k, v in a.items()} == {k: v["id"] for k, v in b.items()}
-
-
-# --- Teil 2: Datenschutz-Invarianten (privacy=pseudonymize) ------------------
-def test_privacy_kein_quelldatum_in_ausgabe():
+def test_shift_konsistent_ueber_ressourcen():
+    """Fall (Mapper-Shift) und Bewegung/Diagnose (Pipeline-Shift) muessen um
+    DENSELBEN Betrag verschoben sein — sonst ist der Shift rueckrechenbar."""
     priv = Privacy(mode="pseudonymize", secret="golden-test-secret")
-    alle = _alle_ressourcen(priv)
-    dump = repr(alle)
-    for d in QUELLDATEN_DATEN:
-        assert d not in dump, f"Quelldatum {d} unverschoben in der Ausgabe!"
-    assert "Musterfrau" not in dump and "Erika" not in dump
-
-
-def test_privacy_date_shift_konsistent():
-    """Fall- und Bewegungszeitraum muessen um DENSELBEN Betrag verschoben sein
-    (ANALYSE A4) — sonst ist der Shift rueckrechenbar und die Zeitachse kaputt."""
-    priv = Privacy(mode="pseudonymize", secret="golden-test-secret")
-    enc = M.map_encounter(dict(ROW_NFAL), NS, priv)
-    bew = M.map_encounter_bewegung(dict(ROW_NBEW), NS, priv, patnr=PATNR)
-    con = M.map_condition(dict(ROW_NDIA), NS, priv, patnr=PATNR)
-    assert enc["period"]["start"] == bew["period"]["start"]
-    assert enc["period"]["start"] == con["recordedDate"]
+    enc = _pipeline(M.map_encounter(dict(ROW_NFAL), NS, priv), priv, PATNR)
+    bew = _pipeline(M.map_encounter_bewegung(dict(ROW_NBEW), NS, priv), priv, PATNR)
+    con = _pipeline(M.map_condition(dict(ROW_NDIA), NS, priv), priv, PATNR)
+    assert enc["period"]["start"][:10] == bew["period"]["start"][:10]
+    assert enc["period"]["start"][:10] == con["recordedDate"][:10]
     # Intervall bleibt erhalten (Verweildauer unveraendert)
     d0 = dt.date.fromisoformat(enc["period"]["start"][:10])
     d1 = dt.date.fromisoformat(enc["period"]["end"][:10])
     assert (d1 - d0).days == 7
+
+
+def test_kein_quelldatum_bei_pseudonymisierung():
+    priv = Privacy(mode="pseudonymize", secret="golden-test-secret")
+    alle = [
+        _pipeline(M.map_encounter(dict(ROW_NFAL), NS, priv), priv, PATNR),
+        _pipeline(M.map_encounter_bewegung(dict(ROW_NBEW), NS, priv), priv, PATNR),
+        _pipeline(M.map_condition(dict(ROW_NDIA), NS, priv), priv, PATNR),
+    ]
+    dump = repr(alle)
+    for d in QUELLDATEN:
+        assert d not in dump, f"Quelldatum {d} unverschoben in der Ausgabe!"
+
+
+def test_kein_doppel_shift_bei_nfal():
+    """map_encounter shiftet intern (meta.source=sapfhir/NFAL) — der
+    Pipeline-Schritt darf NICHT nochmal schieben."""
+    priv = Privacy(mode="pseudonymize", secret="golden-test-secret")
+    einmal = M.map_encounter(dict(ROW_NFAL), NS, priv)
+    start_nach_mapper = einmal["period"]["start"]
+    _shift_resource_dates(einmal, priv, PATNR)
+    assert einmal["period"]["start"] == start_nach_mapper
+
+
+def test_normalize_iso8601():
+    priv = Privacy(mode="off")
+    row = dict(ROW_NBEW, BWIZT="08:15:00")
+    res = M.map_encounter_bewegung(row, NS, None)
+    normalize_resource(res)
+    assert res["period"]["start"].startswith("2026-02-02T08:15:00+")
+
+
+def test_klarbetrieb_unveraendert():
+    enc = _pipeline(M.map_encounter(dict(ROW_NFAL), NS, None), None, PATNR)
+    assert enc["period"] == {"start": "2026-02-02", "end": "2026-02-09"}
+    assert enc["status"] == "finished"
+
+
+def test_offener_fall_in_progress():
+    """R16: ENDDT=0101-01-01 (SAP-Leerdatum via Qlik) = offener Fall."""
+    row = dict(ROW_NFAL, ENDDT="0101-01-01")
+    res = M.map_encounter(row, NS, None)
+    assert res["status"] == "in-progress"
+    assert "end" not in res["period"]

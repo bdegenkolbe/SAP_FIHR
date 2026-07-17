@@ -21,7 +21,7 @@ _SPEC = {
              ["MANDT", "PATNR", "GSCHL", "~GBDAT", "~NNAME", "~VNAME",
               "TODKZ", "STORN"]),
     "nfal": ("fall",
-             ["MANDT", "EINRI", "FALNR", "PATNR", "FALAR", "BEGDT", "ENDAT",
+             ["MANDT", "EINRI", "FALNR", "PATNR", "FALAR", "BEGDT", "ENDDT",
               "FACHR", "STATU", "ABRKZ", "STORN"]),
     "nbew": ("bewegung",
              ["MANDT", "EINRI", "FALNR", "LFDNR", "BEWTY", "BWART", "BWGR1",
@@ -31,14 +31,11 @@ _SPEC = {
               "DIAGW", "DIADT", "KHDIA", "FHDIA", "AFDIA", "ENDIA", "BHDIA",
               "OPDIA", "STORN"]),
     "nicp": ("prozedur",
-             ["MANDT", "EINRI", "FALNR", "LNRIC", "LFDNR", "ICPML", "ICPK1",
-              "BTEXT", "BGDOP", "ENDOP", "ORGFA", "ICDAT", "STORN"]),
-    "n2labor": ("labor",
-                ["MANDT", "EINRI", "FALNR", "LFDNR", "PARCD", "PARTX", "WERT",
-                 "EINH", "REFBER", "BEFDT", "STORN"]),
+             ["MANDT", "EINRI", "FALNR", "LNRIC", "ICPML", "ICPMK",
+              "BTEXT", "BGDOP", "ENDOP", "ORGFA", "STORN"]),
     "ndoc": ("dokument",
-             ["MANDT", "EINRI", "DOCID", "FALNR", "PATNR", "DOCTY", "DOCKA",
-              "DOCDT", "STORN"]),
+             ["MANDT", "EINRI", "DOKAR", "DOKNR", "DOKVR", "DOKTL", "LFDDOK",
+              "PATNR", "FALNR", "DTID", "MEDOK", "DODAT", "STORN"]),
 }
 
 
@@ -80,6 +77,24 @@ def build(con: duckdb.DuckDBPyConnection, pseudonymize: bool = True) -> list[str
         con.execute(f'CREATE OR REPLACE TABLE mcp."{name}" AS '
                     f'SELECT {", ".join(sel)} FROM bronze_current."{src}" {where}')
         made.append(name)
+    # Labor: Kopf (N2LABOR) + Werte (N2LABOR001) ueber DVS-Schluessel joinen (R8)
+    have = lambda t: bool(con.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_schema='bronze_current' "
+        "AND table_name=?", [t]).fetchone())
+    if have("n2labor") and have("n2labor001"):
+        con.execute("""
+            CREATE OR REPLACE TABLE mcp.labor AS
+            SELECT h."N2LAPATNR" AS PATNR, h."N2LAFALNR" AS FALNR,
+                   h."N2LAEINRI" AS EINRI,
+                   t."N2LEISTID" AS LEISTID, t."N2KATTEXT" AS KATTEXT,
+                   t."N2VALUE" AS WERT, t."N2UNIT" AS EINH,
+                   t."N2NORMAL" AS REFBER, t."N2ABNORMAL" AS ABNORMAL,
+                   COALESCE(t."N2DATE", h."N2LADATUM") AS BEFDT
+            FROM bronze_current.n2labor001 t
+            LEFT JOIN bronze_current.n2labor h
+              USING ("DOKAR","DOKNR","DOKVR","DOKTL")""")
+        made.append("labor")
+
     # Merkzettel fuer den Server: mit welcher Maskierung wurde gebaut?
     con.execute("CREATE OR REPLACE TABLE mcp._built AS SELECT ? AS pseudonymize, "
                 "now() AS ts", [pseudonymize])

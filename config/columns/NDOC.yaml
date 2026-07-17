@@ -1,16 +1,26 @@
-# Schmale Spaltenprojektion fuer NDOC (Dokument-Koepfe, ~54 Mio Zeilen).
+# Schmale Spaltenprojektion fuer NDOC (~54 Mio; meistgenutzte Tabelle im DIAS-Baum).
+# R8-KORREKTUR: NDOC ist die Zuordnung IS-H-Objekt <-> DVS-Dokument; die frueheren
+# Feldnamen (DOCID/DOCKA/DOCDT/DOCTX) existieren NICHT.
 table: NDOC
 schema: sap
 select:
   - MANDT
-  - EINRI      # VERIFY ob Teil des Schluessels
-  - DOCID      # Dokument-ID VERIFY
-  - FALNR      # Fallbezug VERIFY
-  - PATNR      # Patientenbezug VERIFY
-  - DOCTY      # Dokumenttyp VERIFY
-  - DOCKA      # Dokumentkategorie VERIFY
-  - DOCDT      # Dokumentdatum VERIFY
-  - DOCST      # Status VERIFY
-  - STORN      # VERIFY
+  - DOKAR      # Dokumentart (DVS)
+  - DOKNR      # Dokumentnummer
+  - DOKVR      # Version
+  - DOKTL      # Teildokument
+  - LFDDOK     # laufende Nummer (Teil des PK)
+  - EINRI
+  - PATNR      # -> NPAT (verifiziert R8)
+  - FALNR      # -> NFAL
+  - LFDBEW     # -> NBEW (Bewegungsbezug)
+  - DTID       # Dokumenttyp -> N2DT (nicht repliziert -> Rohcode)
+  - MEDOK      # 'X' = medizinisches Dokument
+  - MITARB     # Autor -> NGPA/Practitioner
+  - ORGDO      # dokumentierende OE -> NORG
+  - DODAT      # Dokumentdatum
+  - DOTIM      # Dokumentzeit
+  - STORN
+  - LOEKZ
   - ERDAT
   - UPDAT

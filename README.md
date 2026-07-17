@@ -18,6 +18,9 @@ SAP_FIHR/
 ├── CLAUDE.md                 # Arbeitsanleitung für Claude Code (zuerst lesen)
 ├── docs/
 │   ├── CONCEPT.md            # Gesamtkonzept v0.2 + Architektur + Mengengerüst + Mapping
+│   ├── Analyse_Datenbank.md  # VERBINDLICHE Methode (Dreiklang, Breitensuche, Verkryptung)
+│   ├── GESAMTREVIEW.md       # Gesamtprüfung Tabellen + Konzeptkonsistenz (nach R16)
+│   ├── VERIFY_LOG_R8-R13.md  # Live-Verifikationsrunden R8–R16 (lokale Session)
 │   ├── ANALYSE.md            # Review-Befunde v0.1 → v0.2 (Lücken, Risiken, Prioritäten)
 │   ├── DEPLOYMENT.md         # No-Admin-Installation, Scheduling, Betrieb, Backup
 │   └── MCP_SETUP.md          # Claude Desktop / LibreChat-Anbindung

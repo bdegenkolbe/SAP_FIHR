@@ -8,8 +8,10 @@ select:
   - FALAR      # Fallart (1=stationaer/2=ambulant/3=teilstat.) VERIFY
   - PATNR      # -> Patient-Referenz
   - BEGDT      # Fallbeginn
-  - ENDAT      # Fallende (Datum)
-  - ENTIM      # Fallende (Zeit)
+  - ENDDT      # Fallende (R7-KORREKTUR: ENDAT ist das ENTBINDUNGSdatum!)
+               # Sentinel: 0101-01-01 = SAP-Leerdatum via Qlik = offener Fall
+  - PATGEW     # Aufnahmegewicht (Observation-Kandidat, R7)
+  - PATGRO     # Aufnahmegroesse (Observation-Kandidat, R7)
   - FACHR      # Fachrichtung
   - FATYP      # Fall-Typ (Altbestand)
   - STORN      # Storno

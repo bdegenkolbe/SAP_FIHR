@@ -135,32 +135,30 @@ def test_audit_hash_kette(tmp_path):
     assert "P1" not in open(p).read()
 
 
-def test_lookups_katalog_und_fallback(tmp_path):
-    """Katalog vorhanden -> Klartext; Katalog fehlt -> Fallback-Enum greift."""
-    from sapfhir.fhir.lookups import Lookups
+def test_nkdi_kodetext_lookup(tmp_path):
+    """NKDI-Katalog in Bronze -> kodetext-Lookup ('<DKAT>|<DKEY>' -> DTEXT1)
+    fuer map_condition (R13); ohne Katalog bleibt der Rohcode ohne Display."""
+    from sapfhir.fhir.ndjson import _lookup_kodetext
     from sapfhir.fhir import ids as I
     from sapfhir.fhir.mappers import core as M
 
-    base = tmp_path / "bronze" / "tn14t"
+    base = tmp_path / "bronze" / "nkdi"
     base.mkdir(parents=True)
     pq.write_table(pa.Table.from_pylist([
-        {"MANDT": "100", "EINRI": "01", "BEWTY": "2", "BEWTX": "Entlassung (Haustext)"},
+        {"MANDT": "100", "SPRAS": "D", "DKAT": "56", "DKEY": "I50.14",
+         "DTEXT1": "Herzinsuffizienz (Haustext)"},
     ]), str(base / "part-0.parquet"))
     con = duckdb.connect()
-    reg = {"TN14T": {"schema": "sap", "pk": ["MANDT", "EINRI", "BEWTY"],
-                     "cdc": "full", "tier": 1}}
+    reg = {"NKDI": {"schema": "sap", "pk": ["MANDT", "SPRAS", "DKAT", "DKEY"],
+                    "cdc": "full", "tier": 1}}
     MG.create_views(con, reg, str(tmp_path / "bronze"))
-    lk = Lookups(con)
-    assert "bewegungstyp" in lk.loaded
-    assert lk.bewegungstyp("2") == "Entlassung (Haustext)"
-    assert lk.bewegungstyp("99") is None
+    kt = _lookup_kodetext(con)
+    assert kt.get("56|I50.14") == "Herzinsuffizienz (Haustext)"
 
     ns = I.make_ns()
     row = {"MANDT": "100", "EINRI": "01", "FALNR": "F1", "LFDNR": "1",
-           "BEWTY": "2", "BWIDT": "2026-01-01", "STORN": ""}
-    # mit Katalog: Haustext
-    res = M.map_encounter_bewegung(row, ns, None, patnr="P1", lookups=lk)
-    assert res["type"][0]["text"] == "Entlassung (Haustext)"
-    # ohne Katalog: verifizierte Fallback-Enum (BEWTY 2=Entlassung, VERIFY_RESULTS_4)
-    res2 = M.map_encounter_bewegung(row, ns, None, patnr="P1", lookups=None)
-    assert res2["type"][0]["text"] == "Entlassung"
+           "DKAT1": "56", "DKEY1": "I50.14", "DIADT": "2026-01-01", "STORN": ""}
+    res = M.map_condition(row, ns, None, kodetext=kt)
+    assert res["code"]["coding"][0]["display"] == "Herzinsuffizienz (Haustext)"
+    res2 = M.map_condition(row, ns, None, kodetext=None)
+    assert "display" not in res2["code"]["coding"][0]

@@ -17,16 +17,19 @@ WHERE COALESCE(STORN,'') IN ('','0')
 GROUP BY 1, 2
 ORDER BY 1;
 
--- Verweildauer stationaerer Faelle (Tage)
+-- Verweildauer stationaerer Faelle (Tage).
+-- R7/R16: Fallende = ENDDT (ENDAT waere das Entbindungsdatum!); Sentinel
+-- 0101-01-01 (SAP-Leerdatum via Qlik) und 9999* = offener Fall -> ausschliessen.
 CREATE OR REPLACE VIEW gold.verweildauer AS
 SELECT
     FALNR,
     TRY_CAST(BEGDT AS DATE)                                   AS aufnahme,
-    TRY_CAST(ENDAT AS DATE)                                   AS entlassung,
-    date_diff('day', TRY_CAST(BEGDT AS DATE), TRY_CAST(ENDAT AS DATE)) AS vwd_tage
+    TRY_CAST(ENDDT AS DATE)                                   AS entlassung,
+    date_diff('day', TRY_CAST(BEGDT AS DATE), TRY_CAST(ENDDT AS DATE)) AS vwd_tage
 FROM bronze_current.nfal
-WHERE FALAR = '1'               -- VERIFY stationaer
-  AND ENDAT IS NOT NULL
+WHERE FALAR = '1'
+  AND ENDDT IS NOT NULL
+  AND substr(CAST(ENDDT AS VARCHAR),1,4) NOT IN ('0101','9999')
   AND COALESCE(STORN,'') IN ('','0');
 
 -- Top-Hauptdiagnosen (ICD-10-GM) — nur echte KH-Hauptdiagnosen (KHDIA-Flag),

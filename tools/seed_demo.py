@@ -58,8 +58,9 @@ def main(argv=None):
 
     npat, nadr, nfal, nbew, ndia, nicp, n2labor, ndoc, n2text = \
         [], [], [], [], [], [], [], [], []
-    napx_fal, nksk = [], []
+    napx_fal, napx, nksk, n2labor001 = [], [], [], []
     doc_id = 0
+    lab_id = 0
     lnric = 0
     apxnr = 0
     for pi in range(1, args.patienten + 1):
@@ -71,7 +72,8 @@ def main(argv=None):
                      "NNAME": random.choice(NAMEN), "VNAME": random.choice(VORNAMEN),
                      "ADRNR": adrnr, "TODKZ": "", "STORN": "",
                      "ERDAT": "2020-01-01", "UPDAT": "2026-01-01"})
-        nadr.append({"MANDT": "100", "ADRNR": adrnr, "STRAS": f"Demoweg {pi}",
+        nadr.append({"MANDT": "100", "ADRNR": adrnr, "ADROB": "NPAT",
+                     "STRAS": f"Demoweg {pi}",
                      "PSTLZ": "12345", "ORT01": "Musterstadt", "LAND1": "DE",
                      "ERDAT": "2020-01-01", "UPDAT": "2020-01-01"})
         vorfall_ende = None
@@ -90,7 +92,7 @@ def main(argv=None):
             nfal.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
                          "FALAR": fal_art, "PATNR": patnr,
                          "BEGDT": beg.isoformat(),
-                         "ENDAT": end.isoformat() if fal_art == "1" else None,
+                         "ENDDT": end.isoformat() if fal_art == "1" else None,
                          "FACHR": random.choice(OES), "STATU": "E",
                          "ABRKZ": "2", "STASP": "", "STORN": "", "STDAT": None,
                          "ERDAT": beg.isoformat(), "UPDAT": end.isoformat()})
@@ -100,6 +102,8 @@ def main(argv=None):
                 apxnr += 1
                 ax = f"{apxnr:010d}"
                 reason = random.choice(["WA", "KO", "RV", "OG"])
+                napx.append({"MANDT": "100", "APXNR": ax, "STORN": "",
+                             "ERDAT": beg.isoformat(), "UPDAT": beg.isoformat()})
                 napx_fal.append({"MANDT": "100", "EINRI": "0001", "APXNR": ax,
                                  "FALNR": vorfalnr, "LEAD": "X",
                                  "REASON": reason, "STORN": "",
@@ -153,28 +157,45 @@ def main(argv=None):
                 nicp.append({"MANDT": "100", "LNRIC": f"{lnric:010d}",
                              "EINRI": "0001", "FALNR": falnr, "LFDNR": "001",
                              "ICPML": random.choice(OPS), "ICPMK": "36",
-                             "ICPK1": None, "BTEXT": "Demo-Prozedur",
+                             "BTEXT": "Demo-Prozedur", "LSLOK": "",
+                             "BZTOP": "08:30:00", "EZTOP": "10:15:00",
                              "BGDOP": beg.isoformat(), "ENDOP": beg.isoformat(),
                              "ORGFA": oes[0], "ICDAT": beg.isoformat(),
                              "STORN": ""})
-            for k in range(random.randint(0, 3)):
-                code, txt, einh, lo, hi = random.choice(LABS)
-                n2labor.append({"MANDT": "100", "EINRI": "0001", "FALNR": falnr,
-                                "LFDNR": f"{k+1:03d}", "PARCD": code, "PARTX": txt,
-                                "WERT": str(round(random.uniform(lo, hi * 1.3), 2)),
-                                "EINH": einh, "REFBER": f"{lo}-{hi}",
-                                "BEFDT": beg.isoformat(), "STORN": ""})
+            if random.random() < 0.7:
+                lab_id += 1
+                doknr = f"L{lab_id:08d}"
+                n2labor.append({"MANDT": "100", "DOKAR": "LAB", "DOKNR": doknr,
+                                "DOKVR": "01", "DOKTL": "000",
+                                "N2LAEINRI": "0001", "N2LAPATNR": patnr,
+                                "N2LAFALNR": falnr,
+                                "N2LADATUM": beg.isoformat(),
+                                "N2LATIME": "07:45:00", "N2LASTATUS": "F"})
+                for k in range(random.randint(1, 3)):
+                    code, txt, einh, lo, hi = random.choice(LABS)
+                    wert = round(random.uniform(lo, hi * 1.3), 2)
+                    n2labor001.append({
+                        "MANDT": "100", "DOKAR": "LAB", "DOKNR": doknr,
+                        "DOKVR": "01", "DOKTL": "000", "MUSEQ": f"{k+1:04d}",
+                        "N2LEISTID": code, "N2KATTEXT": txt,
+                        "N2VALUE": str(wert).replace(".", ","),
+                        "N2UNIT": einh, "N2NORMAL": f"{lo}-{hi}",
+                        "N2ABNORMAL": "H" if wert > hi else "",
+                        "N2DATE": beg.isoformat(), "N2TIME": "07:45:00",
+                        "N2VSTATUS": "F"})
             if random.random() < 0.6:
                 doc_id += 1
-                did = f"D{doc_id:08d}"
-                ndoc.append({"MANDT": "100", "EINRI": "0001", "DOCID": did,
-                             "FALNR": falnr, "PATNR": patnr, "DOCTY": "ARZTBRIEF",
-                             "DOCKA": "BRIEF", "DOCDT": end.isoformat(),
-                             "STORN": ""})
-                n2text.append({"MANDT": "100", "EINRI": "0001",
-                               "TEXTID": f"T{doc_id:08d}", "DOCID": did,
-                               "FALNR": falnr, "PATNR": patnr,
-                               "TEXTINHALT": (
+                doknr = f"D{doc_id:08d}"
+                ndoc.append({"MANDT": "100", "EINRI": "0001", "DOKAR": "MED",
+                             "DOKNR": doknr, "DOKVR": "01", "DOKTL": "000",
+                             "LFDDOK": "0001", "PATNR": patnr, "FALNR": falnr,
+                             "DTID": "ARZ", "MEDOK": "X", "MITARB": "",
+                             "ORGDO": oes[0], "DODAT": end.isoformat(),
+                             "DOTIM": "12:00:00", "STORN": "", "LOEKZ": ""})
+                n2text.append({"MANDT": "100", "DOKAR": "MED", "DOKNR": doknr,
+                               "DOKVR": "01", "DOKTL": "000", "DOKTAB": "TXT",
+                               "DOKFLD": "TEXT", "DOKOCC": "0001",
+                               "TXT": (
                                    f"Entlassbrief (fiktiv). Diagnose {icd}. "
                                    f"Aufenthalt {beg} bis {end} auf {oes[0]}. "
                                    f"Verlauf unauffaellig, Demo-Datensatz.")})
@@ -188,11 +209,13 @@ def main(argv=None):
     _w("n2labor", n2labor)
     _w("ndoc", ndoc)
     _w("n2text", n2text)
+    _w("napx", napx)
     _w("napx_fal", napx_fal)
     _w("nksk", nksk)
+    _w("n2labor001", n2labor001)
 
     # Katalogtabellen (Referenzschicht) — speisen die Lookup-Schicht (fhir/lookups.py)
-    _w("tn14t", [{"MANDT": "100", "EINRI": "0001", "BEWTY": b, "BEWTX": t}
+    _w("tn14t", [{"MANDT": "100", "SPRAS": "D", "EINRI": "0001", "BEWTY": b, "BEWTX": t}
                  for b, t in [("1", "Aufnahme"), ("2", "Entlassung"),
                               ("3", "interne Verlegung"), ("4", "ambulanter Besuch"),
                               ("6", "Beurlaubung Beginn"), ("7", "Beurlaubung Ende")]])
@@ -227,8 +250,9 @@ def main(argv=None):
     for t, n in [("NPAT", len(npat)), ("NADR", len(nadr)), ("NFAL", len(nfal)),
                  ("NBEW", len(nbew)), ("NDIA", len(ndia)), ("NICP", len(nicp)),
                  ("N2LABOR", len(n2labor)), ("NDOC", len(ndoc)),
-                 ("N2TEXT", len(n2text)), ("NAPX_FAL", len(napx_fal)),
-                 ("NKSK", len(nksk))]:
+                 ("N2TEXT", len(n2text)), ("NAPX", len(napx)),
+                 ("NAPX_FAL", len(napx_fal)), ("NKSK", len(nksk)),
+                 ("N2LABOR001", len(n2labor001))]:
         con.execute("INSERT INTO _meta.extract_state VALUES "
                     "('sap',?,'backfill',NULL,NULL,?,now(),1.0)", [t, n])
     con.execute("INSERT INTO _meta.extract_state VALUES "

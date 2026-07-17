@@ -36,7 +36,7 @@ _NODE_SQL = {
         "FROM bronze_current.npat WHERE PATNR IS NOT NULL", "npat"),
     "fall": (
         "SELECT DISTINCT FALNR AS falnr, CAST(FALAR AS VARCHAR) AS fallart, "
-        "TRY_CAST(BEGDT AS DATE) AS beg, TRY_CAST(ENDAT AS DATE) AS ende "
+        "TRY_CAST(BEGDT AS DATE) AS beg, TRY_CAST(ENDDT AS DATE) AS ende "
         "FROM bronze_current.nfal WHERE FALNR IS NOT NULL", "nfal"),
     # Kanten/Knoten mit Fallbezug filtern auf existierende Faelle — nach einem
     # CDC-Delete koennen Detailzeilen sonst auf geloeschte Knoten zeigen.
@@ -54,9 +54,9 @@ _NODE_SQL = {
         "SELECT DISTINCT DKEY1 AS icd FROM bronze_current.ndia "
         "WHERE DKEY1 IS NOT NULL", "ndia"),
     "prozedur": (
-        "SELECT DISTINCT COALESCE(CAST(ICPML AS VARCHAR), CAST(ICPK1 AS VARCHAR)) AS ops "
+        "SELECT DISTINCT CAST(ICPML AS VARCHAR) AS ops "
         "FROM bronze_current.nicp "
-        "WHERE COALESCE(CAST(ICPML AS VARCHAR), CAST(ICPK1 AS VARCHAR)) IS NOT NULL", "nicp"),
+        "WHERE CAST(ICPML AS VARCHAR) IS NOT NULL", "nicp"),
 }
 
 _REL_SQL = {
@@ -85,9 +85,9 @@ _REL_SQL = {
         "WHERE DKEY1 IS NOT NULL AND FALNR IN "
         "(SELECT FALNR FROM bronze_current.nfal)", "ndia"),
     "HAT_PROZEDUR": (
-        "SELECT DISTINCT FALNR, COALESCE(CAST(ICPML AS VARCHAR), CAST(ICPK1 AS VARCHAR)) "
+        "SELECT DISTINCT FALNR, CAST(ICPML AS VARCHAR) "
         "FROM bronze_current.nicp "
-        "WHERE COALESCE(CAST(ICPML AS VARCHAR), CAST(ICPK1 AS VARCHAR)) IS NOT NULL AND FALNR IN "
+        "WHERE CAST(ICPML AS VARCHAR) IS NOT NULL AND FALNR IN "
         "(SELECT FALNR FROM bronze_current.nfal)", "nicp"),
 }
 
@@ -117,7 +117,7 @@ _ZUSAMMEN_SQL = (
 # WIEDERAUFNAHME: < {tage} Tage + gleiche ICD-Dreisteller-Gruppe der Hauptdiagnose
 _WIEDERAUFNAHME_SQL = (
     "WITH f AS (SELECT PATNR, FALNR, TRY_CAST(BEGDT AS DATE) beg, "
-    "  TRY_CAST(ENDAT AS DATE) ende FROM bronze_current.nfal "
+    "  TRY_CAST(ENDDT AS DATE) ende FROM bronze_current.nfal "
     "  WHERE PATNR IS NOT NULL AND FALNR IS NOT NULL), "
     "hd AS (SELECT FALNR, substr(MIN(DKEY1), 1, 3) icd3 "
     "  FROM bronze_current.ndia WHERE DKEY1 IS NOT NULL GROUP BY 1) "

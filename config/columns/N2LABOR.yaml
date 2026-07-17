@@ -1,20 +1,15 @@
-# Schmale Spaltenprojektion fuer N2LABOR (i.s.h.med Laborbefunde).
-# Schluesselstruktur weicht vom NFAL-Muster ab -> VERIFY gegen Live-DB (CONCEPT §20.10).
+# N2LABOR = Befund-KOPF (DVS-Dokument). Werte liegen in N2LABOR001 (322 Mio!).
 table: N2LABOR
 schema: sap
 select:
   - MANDT
-  - EINRI
-  - FALNR      # VERIFY Fallbezug
-  - LFDNR      # VERIFY Schluessel
-  - PATNR      # VERIFY: falls vorhanden
-  - PARCD      # Parametercode (hauseigen) VERIFY
-  - PARTX      # Parametertext VERIFY
-  - WERT       # Messwert VERIFY
-  - EINH       # Einheit VERIFY
-  - REFBER     # Referenzbereich VERIFY
-  - BEFDT      # Befunddatum VERIFY
-  - BEFZT      # Befundzeit VERIFY
-  - STORN      # VERIFY
-  - ERDAT
-  - UPDAT
+  - DOKAR
+  - DOKNR
+  - DOKVR
+  - DOKTL
+  - N2LAEINRI  # Einrichtung
+  - N2LAPATNR  # -> NPAT
+  - N2LAFALNR  # -> NFAL
+  - N2LADATUM  # Befunddatum
+  - N2LATIME   # Befundzeit
+  - N2LASTATUS # Status (F/P/C/S -> DiagnosticReport.status)

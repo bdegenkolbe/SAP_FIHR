@@ -11,7 +11,7 @@
 
 defaults:
   mandt: "100"          # verifiziert (Live-Stichprobe NPAT: MANDT=100)
-  einri: "0001"         # verifiziert (Live: EINRI=0001); null = alle Einrichtungen
+  einri: "0001"         # verifiziert (Live: EINRI=0001). null = alle Einrichtungen
   partition_by: jahr    # abgeleitet aus fachlichem Datum bzw. ERDAT
 
 tables:
@@ -21,11 +21,14 @@ tables:
     schema: sap
     fhir: Patient
     tier: 1
-    pk: [MANDT, PATNR]     # Patient ist einrichtungsunabhaengig (KEIN EINRI im Schluessel);
-                           # VERIFY gegen INFORMATION_SCHEMA der Replika (ANALYSE A6)
+    pk: [MANDT, PATNR]                 # verifiziert R7 (leanx/sapdatasheet): KEIN EINRI im PK!
     cdc: ct
     partition_date: ERDAT
-    notes: "Stammdaten. Adresse ueber NADR (ADRNR), Geschlecht GSCHL VERIFY-Enum."
+    notes: "Patientenstamm, MANDANTENWEIT (EINRI ist Attribut, FK->TN01). Adresse direkt auf
+            NPAT (ORT/STRAS/PSTLZ/LAND) ODER via ADRNR+ADROB='NPAT'->NADR. Geschlecht GSCHL
+            (1=m,2=w,3=unknown lt. Dict — Haus nutzt 3 evtl. divers, pruefen). Hausarzt
+            HARNR->NGPA, Einweiser EARNR/UARNR->NGPA (-> Patient.generalPractitioner).
+            Tod TODKZ/TODDT, Merge RFPAT."
 
   NFAL:
     schema: sap
@@ -35,8 +38,12 @@ tables:
     cdc: ct
     storno: STORN
     partition_date: BEGDT
-    notes: "Fall. FALAR -> Encounter.class (1=stationaer/2=ambulant/3=teilstat. VERIFY).
-            PATNR-Referenz auf NPAT. ENDAT/ENTIM Fallende, BEGDT Fallbeginn."
+    notes: "Fall (einrichtungsbezogen, EINRI IM PK — anders als NPAT!). FALAR verifiziert R7
+            (Domaene FALLART): 1=stationaer(IMP), 2=ambulant(AMB), 3=teilstat./Tagesfall(SS).
+            KORREKTUR R7: Fallende = ENDDT (ENDDT_FAL), NICHT ENDAT (=Entbindungsdatum ENTDAT!).
+            BEGDT=Fallbeginn. PATNR->NPAT. FACHR->TNKFA (Fachrichtung -> serviceType), BEKAT->TN24,
+            ENDTYP->TN15D (Entlassart -> hospitalization.dischargeDisposition), FATYP->TN15C.
+            PATGEW/PATGRO = Aufnahmegewicht/-groesse (Observation-Kandidaten)."
 
   NBEW:
     schema: sap
@@ -46,8 +53,14 @@ tables:
     cdc: ct
     storno: STORN
     partition_date: BWIDT
-    notes: "Bewegung. BEWTY (Aufnahme/Verlegung/Entlassung/amb. Besuch VERIFY),
-            ORGFA/ORGPF -> OE, Zeitraum BWIDT/BWIZT-BWEDT/BWEZT, LFDREF/VGNREF Kette."
+    notes: "Bewegung. PK verifiziert R7 (sapdatasheet). BEWTY (1=Aufnahme/2=Entlassung/
+            3=Verlegung/4=amb.Besuch/6=Beurlaubung, via TN14T). Zeitraum BWIDT/BWIZT-BWEDT/BWEZT.
+            Kette: VGNREF(Vorgaenger)/NFGREF(Nachfolger) -> NBEW.LFDNR (LFDREF veraltet).
+            OE: ORGFA(fachlich)/ORGPF(pflegerisch)/ORGAU(aufnehmend) -> NORG.ORGID (8-stellig).
+            Ort: ZIMMR(Raum)/BETT(Bett) -> NBAU. Bewegungsgrund BWGR1(Pos1-2)+BWGR2(Pos3-4) ->
+            TN14G. Entlasszustand EZUST -> TN14D (Encounter.hospitalization.dischargeDisposition).
+            Einweisungsart RFSRC -> TN14H, Anreiseart UNFAV -> TN14K (admitSource). FACHR->TNKFA,
+            CLASS->TNP01, OPART->TN14O, BEKAT->TN24, EXTKH->NGPA (externes KH)."
 
   NDIA:
     schema: sap
@@ -57,128 +70,184 @@ tables:
     cdc: ct
     storno: STORN                      # verifiziert
     partition_date: DIADT              # verifiziert
-    notes: "Diagnose. ICD=DKEY1, Katalog=DKAT1('56'=ICD-10-GM), DKEY2 meist Katalog-
-            Redundanz (nur bei DKEY1<>DKEY2 echtes 2. Coding). Klartext=DITXT,
-            Sicherheit=DIAGW (Altbestand; DIASI leer), Lokalisation=DIALO.
-            Verwendung ueber Flags KHDIA/FHDIA/AFDIA/ENDIA/EWDIA/BHDIA/OPDIA/DIAPR.
-            Klartexte je Kode aus NKDI (Referenzschicht)."
+    notes: "Diagnose. ICD=DKEY1, Katalog=DKAT1('56'=ICD-10-GM), Sekundaer=DKEY2/DKAT2
+            (Kreuz-Stern), Klartext=DITXT, Sicherheit=DIASI. Verwendung ueber Flags
+            KHDIA/FHDIA/ENDIA/AFDIA/EWDIA. DRG: DRG_CATEGORY/CCL. Referenz FALNR."
 
   NDIP:
     schema: sap
-    fhir: null            # anreichernd, kein eigener Ressourcentyp
-    tier: 1
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    fhir: null            # anreichernd (Diagnose-Pool/Vorschlag), kein eigener Ressourcentyp
+    tier: 2
+    pk: [MANDT, DIPNO]                 # verifiziert R9 gegen replicate (694.408/694.408 eindeutig)
     cdc: ct
-    notes: "Diagnose-Verwendung/Position -> Condition.category (HD/ND) VERIFY."
+    notes: "KORREKTUR R9: NICHT [MANDT,EINRI,FALNR,LFDNR]. Diagnose-Pool/-Position
+            (Vorschlags-/Sammeldiagnosen). PK DIPNO. DCAT/DKEY=ICD, DLOC=Lokalisation,
+            VKGID=Kontext. Anreicherung; nicht fallbezogen ueber FALNR/LFDNR."
 
   NICP:
     schema: sap
     fhir: Procedure
     tier: 1
-    pk: [MANDT, LNRIC]                 # verifiziert: eigener Prozedur-PK, NICHT FALNR/LFDNR
-    cdc: ct
+    pk: [MANDT, LNRIC]                 # verifiziert R8: PK=[MANDT,LNRIC]. LFDBEW ist NICHT PK,
+    cdc: ct                            # sondern FK->NBEW (Bewegungsbezug).
     storno: STORN
-    partition_date: BGDOP              # verifiziert: OP-Beginn
-    notes: "Prozedur (OPS). Kode=ICPML, Katalog=ICPMK('36'=OPS), Klartext=BTEXT,
-            OP-Zeit=BGDOP/ENDOP+BZTOP/EZTOP, OE=ORGFA/ORGPF, LFDBEW=Bewegungsbezug.
-            FALNR denormalisiert vorhanden."
+    partition_date: BGDOP              # verifiziert: OP-Beginn (ISH_BEGDT_ICP)
+    notes: "Prozedur (OPS). Verifiziert R8 (sapdatasheet, alle Pfade). PK [MANDT,LNRIC]
+            (ISH_LNRIC, global eindeutig). LFDBEW=FK->NBEW (welche Prozedur in welcher
+            Bewegung). Kode ICPML(ICPM_LS), Katalog ICPMK(ICPM_ID,'36'=OPS) FK->TNK01,
+            Klartext BTEXT, OP-Zeit BGDOP/BZTOP..ENDOP/EZTOP. OE ORGFA=ISH_FACHOE_PROC
+            (fachlich, ->NORG, TRAEGT den Procedure.performer), ORGPF=ISH_ERBOE_PROC
+            (erbringend, ->NORG). Lokalisation LSLOK=ISH_PROC_LOC FK->TN26E (->bodySite),
+            OP-Art OPART FK->TN14O (->category). FALNR/EINRI denormalisiert (FK->NFAL/TN01);
+            PATNR fehlt -> subject via Pipeline-Kontext (FALNR->NFAL->PATNR)."
 
   N2LABOR:
     schema: sap
-    fhir: Observation      # category=laboratory
+    fhir: DiagnosticReport # Kopf/Anforderung (verifiziert R6: NICHT die Wertzeile!)
     tier: 1
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY (i.s.h.med-Schluessel weicht ab)
+    pk: [MANDT, DOKAR, DOKNR, DOKVR, DOKTL]   # verifiziert R6 (i.s.h.med-Dokumentschluessel)
     cdc: ct
-    partition_date: null   # VERIFY Befunddatum
-    notes: "Laborbefund i.s.h.med. Wert/Einheit/Referenzbereich. LOINC-Map als Konfig
-            (Start: hauseigene Codes als CodeableConcept.text)."
+    partition_date: N2LADATUM                 # verifiziert R6 (Befunddatum; +N2LATIME)
+    notes: "Laborbefund-KOPF i.s.h.med (14,96 Mio). Ein Dok je Anforderung/Panel.
+            N2LAPATNR/N2LAFALNR/N2LAEINRI=Bezug, N2LADATUM/N2LATIME=Befunddatum,
+            N2LASTATUS, N2KATID/N2KATTEXT=Kategorie, N2PARENT=Elterndok, N2LASYSTEM=Quelle.
+            -> DiagnosticReport; die Werte liegen in N2LABOR001 (Join ueber DOK-Schluessel)."
+  N2LABOR001:
+    schema: sap
+    fhir: Observation      # category=laboratory — je Analyt eine Observation
+    tier: 1
+    pk: [MANDT, DOKAR, DOKNR, DOKVR, DOKTL, MUSEQ]   # verifiziert R6 (Kopf-Schluessel + Zeilennr.)
+    cdc: ct
+    partition_date: N2DATE
+    notes: "Laborbefund-WERTZEILE (322 Mio! GROESSTE klinische Tabelle -> schmale Projektion +
+            Backfill im Lastfenster). Join auf N2LABOR ueber DOKAR/DOKNR/DOKVR/DOKTL.
+            N2VALUE=Wert(60), N2UNIT=Einheit, N2VALUETYP=Werttyp (num/Text/kodiert),
+            N2NORMAL=Referenzbereich, N2ABNORMAL=Abweichung->interpretation, N2LEISTID=Testcode
+            (->LOINC via loinc_map), N2DATE/N2TIME=Analytzeit. -> Observation (valueQuantity
+            wenn numerisch, sonst valueString; subject/encounter/status aus N2LABOR-Kopf)."
 
   NDOC:
     schema: sap
     fhir: DocumentReference
     tier: 1
-    pk: [MANDT, EINRI, DOCID]          # VERIFY
+    pk: [MANDT, DOKAR, DOKNR, DOKVR, DOKTL, LFDDOK]   # verifiziert R8 (KORR: NICHT EINRI/DOCID)
     cdc: ct
-    partition_date: null               # VERIFY
-    notes: "Dokument-Kopf. Volltext liegt in N2TEXT, NICHT in FHIR (nur Referenz +
-            Kategorie). Binary optional."
+    storno: STORN
+    partition_date: DODAT              # verifiziert R8: Dokumentdatum (N2_DODAT, +DOTIM)
+    notes: "ZUORDNUNG IS-H-Objekt <-> DVS-Dokument (nicht Kopf/Inhalt). Verifiziert R8
+            (sapdatasheet + replicate). KORREKTUR R8: fruehere Feldnamen DOCID/DOCKA/DOCDT/DOCTX
+            existieren NICHT. PK = DVS-Schluessel DOKAR/DOKNR/DOKVR/DOKTL + LFDDOK.
+            Bezug: PATNR FK->NPAT, FALNR FK->NFAL, LFDBEW FK->NBEW, EINRI FK->TN01.
+            Kategorie DTID FK->N2DT, MEDOK=medizin. Dokument. Autor MITARB(N1MITARB) FK->NGPA
+            (Practitioner), dokumentierende OE ORGDO FK->NORG. Datum DODAT/DOTIM. STORN/LOEKZ
+            -> status=entered-in-error. Volltext NICHT hier -> N2TEXT.TXT (DuckDB-FTS)."
 
   N2TEXT:
     schema: sap
     fhir: null             # Volltext -> DuckDB-FTS, nicht FHIR
     tier: 1
-    pk: [MANDT, EINRI, TEXTID]         # VERIFY
+    pk: [MANDT, DOKAR, DOKNR, DOKVR, DOKTL, DOKTAB, DOKFLD, DOKOCC]   # verifiziert R8
     cdc: ct
-    notes: "Med. Texte/Dokumentinhalte. Ziel: FTS5/DuckDB-FTS fuer doc_search."
+    notes: "IS-H*MED-Texte parametrierter Dokumente. Verifiziert R8 (sapdatasheet + replicate).
+            KORREKTUR R8: PK ist NICHT [EINRI,TEXTID], sondern DVS-Schluessel
+            DOKAR/DOKNR/DOKVR/DOKTL + DOKTAB (Quelltabelle) + DOKFLD (Feld) + DOKOCC
+            (Vorkommen-Index). Freitext in Spalte TXT (N2_TXT8070, LCHR 8070), Laenge TLNG.
+            Join an NDOC/DVS ueber DOKAR/DOKNR/DOKVR/DOKTL. Ziel: FTS5/DuckDB-FTS (doc_search)."
 
   NORG:
     schema: sap
     fhir: [Organization, Location]
     tier: 1
-    pk: [MANDT, EINRI, ORGID]          # VERIFY
+    pk: [MANDT, ORGID]                 # verifiziert R7: ORGID allein (EINRI ist Attribut->TN01)
     cdc: full
-    notes: "Organisationseinheiten. Hierarchie zusaetzlich aus hrp.HRP1001."
+    notes: "Organisationseinheiten. ORGID(8)=Schluessel, OKURZ(5)=App-Kuerzel, ORGNA=Name,
+            ORGTY->TN10A (OE-Kategorie), FACHR*=Fachrichtungen (->Encounter.serviceType),
+            ADRNR+ADROB='NORG'->NADR. SCHLUESSELPFAD: NBEW/NICP.ORGFA/ORGPF(8)->NORG.ORGID.
+            Hierarchie zusaetzlich aus hrp.HRP1001."
 
   NADR:
     schema: sap
-    fhir: null             # Adresse -> Patient.address (bei privacy=off)
+    fhir: null             # Adresse -> *.address (bei privacy=off)
     tier: 1
-    pk: [MANDT, ADRNR]                 # VERIFY
+    pk: [MANDT, ADRNR, ADROB]          # verifiziert R7: ADROB (Adressobjekttyp) IM Schluessel!
     cdc: ct
-    notes: "Adressen. Join ueber NPAT.ADRNR."
+    notes: "Zentrale Adressverwaltung. SCHLUESSELPFAD: JEDES Objekt joint mit ADRNR+ADROB,
+            wobei ADROB den Typ nennt (NPAT/NGPA/TN01/NORG/NBAU...). Felder ORT/STRAS/PSTLZ/
+            LAND/EMAIL/TELNR (NICHT ORT01/LAND1). Join ohne ADROB liefert Fehltreffer."
 
   # ---- Tier 2: Analytik / Abrechnung -------------------------------------
   NDRG:
     schema: sap
     fhir: null             # -> Encounter-Extension + optional Claim; CMI im Gold-Layer
     tier: 2
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    pk: [CLIENT, INSTITUTION, PATCASEID, DRG_SEQNO]   # verifiziert R9 (4,15 Mio eindeutig)
     cdc: watermark
-    watermark_col: UPDAT
-    notes: "DRG-Gruppierung. DRG-Kode, Bewertungsrelation -> CMI."
+    watermark_col: DRG_CREAT_DATE
+    notes: "DRG-Gruppierung. KORREKTUR R9: ENGLISCHE Spaltennamen (CLIENT/INSTITUTION/PATCASEID
+            statt MANDT/EINRI/FALNR)! PK [CLIENT,INSTITUTION,PATCASEID,DRG_SEQNO]. DRG_CODE,
+            MDC_CODE, DRG_CAT, SOI/ROM (Schweregrad), DRG_REGROUP. Join FALNR=PATCASEID."
 
   NLEI:
     schema: sap
     fhir: null             # -> ChargeItem (Analytik), sehr gross (~210 Mio)
     tier: 2
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
-    cdc: watermark
+    pk: [MANDT, LNRLS]                 # verifiziert R9 (LNRLS global; NLEM analog bestaetigt,
+    cdc: watermark                     # NLEI-Vollcount time-out bei ~210 Mio)
     watermark_col: UPDAT
-    notes: "Leistungen. GROESSTE Tabelle. Backfill 1-2 Naechte. Schmale Projektion Pflicht."
+    notes: "Leistungen. GROESSTE Tabelle. KORREKTUR R9: PK [MANDT,LNRLS] (LNRLS=Leistungs-
+            Lfd.Nr., global eindeutig), NICHT [EINRI,FALNR,LFDNR]. EINRI/FALNR/ORGID/LEIST/
+            LFDBEW denormalisiert. Backfill 1-2 Naechte, schmale Projektion Pflicht."
 
   NLEM:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    pk: [MANDT, LNRLS]                 # verifiziert R9 gegen replicate (22,45 Mio eindeutig)
     cdc: watermark
     watermark_col: UPDAT
-    notes: "Leistungspositionen (Detail zu NLEI)."
+    notes: "KORREKTUR R9: PK [MANDT,LNRLS] (nicht [EINRI,FALNR,LFDNR]). Leistungs-Status/Detail
+            je LNRLS: PATNR, ANFID=Anforderung, LSSTAE=Status, STOID=Stornogrund, WBGDT/WBGZT.
+            Join an NLEI ueber LNRLS."
 
   N1CORDER:
     schema: sap
     fhir: ServiceRequest
     tier: 2
-    pk: [MANDT, EINRI, ORDID]          # VERIFY
+    pk: [MANDT, CORDERID]              # verifiziert R8 (KORR: NICHT EINRI/ORDID)
     cdc: ct
-    notes: "Klinische Auftraege i.s.h.med."
+    storno: STORN
+    partition_date: ERDAT
+    notes: "Klinische Auftraege i.s.h.med. Verifiziert R8 (sapdatasheet + replicate). KORREKTUR R8:
+            PK [MANDT, CORDERID] (N1CORDID = 32-stellige UUID, SYSUUID_C), NICHT das
+            geratene ORDID. PATIENTENbezogen: PATNR FK->NPAT (PAPID=provisor. Patient,
+            REFTYP steuert). KEIN FALNR. Titel CORDTITLE, Fragestellung FRAGE, Kurzanamnese
+            KANAM, Prioritaet ORDPRI(N1APRI). Auftraggeber ETRGP(RI_KUNNR)->NGPA, initiierende
+            OE ORDDEP/ETROE(ORGID)->NORG. ERDAT/ERTIM=Anlage, STORN->revoked. Mapper
+            map_servicerequest R8 hinzugefuegt + getestet."
 
   NAPP:
     schema: sap
     fhir: Appointment
     tier: 2
-    pk: [MANDT, EINRI, APPID]          # VERIFY
+    pk: [MANDT, LNRAPP]                # verifiziert R9 gegen replicate (11,5 Mio eindeutig)
     cdc: ct
-    notes: "Termine."
+    notes: "Termine. KORREKTUR R9: PK [MANDT,LNRAPP] (kein APPID). EINRI/FALNR denormalisiert,
+            DSPTY/VISTY=Termin-/Besuchsart, BWIDT/BWIZT=Zeit, STATU=Status, ORGFA/ORGPF->NORG."
 
   NFPZ:
     schema: sap
-    fhir: null                         # abgeloest: NKSK ist die primaere Coverage-Quelle
-    tier: 3
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    fhir: null            # -> Encounter.participant / Practitioner (behandelnde Person je Fall)
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, PERNR, LFDNR]   # verifiziert R9 gegen replicate (26,76 Mio eindeutig)
     cdc: ct
-    notes: "Versicherungsverhaeltnis je Fall (alt). Primaere Coverage-Quelle ist NKSK
-            (verifiziert Runde 2); NFPZ nur noch als Vergleichs-/Altquelle."
+    storno: STORN
+    notes: "KORREKTUR R9: NICHT Versicherung/Coverage! NFPZ = Fall<->behandelnde PERSON
+            (Arzt-/Personalzuordnung je Fall). PERNR->NPER/Practitioner, FARZT=Funktion der
+            Person im Fall (Live R12: 1/2/5/6/7/9/E; Katalog nicht repliziert -> Rohcode
+            urn:ish:farzt), BEGDT/ENDDT=Zeitraum, STORN. Coverage kommt aus NKSK, NICHT
+            aus NFPZ. MAPPER R12: map_encounter(..., personal=[NFPZ-Zeilen]) ->
+            Encounter.participant mit Referenz Practitioner(PractitionerNper, PERNR).
+            DIAS-Baum: 28 Referenzen -> im Haus zentral."
 
   # ---- HR / Orga (hrp) ----------------------------------------------------
   HRP1000:
@@ -208,161 +277,724 @@ tables:
     watermark_col: null
     notes: "Personalstammdaten -> Practitioner. Pseudonymisierbar (Konfig-Schalter)."
 
-  # ===== Fallzusammenfuehrung (verifiziert Runde 1 + Altbestand) ============
-  # NAPX/NAPX_FAL = GKV-rechtliche Fallzusammenfuehrung nach FPV/KFPV — ersetzt
-  # die heuristische 30-Tage-Wiederaufnahme im Graph. REASON-Klartexte aus dem
-  # produktiven Altbestand (docs/ALTBESTAND_ANALYSE.md §4).
-  NAPX:
-    schema: sap
-    fhir: null
-    tier: 1
-    pk: [MANDT, APXNR]                 # verifiziert
-    cdc: ct
-    storno: STORN
-    notes: "Kopf der Fallzusammenfuehrung. Bereinigungsregel Altbestand:
-            STDAT=ERDAT (am Erstellungstag storniert) = Fehleingabe, ausfiltern."
-  NAPX_FAL:
-    schema: sap
-    fhir: null                         # -> Graph-Kante FUEHRT_ZUSAMMEN
-    tier: 1
-    pk: [MANDT, EINRI, APXNR, FALNR]   # verifiziert
-    cdc: ct
-    notes: "APXNR<->FALNR mit LEAD ('X'=fuehrender Fall) und REASON
-            (WA/KO/WP/RV/FW/OG/MD/RP — Klartexte s. ALTBESTAND_ANALYSE §4).
-            Live: 21.991 Zusammenfuehrungen / 45.081 Fallzeilen."
-
-  # ===== Coverage / Geburt / Location (verifiziert Runde 2) =================
-  NKSK:
-    schema: sap
-    fhir: Coverage                     # zentrale Kostenuebernahme je Fall
-    tier: 1
-    pk: [MANDT, BELNR]                 # verifiziert (BELNR Kopf; FALNR/KOSTR Attribute)
-    cdc: ct
-    storno: STORN
-    notes: "Kostenuebernahme/Versicherung je Fall (9,5 Mio). FALNR->Fall, KOSTR->NKTR,
-            Gueltigkeit BEGDT/ENDDT, KSTYP/KSART. KOSTR=0009999999=Selbstzahler.
-            Primaere Coverage-Quelle (ersetzt NFPZ)."
-  NGEB:
-    schema: sap
-    fhir: Observation                  # Geburts-/Perinataldaten
-    tier: 2
-    pk: [MANDT, EINRI, FALN1, LFDNR]   # verifiziert (FALN1 Kind-Fall, FALN2 Gegenfall)
-    cdc: ct
-    storno: STORN
-    partition_date: GBDAT
-    notes: "Geburten/Perinatal (61k). GBGEW(Gewicht), GBGRO(Laenge), HEAD_SIZE
-            (Kopfumfang), BIRTH_POS, MEHRL, BIRTH_ANO. FALN1<->FALN2 Mutter/Kind."
-  NBAU:
-    schema: sap
-    fhir: Location                     # Gebaeude/Baustruktur
-    tier: 2
-    pk: [MANDT, BAUID]                 # verifiziert
-    cdc: full
-    notes: "Baustruktur/Gebaeude (4,5k). BAUNA, BAUTY, XKOOR/YKOOR (Geo), ADRNR."
-
-  # ===== Referenz-/Katalogschicht (Prioritaet 1, cdc: full) =================
-  # Quellen laut produktivem Altbestand (ALTBESTAND_ANALYSE §3) — NICHT die in
-  # CONCEPT_EXT §2 vermuteten NBKZ/NFKL. Machen aus Rohcodes lesbare Auswertungen
-  # und loesen die hartkodierten Mapper-Enums ab.
-  TN14T:
-    schema: sap
-    fhir: null                         # -> CodeSystem Bewegungstyp (BEWTY!)
-    tier: 1
-    pk: [MANDT, EINRI, BEWTY]          # VERIFY (sprachabhaengig SPRAS?)
-    cdc: full
-    notes: "Bewegungstyp-Texte — die autoritative BEWTY-Enum-Quelle."
-  TN14R:
-    schema: sap
-    fhir: null                         # -> CodeSystem Bewegungsgrund
-    tier: 1
-    pk: [MANDT, BEWTY, GRPOS, BWGRU]   # VERIFY (Schluessel lt. Altbestand MANDT+BEWTY+Pos+Grund)
-    cdc: full
-    notes: "Bewegungsgrund-Texte (BWGR1/BWGR2). BEWTY=1+BWGR1=3 markiert
-            teilstationaer; BWGR1 in (01,02,08) = PruefVV-relevant (Altbestand)."
-  TN14U:
-    schema: sap
-    fhir: null                         # -> CodeSystem Bewegungsart
-    tier: 1
-    pk: [MANDT, EINRI, BEWTY, BWART]   # VERIFY
-    cdc: full
-    notes: "Bewegungsart-Texte. BWART VB=vorstationaer, AO=AOP (Altbestand)."
-  TN14W:
-    schema: sap
-    fhir: null                         # -> CodeSystem Entlassungszustand
-    tier: 1
-    pk: [MANDT, ENTLZ]                 # VERIFY
-    cdc: full
-    notes: "Entlassung-Zustand-Texte."
-  TN24T:
-    schema: sap
-    fhir: null                         # -> CodeSystem Behandlungskategorie
-    tier: 1
-    pk: [MANDT, BEKAT]                 # VERIFY
-    cdc: full
-    notes: "Behandlungskategorie-Texte (NFAL.BEKAT -> BLTXT, Altbestand)."
-  NKDI:
-    schema: sap
-    fhir: null                         # -> hauseigener ICD-Katalog mit Klartext
-    tier: 1
-    pk: [MANDT, DKAT, DKEY]            # VERIFY (390.504 Zeilen)
-    cdc: full
-    notes: "KORRIGIERT (Altbestand): ICD-Katalog des Hauses (DKEY->DTEXT1-4,
-            GSCHL-Restriktion, DTYP, ICD10GM_P301/P295) — Klartext-Quelle fuer
-            Diagnosen, NICHT 'Katalog Diagnosearten'."
+  # ===== v0.2-Erweiterung: Referenz-/Katalogschicht (Prioritaet 1) =========
+  # Kleine, selten aendernde Kataloge. cdc: full. Ausleitung als FHIR-Terminologie
+  # + DuckDB-Lookups ref_*. Loesen die hartkodierten Enums in den Mappern ab.
   NGPA:
     schema: sap
-    fhir: [Organization, Practitioner]
+    fhir: [Practitioner, Organization]
     tier: 1
-    pk: [MANDT, GPART]                 # verifiziert (261.210 Saetze)
+    pk: [MANDT, GPART]                 # verifiziert R7: GPART allein (KEIN EINRI, KEIN GPTYP!)
     cdc: full
-    notes: "Geschaeftspartner. Typ-Flags PERS/KOSTR/DEBIT/KRKHS/ARBTG; loest
-            NPAT.HARNR/EARNR/UARNR (Haus-/einweisende Aerzte) auf."
+    notes: "Geschaeftspartner. Rolle NICHT im Schluessel, sondern als Flag-Felder: PERS='X'
+            ->Arzt/Mitarbeiter (Practitioner), KRKHS/KOSTR/INSTN ->Institution/Kasse
+            (Organization). Ein Partner kann mehrere Rollen tragen. NAME1=Nachname,
+            NAME2=Vorname, TITEL, GSCHL, INSTN=IK, ADRNR+ADROB='NGPA'->NADR. Ziel von
+            NPAT.HARNR/EARNR/UARNR und NDIA.DIAPE."
   NKTR:
     schema: sap
     fhir: Organization                 # payer
     tier: 1
-    pk: [MANDT, KOSTR]                 # verifiziert
+    pk: [MANDT, KOSTR]                 # verifiziert R6 (KEIN EINRI im PK!)
     cdc: full
-    notes: "Kostentraeger (17.336). KTART(Kassenart), KSSNM(Name), KKSNR(IK),
-            PM301. Fuer Coverage.payor + Kassen-Analytik."
+    notes: "Kostentraeger-Stammdaten (68 Sp.). KSSNM=Kassenname -> Organization.name,
+            PM301=IK der Kasse -> identifier(iknr), KTART/KTTYP=Kassenart, LOEKZ=inaktiv.
+            ID-Schema OrgKostr == map_coverage.payor. Mapper map_organization_kostentraeger."
+  NFKL:
+    schema: sap
+    fhir: null                         # -> Encounter (Fachabteilungs-/Klassifikationszeiten)
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KLFTYP, KLFART, FKLBDT, FKLBZT]  # verifiziert R9 (5,72 Mio, effektiv eindeutig)
+    cdc: ct
+    notes: "KORREKTUR R9: KEIN Fachabteilungs-Katalog! NFKL = fachliche Klassifikation/
+            Fachabteilungsverlauf JE FALL, zeitscharf. KLFTYP/KLFART=Typ/Art, FKLBDT/FKLBZT..
+            FKLEDT/FKLEZT=Gueltigkeit. -> Encounter-Fachabteilungszeiten. Der §301-FAB-Schluessel
+            liegt in TNKFA, nicht hier."
+  NBKZ:
+    schema: sap
+    fhir: null                         # transaktional (Betriebskennzeichen je Fall/Beleg)
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, LFDNR, BELNR]   # verifiziert R9 gegen replicate (13,73 Mio eindeutig)
+    cdc: ct
+    storno: STORN
+    notes: "KORREKTUR R9: KEIN Katalog! NBKZ ist transaktional — Betriebs-/Belegkennzeichen
+            je Fall/Bewegung/Beleg (FALNR,LFDNR,BELNR,STORN). PK [MANDT,EINRI,FALNR,LFDNR,BELNR].
+            Bewegungsart-Texte liegen in TN14T (nicht hier)."
+  NKDI:
+    schema: sap
+    fhir: null                         # -> Condition.code.text (Diagnose-Kodetext-Katalog)
+    tier: 1
+    pk: [MANDT, SPRAS, DKAT, DKEY]     # verifiziert R9 gegen replicate (390.504/390.504 eindeutig)
+    cdc: full
+    notes: "KORREKTUR R9: NICHT Diagnosearten. NKDI = Diagnose-Kode-TEXTkatalog (ICD-Texte je
+            Sprache). SPRAS+DKAT(Katalog)+DKEY(Kode)->DTEXT1-3. REF_DKAT/REF_DKEY=Verweiskatalog.
+            Macht NDIA.DKEY1/DKAT1 sprechend (Condition.code.text-Quelle)."
+  NLOC:
+    schema: sap
+    fhir: null            # Belegungs-/Ortszuordnung (zeitscharf); in DIESEM Haus LEER
+    tier: 3
+    pk: [MANDT, ORGPF, PELOC]          # VERIFY (0 Zeilen in diesem Haus -> nicht testbar)
+    cdc: ct
+    notes: "KORREKTUR R9: KEINE Standort-Stammdaten (die liegen in NBAU). NLOC = zeitscharfe
+            Belegungs-/Ortszuordnung (ORGPF, PELOC, POBNR, LOCBD/LOCBT..LOCED/LOCET). In DIESEM
+            Haus LEER (0 Zeilen) -> Encounter.location kommt aus NBEW.ZIMMR/BETT (NBAU)."
   NPER:
     schema: sap
     fhir: Practitioner
-    tier: 2
-    pk: [MANDT, PERNR]                 # VERIFY (236.106 = NGPA-PERS-Sicht)
+    tier: 1
+    pk: [MANDT, PERNR]                 # verifiziert R9 gegen replicate (kein EINRI in NPER; 236k)
     cdc: full
-    notes: "Personen (behandelnde/einweisende) ohne HR-Schema."
-
-  # ===== Tier 3 / sensibel / on demand ======================================
+    notes: "Personen-/Personalbezug IS-H (behandelnde Person). KORREKTUR R9: PK [MANDT,PERNR]
+            (KEIN EINRI in NPER). R12 verifiziert: KEINE Namensfelder (Name aus NGPA bzw.
+            HR/PA0002). FIXLANR=lebenslange Arztnummer -> identifier LANR (fhir.de/sid/kbv/
+            lanr), FACHR->TNKFA (qualification), ARZT/ARZTN/PFLEG/BARZT=Rollen-Flags.
+            BEFUND R13 (replicate): NGPA.GPART == NPER.PERNR fuer ALLE 236.114 Personen
+            (PERS='X') — 1:1, dieselbe Person unter demselben Schluessel! KEIN Dubletten-
+            abgleich noetig; PNUMB ist NICHT der Link (nur 569 belegt, 0 Treffer).
+            MAPPER R13: map_practitioner_nper nutzt das GEMEINSAME ID-Schema 'Practitioner'
+            (== NGPA-map_practitioner == NFPZ-participant == NPAT.generalPractitioner).
+            Pipeline mergt NGPA-Anteil (Name/Titel/IK) + NPER-Anteil (LANR/FACHR/Rollen)
+            zu EINER Practitioner-Ressource."
   NKSP:
     schema: sap
-    fhir: null
+    fhir: null                         # Abrechnungs-Splitting, kein FHIR-Kern
     tier: 3
     pk: [MANDT, BELNR, POSNR]          # verifiziert
     cdc: ct
-    notes: "KORRIGIERT (Runde 2): Kostenuebernahme-Splitting/Pflegesatz-Positionen,
-            NICHT Sperrvermerke (die liegen in NPAT.VIPKZ/RISKF + NFAL.STASP)."
+    notes: "KORRIGIERT (v-Runde2): Kostenuebernahme-Splitting/Pflegesatz-Positionen,
+            NICHT Sperrvermerke. Sperr-/VIP-Flag liegt in NPAT.VIPKZ/RISKF.
+            Tier 3, nur fuer Erloes-/Splitting-Analytik."
+
+  # ===== v0.3: Coverage / Geburt / Location (verifiziert Runde 2) ==========
+  NKSK:
+    schema: sap
+    fhir: Coverage                     # zentrale Kostenuebernahme je Fall
+    tier: 1
+    pk: [MANDT, BELNR]                 # verifiziert (BELNR Kopf; FALNR+KOSTR als Attribute)
+    cdc: ct
+    storno: STORN
+    notes: "Kostenuebernahme/Versicherung je Fall (9,5 Mio). FALNR->Fall, KOSTR->NKTR,
+            Gueltigkeit BEGDT/ENDDT, KSTYP/KSART. KOSTR=0009999999=Selbstzahler.
+            Ersetzt NFPZ als primaere Coverage-Quelle."
+  NGEB:
+    schema: sap
+    fhir: Observation                  # Geburts-/Perinataldaten
+    tier: 2
+    pk: [MANDT, EINRI, FALN1, LFDNR]   # verifiziert (FALN1 Mutter/Kind, FALN2 Gegenfall)
+    cdc: ct
+    storno: STORN
+    partition_date: GBDAT
+    notes: "Geburten/Perinatal (61k). GBDAT/GBTIM, GBGEW(Gewicht), GBGRO(Laenge),
+            HEAD_SIZE(Kopfumfang), BIRTH_POS(Lage), MEHRL(Mehrling), BIRTH_ANO.
+            FALN1<->FALN2 verbindet Mutter- und Kind-Fall."
+  NBAU:
+    schema: sap
+    fhir: Location                     # Gebaeude/Baustruktur
+    tier: 2
+    pk: [MANDT, BAUID]                 # verifiziert R8 (BAUID 8-stellig)
+    cdc: full
+    notes: "Baustruktur/Gebaeude (4,5k). Verifiziert R8 (sapdatasheet + replicate). BAUNA(Name),
+            BKURZ(Kennung), BAUKB(Kurztext), BAUTY(Kategorie) FK->TN11B.
+            KORREKTUR R8: XKOOR/YKOOR sind KEINE Geokoordinaten! Datenelemente RI_XKOOR/
+            RI_YKOOR (Domaene KOOR3, NUMC3) = X/Y-Lage in der Uebersichtsgrafik (Lageplan
+            000-999, mit BREIT/LAENG) -> NICHT nach position mappen. Live-replicate bestaetigt:
+            XKOOR/YKOOR = nvarchar(3). Echte Adresse/Geo via ADRNR+ADROB='NBAU' FK->NADR.
+            Ziel von NBEW.ZIMMR(Raum,ISH_ZIMMID)/BETT(Bett,BETTID) -> BAUID (FK NBEW.BETT->NBAU
+            verifiziert). STRUKTUR/Pflegeort-Zuordnung (BAUID<->OE) liegt in NPOB (s.u.)."
+
+  NPOB:
+    schema: sap
+    fhir: null            # -> Location.managingOrganization (Anreicherung, kein eigener Typ)
+    tier: 2
+    pk: [MANDT, POBNR, ORGID]              # verifiziert R8 gegen replicate (POBNR|ORGID eindeutig:
+    cdc: ct                                # 1533/1533; POBNR allein NICHT eindeutig -> +ORGID)
+    notes: "STRUKTURtabelle zu NBAU (Pflegeort/Objektzuordnung). Verifiziert R8 gegen
+            replicate (sap.NPOB, 1533 Zeilen, 1 Mandant). Verbindet bauliche Einheit
+            BAUID FK->NBAU mit der zustaendigen/pflegerischen OE ORGID FK->NORG (ein POBNR
+            kann mehreren ORGID zugeordnet sein -> PK inkl. ORGID). PERNR=verantwortliche
+            Person, AKTIV=aktiv, KALID/KALMOD/SQ_NR_CAL=Belegungskalender. FHIR: liefert
+            Location(NBAU).managingOrganization = Organization(NORG,ORGID) sowie die
+            OE<->Ort-Bruecke fuer Bettendisposition. Physische Eltern-Kind-Hierarchie
+            (Bett->Zimmer->Gebaeude) liegt in TN11H (s.u.), die zeitscharfe BAUID<->ORGID-
+            Zuordnung in TN11O."
+
+  TN11H:
+    schema: sap
+    fhir: null            # -> Location.partOf (physische Baustruktur-Hierarchie)
+    tier: 2
+    pk: [MANDT, UNTBE, UEBBE]              # verifiziert R8 gegen replicate
+    cdc: full
+    notes: "STRUKTURtabelle NBAU-Hierarchie (Bauobjekt-Baum). Verifiziert R8 gegen replicate
+            (sap.TN11H, 1832 Zeilen). UNTBE=untergeordnete Baueinheit (Kind-BAUID) ->
+            UEBBE=uebergeordnete Baueinheit (Eltern-BAUID); UNTBT/UEBBT=Kategorie (->TN11B).
+            Je Kind GENAU EIN Elternteil (UNTBE eindeutig, 1832/1832) -> saubere Baumkette
+            Bett(AB)->Zimmer/Pflegeort(P)->... FHIR: Location(NBAU,UNTBE).partOf =
+            Location(NBAU,UEBBE). Join-Muster (Kunde): TN11O.BAUID=TN11H.UEBBE fuer OE-Bezug."
+  TN11O:
+    schema: sap
+    fhir: null            # -> Location.managingOrganization (zeitscharf) / Bettendisposition
+    tier: 2
+    pk: [MANDT, BAUID, ORGID, ENDDT]       # verifiziert R8 gegen replicate (BEGDT/ENDDT-Gueltigkeit)
+    cdc: full
+    notes: "Zeitscharfe Zuordnung Baueinheit<->OE. Verifiziert R8 gegen replicate (sap.TN11O).
+            BAUID FK->NBAU, ORGID FK->NORG, Gueltigkeit BEGDT..ENDDT, ASSIG=Zuordnungskennz.
+            Zeitscharfe Alternative zu NPOB (Pflegeort). FHIR: Location.managingOrganization
+            = Organization(NORG,ORGID) fuer den gueltigen Zeitraum."
   NEHC:
     schema: sap
     fhir: null                         # eGK-Anreicherung (sensibel)
     tier: 3
     pk: [MANDT, LNCRD]                 # verifiziert
     cdc: ct
-    notes: "eGK-Kartendaten (1 Mio, sensibel). Volle De-ID; Datenschutz beachten."
-  N2OPDIAGNOSEN:
-    schema: sap
-    fhir: Condition                    # OP-Diagnosen (kompensiert duenne Arztbriefe)
-    tier: 2
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
-    cdc: ct
-    notes: "Strukturierte OP-Diagnosen (i.s.h.med)."
+    notes: "eGK-Kartendaten (1 Mio, sensibel). EGK_ICCSN, READ_DATE, CARDVALID,
+            PATNR. Coverage-Anreicherung; volle De-ID. Datenschutz beachten."
+
+  # ===== v0.7/R10: NC301-Familie KOMPLETT verifiziert gegen replicate ==========
+  # KORREKTUR R10: Die pauschale Entfernung der NC301-Familie (Runde 2) war zu grob.
+  # Die eigentlichen §301-MELDEDATEN liegen in NC301S (Vorgangsindex) + NC301M (Roh-
+  # nachrichten) + NC301V/W (Segmente). Zeilenzahlen live gezaehlt, PKs uniqueness-geprueft.
   NC301S:
     schema: sap
-    fhir: null
+    fhir: null            # §301-Meldungs-/Vorgangsindex je Fall (Communication-Kandidat)
     tier: 3
-    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    pk: [MANDT, LF301]                      # verifiziert R10 (11,58 Mio eindeutig)
     cdc: watermark
     watermark_col: UPDAT
-    notes: "Entgeltsaetze im §301-Strom. Einzige NC301-Tabelle, die das Haus laut
-            DIAS-Baum aktiv auswertet (4 Referenzen) — Rest der NC301-Familie sind
-            Uebertragungsprotokolle (Runde 2) und bleiben draussen."
+    notes: "§301-VORGANGSINDEX: eine Zeile je Meldung/Nachricht. NINOUTSIGN O/I (Ausgang/
+            Eingang), EVENT (NA3001=Aufnahme 4,24 Mio; NP12I0/NP97I0/NP98I0=weitere Ereignisse),
+            SESTA=Sendestatus (20=gesendet, 34=Eingang verarbeitet), EDIPROC='P301'.
+            Bezug: FALNR/PATNR/KOSTR/INSTN/EINRI + DAS301 (Datenannahmestelle). LF301M->NC301M
+            (Rohnachricht), LF301D->NC301D (Dateiuebertragung). DIE Steuertabelle fuer alle
+            Meldedaten — Einstieg fuer Abgleich 'welche Meldung ging wann an welche Kasse'."
+  NC301M:
+    schema: sap
+    fhir: null            # §301-Rohnachrichten (EDIFACT-Volltext, gechunkt)
+    tier: 3
+    pk: [MANDT, LF301, FOLGENR]             # verifiziert R10 (12,79 Mio eindeutig)
+    cdc: watermark
+    watermark_col: null                     # kein UPDAT -> Nachladen ueber LF301-Bereich
+    notes: "§301-ROHNACHRICHTEN (These Bjoern R10 BESTAETIGT): Spalte MAIL enthaelt den
+            kompletten EDIFACT-Nachrichtentext (UNH+MEDRUC/AUFN/KOUB/RECH...), in 1024-Byte-
+            Bloecken (FOLGENR=Fortsetzungsnr., TOTLEN=Gesamtlaenge, ANZ=Blocklaenge).
+            Rekonstruktion: ORDER BY FOLGENR, STRING_AGG(MAIL). Join NC301S.LF301M=LF301.
+            Enthaelt KLARTEXT-Inhalte -> De-ID beachten. Quelle fuer Meldedaten-Reparsing."
+  NC301W:
+    schema: sap
+    fhir: null            # §301-EINGANGS-Segmente (geparst, von Kassen)
+    tier: 3
+    pk: [MANDT, LF301, LF301F, GRSGNR]      # verifiziert R10 (891.669 eindeutig)
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "EINGEHENDE §301-Segmente (geparst; Gegenstueck zu NC301V=Ausgang). Live-Beispiel:
+            KOUB (Kostenuebernahme von Kasse) mit UNH/FKT/INV/NAD-Segmenten. ACHTUNG: NAD-
+            Segmente enthalten KLARTEXT-Patientendaten (Name/Geburtsdatum/Adresse) -> De-ID!
+            SGNR=Segment-Tag, SGMINH=Inhalt, RSTATUS=Verarbeitungsstatus."
+  NC301P:
+    schema: sap
+    fhir: Organization    # Datenannahmestellen (§301) — MAPPER R12: map_organization_das301
+    tier: 2
+    pk: [MANDT, DAS301]                     # verifiziert R10/R12 (123 Zeilen)
+    cdc: full
+    notes: "DATENANNAHMESTELLEN-Stammdaten: DAS301=Schluessel, INSTNR=IK -> identifier(iknr),
+            NAME1/NAME2, STRAS/PSTLZ/ORT/LAND -> address, ANSPR=Ansprechpartner, TELFN/TELFX.
+            Ziel von NC301S.DAS301 (Meldung -> Annahmestelle). ID-Schema 'OrgDas301'."
+  # Weitere NC301-Tabellen (R10 verifiziert, klein/technisch — bei Bedarf on demand):
+  #   NC301D  [MANDT,LF301D]  496k   Dateiuebertragungs-Log (FILE301, Zeitraum, SESTA)
+  #   NC301DX [MANDT,LF301D,LF301E]  591k  Dateinamen je Uebertragung
+  #   NC301E  [MANDT,LF301,LF301F]   582k  Fehler-/Meldungslog (MSGTY/ARBGB/MSGNR)
+  #   NC301I  227k   Eingangs-Fehler MIT Segment-/Feldbezug (ERRSGM/ERRTXT) — Reklamationsanalyse
+  #   NC301KTR 4,5k  Kasse<->EDI-Verfahren (KOSTR->DAS301)
+  #   NC301B   339   EDI-Prozess-Config je Einrichtung (Pfade, Codepage, Sendezeiten)
+  #   NC301CEX 515   Fall-Ausschluesse vom EDI-Versand
+  #   NC301/R/T/TX   leer in diesem Haus
+
+
+  # ===== v0.2-Erweiterung: klinische Zusatzdoku (Prioritaet 3) =============
+  N2OPDIAGNOSEN:
+    schema: sap
+    fhir: Condition                    # OP-Diagnosen (kompensiert leere Arztbriefe)
+    tier: 2
+    pk: [MANDT, EINRI, LNRLS, LFDDIA]  # verifiziert R9 gegen replicate (747.460/747.460 eindeutig)
+    cdc: ct
+    notes: "Strukturierte OP-Diagnosen (wertvoll, da Arztbrief-Volltext duenn/leer). KORREKTUR R9:
+            PK [MANDT,EINRI,LNRLS,LFDDIA] (LNRLS=OP-Leistung, LFDDIA=Diagnose-Lfd), NICHT
+            [FALNR,LFDNR]. HDIA=Hauptdiagnose-Flag, FALNR denormalisiert."
+  N2ZEITEN:
+    schema: sap
+    fhir: null                         # -> Procedure.performedPeriod / Encounter-Zeiten
+    tier: 3
+    pk: [MANDT, EINRI, FALNR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Strukturierte Zeitpunkte (OP-/Prozesszeiten)."
+  N1LSSTA:
+    schema: sap
+    fhir: null                         # -> ServiceRequest.status + Provenance
+    tier: 3
+    pk: [MANDT, EINRI, ORDID, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Leistungsstatus i.s.h.med (Auftragsverlauf)."
+
+  # ===== v0.2/R10: NAPX = FALLZUSAMMENFUEHRUNG (nicht nur Archiv!) ===========
+  NAPX:
+    schema: sap
+    fhir: null            # Fallzusammenfuehrungs-KOPF
+    tier: 2
+    pk: [MANDT, APXNR]                 # verifiziert R10 gegen replicate (KEIN EINRI im Kopf)
+    cdc: ct
+    storno: STORN
+    notes: "KORREKTUR R10: NAPX-Familie ist die FALLZUSAMMENFUEHRUNG (nicht 'Archiv').
+            Kopf: APXNR=Vorgang, LGTXT, OUTOD, STORN. Details s. NAPX_FAL/NAPX_BEW.
+            Haus-ETL (base-table-main/UpdateBaseTable_Fallzusammenfuehrung) baut daraus
+            Fallzusammenfuehrung_Fall/_Bewegung in der Analysen-DB."
+  NAPX_FAL:
+    schema: sap
+    fhir: Account         # -> Abrechnungsklammer (Account je APXNR) + Encounter.account
+    tier: 2
+    pk: [MANDT, APXNR, FALNR]          # verifiziert R10 gegen replicate (EINRI Attribut)
+    cdc: ct
+    storno: STORN
+    notes: "Fall-Zuordnung je Zusammenfuehrung: FALNR + LEAD (fuehrender Fall) + REASON.
+            FACHLICHE ENTSCHEIDUNG R11: Die Zusammenfuehrung ist eine ABRECHNUNGS-Klammer
+            (FPV-Wiederaufnahme), KEINE medizinische Aussage — die Einzelfaelle waren real
+            abgeschlossene Aufenthalte. Daher KEIN Encounter.replaces/partOf (wuerde die
+            klinische Historie verfaelschen). Modell: EIN Account je APXNR (Mapper
+            map_account_napx, ID-Schema 'AccountApx'); jeder beteiligte Encounter erhaelt
+            Encounter.account -> Account(APXNR) via map_encounter(..., apxnr=). LEAD-Fall
+            als Extension urn:ish:apx-lead-encounter, REASON als urn:ish:apx-reason.
+            Klinische Auswertung = je Encounter; DRG-/Erloes-Auswertung = je Account.
+            NAPX_BEW mappt Bewegungen FALNR_OLD/LFDBEW_OLD -> LFDBEW_NEW (Achtung Splits:
+            gleicher OLD-Schluessel kann auf MEHRERE neue Bewegungen zeigen, s. tSplit-Logik)."
+
+  # ===== v0.4: Bewegungs-/§301-Kataloge + §301-Entgeltquelle (verifiziert Runde 4) =====
+  TN14T:
+    schema: sap
+    fhir: null            # -> CodeSystem Bewegungsart (loest NBEW.BEWTY-Enum ab)
+    tier: 1
+    pk: [MANDT, SPRAS, EINRI, BEWTY]        # verifiziert (describe)
+    cdc: full
+    notes: "Bewegungstyp-Texte. BEWTY->BEWTX. Live(D/0001): 1=Aufnahme, 2=Entlassung,
+            3=Verlegung, 4=amb. Besuch, 6/7=Abwesenheit Beginn/Ende."
+  TN14R:
+    schema: sap
+    fhir: null            # -> Encounter.hospitalization admitSource / dischargeDisposition
+    tier: 1
+    pk: [MANDT, SPRAS, BEWTY, POSIT, GRUND] # verifiziert (describe)
+    cdc: full
+    notes: "Aufnahme-/Entlassungsgrund (§301). BEWTY=1 Aufnahmegrund (POSIT segmentiert
+            die Codestelle), BEWTY=2 Entlassungsgrund (01=regulaer beendet, 02=m. nachf.
+            Behandlung, 03=sonstiger, 04=gg. aerztl. Rat, 05=Kassenwechsel ...).
+            Join-Key inkl. POSIT. GRUND+POSIT -> BEZEI."
+
+  # ---- v0.6: Bewegungs-/§301-Codekataloge (verifiziert R8, sapdatasheet) ----
+  # Aufloesung der ISH_SYS-URNs in core.py (urn:ish:tn14g/d/h/k). ACHTUNG: alle vier sind
+  # Customizing (Delivery Class C) und EINRICHTUNGS-/BEWTY-abhaengig -> Code allein ist ohne
+  # EINRI (+BEWTY bei G/H) mehrdeutig. Fuer die FHIR-Codings bewahren wir den Rohcode.
+  TN14G:
+    schema: sap
+    fhir: null            # -> urn:ish:tn14g (NBEW.BWGR1+BWGR2 Bewegungsgrund/§301 EDI)
+    tier: 1
+    pk: [MANDT, BEWTY, POSIT, GRUND]        # verifiziert R8
+    cdc: full
+    notes: "Bewegungsgruende (EDI). BEWTY(Bewegungsart)+POSIT(Codestelle)+GRUND(2-stellig).
+            NBEW.BWGR1(Pos1-2)+BWGR2(Pos3-4) bilden den 4-stelligen §301-Grund ueber ZWEI
+            POSIT-Segmente ab. Text/Bezeichnung in TN14R. UNQCD=externer Zuordnungscode."
+  TN14D:
+    schema: sap
+    fhir: null            # -> urn:ish:tn14d (NBEW.EZUST Entlasszustand -> dischargeDisposition)
+    tier: 1
+    pk: [MANDT, EINRI, ENTZU]               # verifiziert R8
+    cdc: full
+    notes: "Entlasszustand des Patienten. Katalogfeld ENTZU (DE ENTZU); NBEW.EZUST (DE EZUST,
+            gleiche Bedeutung) traegt den Wert. Einrichtungsabhaengig (EINRI im PK)."
+  TN14H:
+    schema: sap
+    fhir: null            # -> urn:ish:tn14h (NBEW.RFSRC Einweisung/Nachbehandlung -> admitSource)
+    tier: 1
+    pk: [MANDT, EINRI, BEWTY, REFSRC]       # verifiziert R8
+    cdc: full
+    notes: "Einweisungs-/Nachbehandlungsart. Katalogfeld REFSRC (DE ISH_REFSRC); NBEW.RFSRC
+            (gleiches DE ISH_REFSRC) traegt den Wert. EINRI+BEWTY-abhaengig."
+  TN14K:
+    schema: sap
+    fhir: null            # -> urn:ish:tn14k (NBEW.UNFAV Anreiseart -> admitSource-Fallback)
+    tier: 1
+    pk: [MANDT, EINRI, ARRIVE]              # verifiziert R8
+    cdc: full
+    notes: "Anreise-/Aufnahmeart (Mode of Arrival). Katalogfeld ARRIVE (DE ISH_ARRIVE);
+            NBEW.UNFAV (gleiches DE ISH_ARRIVE) traegt den Wert. Einrichtungsabhaengig.
+            HINWEIS R8: in DIESEM Haus NICHT repliziert -> urn:ish:tn14k haelt nur den
+            Rohcode (UNFAV), keine lokale Textaufloesung."
+  TN14O:
+    schema: sap
+    fhir: null            # -> urn:ish:tn14o (NICP.OPART OP-Art -> Procedure.category)
+    tier: 2
+    pk: [MANDT, EINRI, OPART]               # VERIFY (FK NICP.OPART->TN14O verifiziert R8)
+    cdc: full
+    notes: "OP-Art-Katalog. NICP.OPART FK->TN14O verifiziert R8 (-> Procedure.category).
+            HINWEIS R8: in DIESEM Haus NICHT repliziert -> Rohcode-only (urn:ish:tn14o)."
+  TN11B:
+    schema: sap
+    fhir: null            # -> urn:ish:tn11b (NBAU.BAUTY Gebaeudekategorie -> Location.physicalType)
+    tier: 2
+    pk: [MANDT, BAUTEX]                     # VERIFY (FK NBAU.BAUTY->TN11B.BAUTEX verifiziert R8)
+    cdc: full
+    notes: "Gebaeudeeinheit-Kategorien. NBAU.BAUTY FK->TN11B verifiziert R8."
+  N2DT:
+    schema: sap
+    fhir: null            # -> urn:ish:n2dt (NDOC.DTID Dokumentkategorie -> DocumentReference.type)
+    tier: 2
+    pk: [MANDT, DTID]                       # VERIFY (FK NDOC.DTID->N2DT verifiziert R8)
+    cdc: full
+    notes: "Dokumentkategorien i.s.h.med. NDOC.DTID FK->N2DT verifiziert R8 (-> DocRef.type).
+            HINWEIS R8: in DIESEM Haus NICHT repliziert -> Rohcode-only (urn:ish:n2dt)."
+  TNK00:
+    schema: sap
+    fhir: null            # -> CodeSystem Diagnose-Katalogkategorie (DKAT-Aufloesung)
+    tier: 1
+    pk: [MANDT, KATID]                      # verifiziert (describe R4)
+    cdc: full
+    notes: "Diagnose-Kodierkatalog-Kategorien (KATID->KATTX). Loest NDIA.DKAT1/DKAT2 auf
+            ('56'=ICD-10-GM aktuell, 49-55 aeltere Jahrgaenge)."
+  TN26C:
+    schema: sap
+    fhir: null            # -> Diagnosesicherheit
+    tier: 1
+    pk: [MANDT, EINRI, DIASI]               # verifiziert (describe R4; nur Code, kein Text -> ggf. TN26CT)
+    cdc: full
+    notes: "Diagnostische Sicherheit. VERIFIZIERT R4: Sicherheit liegt in NDIA.DIAGW
+            (G=gesichert/V=Verdacht/A=ausgeschlossen/Z=Zustand nach), NICHT im leeren
+            NDIA.DIASI. Mapper liest jetzt DIAGW -> verificationStatus/clinicalStatus."
+  TN26B:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, DIAPR]               # VERIFY
+    cdc: full
+    notes: "Diagnosepriorität (NDIA.DIAPR). HINWEIS R9: in diesem Haus NICHT repliziert."
+  TN26D:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, DIAZS]               # VERIFY
+    cdc: full
+    notes: "Diagnose-Zusatz (NDIA.DIAZS). HINWEIS R9: in diesem Haus NICHT repliziert."
+  TN26E:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, DIALO]               # verifiziert R9 gegen replicate (Spalten MANDT,EINRI,DIALO,DIALO_REF)
+    cdc: full
+    notes: "Medizinische Lokalisation (NDIA.DIALO / NICP.LSLOK -> Procedure.bodySite). Verifiziert R9."
+  TN01:
+    schema: sap
+    fhir: [Organization, Location]
+    tier: 1
+    pk: [MANDT, EINRI]                      # verifiziert (describe R4)
+    cdc: full
+    notes: "Einrichtungen/Institutionen. EINBZ=Name -> Organization.name, INSTNR=IK ->
+            Organization.identifier, LAND/PSTLZ/ORT/STRAS -> address, KHNUM/EANR. Prueftabelle EINRI."
+  NC301V:
+    schema: sap
+    fhir: null            # §301-Entgelt NUR hier (roh); FHIR-Charges primaer aus NLEI/NLEM/NDRG
+    tier: 3
+    pk: [MANDT, LF301, LF301F, NTNR, GRSGNR]   # VERIFY (GRSGNR = laufende Segmentnr.; SGNR=Tag, nicht eindeutig)
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "§301-Rohsegmente (13,4 Mio, EDIFACT-artig). SGMINH=Segmentstring, SGNR=Segment-Tag
+            (UNH/FKT/INV/NAD/KOS/AUF/EAD/UNT ...), ASGNS=Positionsnr. (NICHT die Segmentart!).
+            VERIFIZIERT R4: Entgelte via SGNR='ENT' (Entgeltart+Betrag+Zeitraum, Bsp '375,88').
+            Nachrichtentyp im UNH-Segment (AUFN/KOUB/RECH). DIAS parst diesen Strom.
+            NUR §301-Fallback/Abgleich; typisierte Erloese aus NLEI/NLEM/NDRG."
+
+  # HINWEIS (Runde 4): NC301S = §301-Transport/Status (kein Entgelt), NC301E = Fehler-/
+  # Meldungslog (kein Entgelt). Bleiben ausgeschlossen. SOOD/SRGBTBREL = ERP/FI-GOS-Anhaenge
+  # (Bestellung/FI-Beleg/Equipment/Lieferant), NULL IS-H-Objekte -> KEINE Arztbriefquelle;
+  # Arztbriefe bleiben in N2TEXT/N2PMDETEXT/N2ANKER.
+
+  # ===== v0.5: geschlossene FHIR-Luecken — Medikation & Allergie (verifiziert Runde 5) =====
+  N1MEORDER:
+    schema: sap
+    fhir: [MedicationRequest, Medication]
+    tier: 1
+    pk: [MANDT, MEORDID]                    # verifiziert (describe R5)
+    cdc: ct
+    storno: STORN
+    partition_date: MOVDF
+    notes: "i.s.h.med Medikamentenverordnung (111 Spalten). ACHTUNG R6: in DIESEM Haus
+            LEER (0 Zeilen) — keine IS-H-Medikationsdaten; Verordnung laeuft extern
+            (COPRA/PDMS, vgl. ZMM_COPRA_MEDIX). Mapper map_medicationrequest existiert und
+            ist getestet, hat hier aber keine Quelle. Fuer Haeuser MIT Daten: MOTX/MOSTX=
+            Praeparat, EXT_DRUGID=Arzneimittel-ID (PZN wenn numerisch), PHFORM=Form,
+            APROU=Route, DOSDEF=Dosierung, MOVDF/MOVDT=Zeitraum, DISPQUAN=Menge, AUTIDEM,
+            STORN. -> MedicationRequest. Verabreichung (MedicationAdministration) OFFEN."
+  NRSF:
+    schema: sap
+    fhir: AllergyIntolerance
+    tier: 1
+    pk: [MANDT, PATNR, RSFNR, LFDNR]        # verifiziert (describe R5)
+    cdc: ct
+    partition_date: ERDAT
+    notes: "Risikofaktoren/Allergien — PATIENTENbezogen (nicht fallbezogen!). RSFNR=Code
+            (Katalog TN39A+TN39T), KZTXT=Klartext(30), ROUTE=Expositionsweg, ORGAN, PROBA=Wahrsch.,
+            REACT=Reaktion, EXIST/CSTAT=Status, LOEKZ=Loeschkennz., DOCTR=Erfasser.
+            WICHTIG: NRSF ist GEMISCHT — echte Allergien (Penicillin/Jod/Latex ...) UND
+            MRE-/Isolations-Flags (MRSA/VRE/Isolationspflicht). Verifiziert R6: TN39A.RSTYP
+            ist NICHT nutzbar (Katalog = 56 Eintraege, ALLE RSTYP='2', RSCAT leer). Routing
+            daher ueber KURATIERTE RSFNR->FHIR-Map (nur 56 Codes, stabil): Allergen ->
+            AllergyIntolerance; MRE/Isolation/Keim -> Flag bzw. Condition. Fallback-Heuristik:
+            Keywords MRSA/VRE/Isolation/Pseudomonas/-negativ -> Flag."
+
+  TN39A:
+    schema: sap
+    fhir: null            # Katalogdefinition Risikofaktoren -> Routing-Diskriminator
+    tier: 1
+    pk: [MANDT, RSFNR]                      # verifiziert (describe R5)
+    cdc: full
+    notes: "Risikofaktor-Definition (56 Eintraege). RSTYP/RSCAT/RSCAT2 in diesem Haus NICHT
+            nutzbar als Allergie/MRE-Diskriminator (verifiziert R6: alle RSTYP='2', RSCAT leer),
+            RNPMI leer. -> Allergie-vs-MRE-Routing per kuratierter RSFNR-Map, nicht ueber TN39A."
+  TN39T:
+    schema: sap
+    fhir: null            # Risikofaktor-Texte -> AllergyIntolerance.code.text
+    tier: 1
+    pk: [MANDT, SPRAS, RSFNR]               # verifiziert (describe R5)
+    cdc: full
+    notes: "Risikofaktor-Texte. RSFNA=Name(30, zuverlaessig), RSFSN=Langname(110, tw.
+            fehlerhaft/verschoben in Altdaten). Macht NRSF.RSFNR sprechend."
+
+  # ===== v0.8/R10: Erkenntnisse aus DIAS-Objektbaum + base-table-main (Haus-ETL) =====
+  # Quelle A: TEST_DIAS_Objektbaum.xml ('D_1 DIAS ANALYTICS', Baum R4.2_5 p00; 4.252 Objekte:
+  #   2.451 Sichten, 753 Tabellen, 438 Funktionen). Meistgenutzte SAP-Tabellen im Baum:
+  #   NDOC(203!), NBEW(131), NPAT(35), NFAL(31), NDIA(29), NFPZ(28!), NBAU/TN11B(31),
+  #   NGPA(15), NAPP(14), NLEI/NICP(je 11), NC301S(9), NDRG(7). Weitere Quellsysteme im Baum:
+  #   COPRA5+COPRA6 (PDMS -> Medikation/Vitalwerte!), HCM, PEP, UKL-Daten, Referenzdaten.
+  #   -> bestaetigt Tier-Zuschnitt; NFPZ und NDOC sind im Haus zentral (hoeher priorisieren).
+  # Quelle B: base-table-main (Stored Procedures, Analysen-DB 'E-Statistik'):
+  #   1) HISTORISIERUNG: generisches Framework UpdateBaseTable_Aenderungshistorie baut SCD2
+  #      (datensatz_gueltig_von/bis) aus Qlik-__ct-Tabellen + SAP-AENDERUNGSBELEGEN CDPOS/CDHDR
+  #      (161 CDPOS-Referenzen). CDPOS/CDHDR fehlen bisher in dieser Registry -> aufnehmen,
+  #      wenn FHIR-Provenance/Versionierung gebraucht wird. Storno-Semantik: ValidToStorno/
+  #      ValidBeforeStorno (Gueltigkeit endet EINE Zeiteinheit vor Storno) — fuer unsere
+  #      entered-in-error-Logik uebernehmenswert.
+  #   2) HAUSBEWAEHRTE PROJEKTIONEN (im Betrieb erprobte Spaltenauswahl je Tabelle):
+  #      NBEW: MANDT,EINRI,FALNR,LFDNR,STATU,BETT,ZIMMR,KZTXT,ORGFA,ORGPF,ORGAU,BEWTY,BWART,
+  #            BEKAT,BWGR1,BWGR2,PLANB,BWIDT,BWIZT,BWEDT,BWEZT,BWPDT,BWPZT,UNFKZ,EZUST
+  #      NFAL: MANDT,EINRI,FALNR,PATNR,FOREI,TOB,MDTOB,KV_KZ,ABRKZ,EINZG,BEKAT,FALAR,FATYP,
+  #            STATU,FSPER,STASP,MDVSTAT
+  #      NDIA: ...,DKAT1,DKEY1,DKAT2,DKEY2,DIAGW,DTYP1,DIALO,*DIA-Flags,DIAPR,DRG_DIA_SEQNO,
+  #            DRG_CATEGORY,DRG_RELVANT,CCL,DIADT,DIAZT  (DIAGW-Nutzung bestaetigt R4-Befund!)
+  #      NLEI: MANDT,EINRI,LNRLS,FALNR,LFDBEW,LEIST,HAUST,ANFOE,ANPOE,ERBOE,IMENG,IBGDT,IBZT,
+  #            IENDT,IEZT,TARAS,...,ENTGA,STALS,ABRKZ  (bestaetigt LNRLS-Schluessel R9!)
+  #   3) KATALOG-NUTZUNG im Haus-ETL: TNK00, TNDRG, TN24/TN24T, TN14B/R/T/U/V/W, TN10B/H/S,
+  #      TNPEPP (PEPP-Entgelt je FACHR), NTPK/NTPKD/NTPKDPREL/NTPT/NTSP/NTST (Tarif-/
+  #      Leistungskataloge), NOEK, SETNODE/SETLEAF/SETHEADER(T) (SAP-Sets -> Orgbaeume).
+  #   4) FALLZUSAMMENFUEHRUNG ueber NAPX (s. NAPX-Eintrag oben).
+  CDHDR:
+    schema: sap
+    fhir: null            # -> Provenance (Aenderungsbeleg-Kopf)
+    tier: 3
+    pk: [MANDANT, OBJECTCLAS, OBJECTID, CHANGENR]   # SAP-Standard (VERIFY gegen replicate)
+    cdc: watermark
+    watermark_col: UDATE
+    notes: "SAP-Aenderungsbeleg-Kopf. Haus-ETL (base-table-main) nutzt CDHDR/CDPOS fuer die
+            SCD2-Historisierung der IS-H-Tabellen. FHIR: Quelle fuer Provenance/Versionierung."
+  CDPOS:
+    schema: sap
+    fhir: null            # -> Provenance (Feld-Aenderungen alt/neu)
+    tier: 3
+    pk: [MANDANT, OBJECTCLAS, OBJECTID, CHANGENR, TABNAME, TABKEY, FNAME, CHNGIND]  # SAP-Standard (VERIFY)
+    cdc: watermark
+    watermark_col: null   # ueber CHANGENR->CDHDR.UDATE
+    notes: "SAP-Aenderungsbeleg-Positionen (VALUE_OLD/VALUE_NEW je Feld). 161 Referenzen im
+            Haus-ETL. Gross — nur gezielt je OBJECTCLAS (z.B. Fallaenderungen) entladen."
+
+  # HINWEIS (Runde 5, aktualisiert): Vitalparameter haben KEINE eigene typisierte Tabelle
+  # (N2CLIM_OBSVS leer) -> nur ueber i.s.h.med-Parametrik (N2ANKER/N2PMDETEXT) als Observation.
+  # MedicationAdministration (Gabe): KEINE typisierte IS-H-Tabelle. N1MEORDER = nur Verordnung;
+  # die tatsaechliche Gabe kommt aus der Parametrik oder aus COPRA-PDMS (vgl. Z-Stub
+  # ZMM_COPRA_MEDIX). -> MedicationRequest verfuegbar, MedicationAdministration nicht direkt.
+  # OFFEN (Stand R6): (a) MedicationAdministration ggf. aus Parametrik/COPRA erschliessen;
+  # (b) Zeilenzahlen N1MEORDER/NRSF per COUNT(*)+Datumsfilter im Lastfenster;
+  # (c) kuratierte RSFNR->FHIR-Map (56 Codes) anlegen. ERLEDIGT R6: TN39A-Diskriminator
+  # geprueft (uniform, unbrauchbar); N2LABOR/N2LABOR001 Kopf/Wert final geklaert.
+
+  # ===== R14: VOLLINVENTUR aller N*-Tabellen (127 befuellte, live gezaehlt) =========
+  # Neu erschlossene FHIR-relevante Tabellen (Spalten + Schluessel live verifiziert):
+
+  N1LSTEAM:
+    schema: sap
+    fhir: null            # -> Procedure.performer (INDIVIDUELLE Personen!) via LNRLS
+    tier: 2
+    pk: [MANDT, LNRLS, VRGNR, GPART]        # VERIFY Reihenfolge (12,63 Mio; LNRLS+Vorgang+Person)
+    cdc: watermark
+    watermark_col: UPDAT
+    notes: "FUND R14: OP-/Leistungs-TEAM — WER hat die Leistung erbracht. LNRLS->NLEI,
+            VRGNR/VORGANG=Funktion im Eingriff (Live R15: OPT1=Operateur, ASS1-4=Assistenz,
+            ANA*=Anaesthesist, ANS*=Anaesthesiepflege, INS1=Instrumentanz, SPR1=Springer,
+            HEB=Hebamme, GAST; STATUS 'F'=fixiert), GPART=Person (gemeinsames Practitioner-
+            Schema R13: GPART==PERNR), BEGDT/BEGZT..ENDDT/ENDZT=Einsatzzeit. MAPPER R15:
+            map_procedure(..., team=[N1LSTEAM-Zeilen]) -> Procedure.performer mit
+            function urn:ish:op-vorgang (+kuratiertes Display OP_VORGANG-Map).
+            VERIFY (Lastfenster): Join-Pfad NICP<->N1LSTEAM — NICP.LNRLM ist LEER (live
+            geprueft, 0/10,3 Mio) -> Pfad vermutlich NICP[FALNR,EINRI,LFDBEW] ->
+            NLEI[FALNR,EINRI,LFDBEW] -> NLEI.LNRLS -> N1LSTEAM.LNRLS (Online-Join timeoutet
+            auf 210 Mio; im Batch/Lastfenster verifizieren)."
+
+  NFFZ:
+    schema: sap
+    fhir: null            # -> KLINISCHE Fall-zu-Fall-Verknuepfung (Encounter-Link)
+    tier: 2
+    pk: [MANDT, EINRI, FALN1, FALN2, BEGDT]  # R14: Paar NICHT eindeutig (1,90M/1,29M) -> +Zeitraum
+    cdc: ct
+    storno: STORN
+    notes: "FUND R14: Fall<->Fall-Zuordnung (FALN1<->FALN2, REFA1/REFA2=Bezugsart, BEGDT/
+            ENDDT, STORN). Das KLINISCHE Gegenstueck zur NAPX-Abrechnungsklammer (R11) und
+            die Verallgemeinerung von NGEB.FALN1/FALN2 (Mutter-Kind). Mehrere Zeitraeume je
+            Paar moeglich. REFA-LIVEVERTEILUNG R15 (nicht storniert): Q<->Q 1,74 Mio (DEUTUNG
+            unbestaetigt: Quartals-/Querverweis ambulant), P<->B 74k + B<->P 14k (DEUTUNG:
+            Patient<->Begleitperson), M<->N 51k + N<->M 3k (DEUTUNG GESICHERT durch NGEB-
+            Groessenordnung 61k: Mutter<->Neugeborenes), T<->T 16k, S<->S 3,6k. FHIR-Plan:
+            M/N -> Patient.link 'seealso' bzw. Encounter-Extension mutter-kind; P/B ->
+            Encounter-Extension begleitperson; Q/T/S erst nach Katalog-Bestaetigung
+            (Pruefpfad: Domaene ISH_REFAB bzw. Hauscustomizing) mappen."
+
+  # --- Versicherungs-/Coverage-Familie (R14 komplettiert das NKSK-Bild) ---
+  NVVP:
+    schema: sap
+    fhir: null            # -> Coverage-Anreicherung PATIENT (Versichertennummer!)
+    tier: 2
+    pk: [MANDT, PATNR, LFDNR]               # VERIFY (475k; 295k mit VERNR belegt)
+    cdc: ct
+    notes: "Versicherungsverhaeltnis je PATIENT: KOSTR->NKTR, MGART/UNTGR=Mitglieds-/
+            Untergruppe, VERNR=VERSICHERTENNUMMER (KVNR-Kandidat -> Coverage.subscriberId,
+            De-ID via priv.hash_id!), VERAB/VERBI=Gueltigkeit, VERGE/VERNN/VERVN=Versicherten-
+            Stammdaten (Klartext -> De-ID). Ergaenzt NKSK (fallbezogen) um die Patientensicht.
+            MAPPER R15: map_coverage(..., vvp=NVVP-Zeile gleicher KOSTR) -> subscriberId
+            (gehasht wenn priv aktiv, roh nur im Klarbetrieb) + MGART-Extension. Pipeline-
+            Lookup: je NKSK-Beleg die zeitlich passende NVVP-Zeile (PATNR+KOSTR, VERAB/VERBI)."
+  NVVF:
+    schema: sap
+    fhir: null            # -> Coverage-Anreicherung FALL (Zuzahlung)
+    tier: 3
+    pk: [MANDT, EINRI, FALNR, LFDNR]        # VERIFY (844k)
+    cdc: ct
+    notes: "Versichertenverhaeltnis je Fall inkl. ZUZAHLUNG (PFLZZ/BTRZZ=Zuzahlungstage/
+            -betrag, NZZGR=Befreiungsgrund). Erloes-/Zuzahlungsanalytik."
+  NPIR:
+    schema: sap
+    fhir: null            # Versichertenkarten-/Mitgliedsdaten PATIENT
+    tier: 3
+    pk: [MANDT, PATNR, LFDNR]               # VERIFY (3,43 Mio)
+    cdc: ct
+    notes: "Patient-Versicherungs-/Kartenverhaeltnis: KOSTR, MGART, VKNRA/VKNUM (VKNR),
+            VKVST/VKVSE=Kartengueltigkeit. Fallpendant = NCIR (12,14 Mio, gleiche Struktur
+            je FALNR). Beide = Coverage-Detailquellen hinter NKSK; NEHC (eGK) bleibt Tier 3."
+  NKSD:
+    schema: sap
+    fhir: null            # Kostenuebernahme-Detailflags zu NKSK
+    tier: 3
+    pk: [MANDT, BELNR]                      # VERIFY (6,78 Mio; BELNR wie NKSK)
+    cdc: ct
+    notes: "Detail zu NKSK (gleicher BELNR): KURAT/PRAEV/HILFE=Kur/Praevention/Hilfeleistung,
+            ENTBT=Entbindung, weitere Abrechnungsflags. Coverage-Zusatzattribute."
+
+  # --- Arztnummern-Historien (haengen am gemeinsamen Practitioner-Schema R13) ---
+  NKBVLANR:
+    schema: sap
+    fhir: null            # -> Practitioner.identifier (LANR, zeitscharf)
+    tier: 2
+    pk: [MANDT, PHYSNO, LANR, BEGDT]        # VERIFY (164k)
+    cdc: full
+    notes: "FUND R14: PHYSNO<->LANR-Historie mit Gueltigkeit. PHYSNO==NGPA.GPART fuer 99,8%
+            (163.965/164.238, live) -> haengt direkt am gemeinsamen Practitioner-Schema
+            (GPART==PERNR, R13). Quelle fuer zeitscharfe LANR-Identifier (ergaenzt
+            NPER.FIXLANR)."
+  NBSNR:
+    schema: sap
+    fhir: null            # -> PractitionerRole/Location (Betriebsstaettennummer, zeitscharf)
+    tier: 2
+    pk: [MANDT, PHYSNO, NBSNR, BEGDT]       # VERIFY (149k)
+    cdc: full
+    notes: "PHYSNO<->BSNR-Historie (Betriebsstaettennummer, KBV). Fuer ambulante Abrechnung/
+            PractitionerRole. Gleicher PHYSNO-Pfad wie NKBVLANR."
+
+  # --- i.s.h.med Vorgangsklammer (loest VKGID auf, das NDIP/N1COMPA referenzieren) ---
+  N1VKG:
+    schema: sap
+    fhir: null            # klinischer VORGANG (Klammer um Auftrag/Diagnose/Doku)
+    tier: 2
+    pk: [MANDT, VKGID]                      # VERIFY (3,86 Mio)
+    cdc: ct
+    notes: "FUND R14: i.s.h.med Vorgangs-/Verknuepfungsklammer. VKGID wird von NDIP (Diagnose-
+            Pool) und N1COMPA (18 Mio: VKGID<->CORDERID<->COMPID) referenziert -> verbindet
+            klinische Auftraege (N1CORDER), Diagnosen und Komponenten zu einem Vorgang.
+            Struktur wie N1CORDER (ETRBY/ETROE/ETRGP, PATNR, FALNR, KANAM/DITXT).
+            FHIR-Kandidat: EpisodeOfCare light bzw. ServiceRequest-Gruppierung."
+
+  # --- R14: NUR-ANALYTIK / niedrige Prioritaet (Spalten geprueft, kein FHIR-Kern) ---
+  #   NLCO 72,4 Mio  Leistungskonditionen je LNRLS (Mengen/Tarif LSTAR, UBVON/UBBIS) - Erloes
+  #   NLKZ 64,0 Mio  Leistung->Beleg-Zuordnung (LNRLS->BELNR/POSNR) - Abrechnungsbruecke
+  #   NLLZ 19,9 Mio  Leistung<->Leistung-Zuordnung (LNRLS1/LNRLS2, ZUOTP)
+  #   N1LSSTZ 23,6 Mio  Leistungs-STATUSVERLAUF (LNRLS, LSSTAE, GPART, ERDAT/ERTIM) ->
+  #                     Provenance-/Workflow-Quelle; Katalog N1LSSTA/T (11 Eintraege)
+  #   NTMN 11,5 Mio  Termine (TMNID, PATNR/FALNR, TMNOE, TMNDT/TMNZT) - Paar zu NAPP;
+  #                  bei Appointment-Ausleitung NAPP+NTMN gemeinsam betrachten
+  #   NSHIFT_ID 31,0 Mio + NSHIFT 5,8 Mio  GEKLAERT R14 (Stichprobe): produktives
+  #                  UMHAENGE-Protokoll (IS-H Umbuchung) — je Vorgang SOURCE->DEST fuer
+  #                  FALNR (4,47 Mio Umhaengungen!), LFDBEW (3,71 Mio), LNRLS (2,63 Mio).
+  #                  Bsp: Fall 0020944265/Bew 00001 -> Fall 0020940106/Bew 00003.
+  #                  Aktuelle Tabellen (NBEW/NLEI) zeigen den DEST-Stand; NSHIFT_ID ist
+  #                  der AUDIT-TRAIL. Relevanz: (a) Provenance, (b) Abgleich historischer
+  #                  Snapshots/§301-Meldungen (NC301) gegen heutige Fallnummern, (c) DIAS-
+  #                  Altauswertungen. Fuer laufende FHIR-Joins NICHT noetig.
+  #   NCIR 12,1 Mio  Versichertenkarte je FALL (s. NPIR-Eintrag)
+  #   NPAE 1,46 Mio  Patienten-Ergaenzung je EINRI (1:1 zu NPAT; Konfession/Vermerke)
+  #   NDOC_ZNA 641k  ZNA-(Notaufnahme-)Dokumente, gleiche DVS-Struktur wie NDOC ->
+  #                  beim NDOC-Export mitnehmen (gleicher Mapper, meta.source anpassen)
+  #   NDOCSTORNO 313k  stornierte Dokumente (NDOC-Pendant)
+  #   NMBG 145k  Mitbehandlung (FALNR, PERSON, REFANF) / NAMB 143k  Ambulanz-Zuordnung
+  #   N1FAT 4,8 Mio  Patiententransport/Fahrten (Abgang/Ziel OE+BAU+Zeit) - Task-Kandidat
+  #   NPAP/NPAPIX/NPIX/NPFO/NPTW  Patienten-Indizes/Formulare (Suchhilfen, kein Export)
+  #   N2DWSWL_TASK 3,4 Mio  DWS-Worklist (i.s.h.med Arbeitsliste)
+  #   N2ANKER 547k + N2PMDETEXT 67,7 Mio  Parametrik (bekannt: Arztbrief-/Vitalwert-Pfad)
+  #   N1CORDT* (Kataloge zu N1CORDER: Typen/Status/Transitionen, je <3k) -> ref_*-Loader
+  #   NO2K/NOEK 2,4k/2,6k  OE-Zuordnungen | NSTREM 1,9k Stationsremonten | N1XLEI 1,7k
+  #   NTPK/NTPT/NTPKD/NTPZ/NTPGP/NTPGK  Tarif-/Leistungskataloge (bereits R10 vermerkt)
+
+  # ===== R13: KATALOG-VERFUEGBARKEITSMATRIX (live gezaehlt, Replicate.sap) ==========
+  # Repliziert + befuellt (Textaufloesung der urn:ish:*-Codings MOEGLICH):
+  #   NKDI 390.504 (ICD-Texte!) | TNKFA 245 (Fachrichtung/serviceType) | TN14G/R je 74
+  #   (Bewegungsgrund+Texte) | TN14H 14 (Einweisung) | TN14T 6 (Bewegungsart) | TN14D 3
+  #   (Entlasszustand) | TN11B 8 (Gebaeudekategorie) | TN26C 4 (Diagnosesicherheit) |
+  #   TN26E 4 (Lokalisation) | TN39T 56 (Risikofaktoren) | TNK00 66 / TNK01 70 (Kodier-
+  #   kataloge) | TN24/TN24T je 140 (Behandlungskategorie) | TNDRG 48 | TN10A 21 /
+  #   TN10B 786 (OE-Kategorien) | TN15S 6.
+  # NICHT repliziert (Rohcode-only, ggf. Replikation beantragen):
+  #   TN14K (Anreiseart/UNFAV), TN14O (OP-Art/OPART), N2DT (Dokumentkategorie/DTID),
+  #   TN26B (Diagnosepriorität), TN26D (Diagnose-Zusatz).
+  # -> Empfehlung: ref_*-Loader fuer die 19 verfuegbaren Kataloge (cdc:full, gesamt <400k
+  #    Zeilen dominiert von NKDI); display-Anreicherung analog kodetext-Muster (R13).
+
+  # ---- Ergaenzung aus Altbestand-Analyse (produktiv verjointe Kataloge, ----
+  # ---- docs/ALTBESTAND_ANALYSE.md §3 — nicht Teil der R8-R16-Registry) ----
+  TN14U:
+    schema: sap
+    fhir: null                         # -> Bewegungsart-Texte (BWART)
+    tier: 1
+    pk: [MANDT, EINRI, BEWTY, BWART]   # VERIFY (sprachabhaengig SPRAS?)
+    cdc: full
+    notes: "Bewegungsart-Texte (Altbestand-verjoint). BWART VB=vorstationaer, AO=AOP."
+  TN14W:
+    schema: sap
+    fhir: null                         # -> Entlassungszustand-Texte
+    tier: 2
+    pk: [MANDT, ENTLZ]                 # VERIFY
+    cdc: full
+    notes: "Entlassung-Zustand-Texte (Altbestand-verjoint)."
+  TN24T:
+    schema: sap
+    fhir: null                         # -> Behandlungskategorie-Texte
+    tier: 2
+    pk: [MANDT, BEKAT]                 # VERIFY (BLTXT = Text, lt. Altbestand-Join)
+    cdc: full
+    notes: "Behandlungskategorie-Texte (NFAL.BEKAT -> BLTXT; Altbestand-verjoint)."

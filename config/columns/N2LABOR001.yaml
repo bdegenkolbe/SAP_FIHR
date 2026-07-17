@@ -1,0 +1,20 @@
+# N2LABOR001 = Labor-WERTZEILEN (~322 Mio — groesste Tabelle der Familie).
+# Massentabellen-Regel (Analyse_Datenbank §4): Aggregate nur im Lastfenster.
+table: N2LABOR001
+schema: sap
+select:
+  - MANDT
+  - DOKAR
+  - DOKNR
+  - DOKVR
+  - DOKTL
+  - MUSEQ      # Wertzeilen-Sequenz (Teil des PK)
+  - N2LEISTID  # Parametercode (hauseigen; LOINC-Map optional)
+  - N2KATTEXT  # Parametertext
+  - N2VALUE    # Wert (Freitext: '2,5', '<0,05', 'positiv' -> Parser in core.py)
+  - N2UNIT     # Einheit
+  - N2NORMAL   # Referenzbereich (Freitext)
+  - N2ABNORMAL # Abnormal-Flag (H/L/...)
+  - N2DATE     # Wertdatum
+  - N2TIME     # Wertzeit
+  - N2VSTATUS  # Wertstatus

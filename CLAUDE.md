@@ -1,90 +1,57 @@
-# CLAUDE.md — Arbeitsanleitung für Claude Code
+# CLAUDE.md — sapfhir: IS-H/i.s.h.med → FHIR/Analytik (HIGL/UKL)
 
-Kontext, um an diesem Projekt zu arbeiten, ohne alle Dokumente neu zu erschließen.
-Details in `docs/`. Einstieg immer: `docs/CONCEPT.md`.
+## Projektkontext
+Quell-DB: MSSQL 10.50.8.250 (read-only), DB `Replicate`, Schema `sap` (Qlik-Replikat des
+SAP IS-H/i.s.h.med). Konstanten: MANDT='100', EINRI='0001'. Change-Tables `<T>__ct`.
+Haus-ETL-Referenz: DB `Analysen` (E-Statistik, base-table-main-Prozeduren).
+HRP-Schema ist AUSGEKLAMMERT (Anweisung Björn).
 
-## Was das Projekt ist
-Ein On-Prem-Werkzeug, das **read-only** eine MSSQL-Replika von **SAP IS-H / i.s.h.med**
-ausliest (Datenbank `replicate`, Schemata `sap` und `hrp`, gespeist von Qlik Replicate)
-und den klinischen Bestand inkrementell nach **FHIR R4** in einen lokalen, spalten-
-orientierten Analysespeicher (Parquet + DuckDB) exportiert. Darauf: ein Auswertungs-
-dashboard und ein **MCP-Server**, über den ein LLM natürlichsprachliche Fragen zum
-Patienten stellt (DuckDB für Kohorten/SQL, **Kuzu** als eingebettete Graphdatenbank für
-Patient-Fall-Bewegung-Diagnose-Beziehungen).
+## Verbindliche Methode
+Lies ZUERST `docs/Analyse_Datenbank.md` — sie definiert das komplette Vorgehen:
+1. **Dreiklang je Tabelle/Feld:** sapdatasheet.org → Schema live (PK-Uniqueness!) →
+   Daten live (Fill-Rates, Top 1000, Werteverteilungen). Schema-Wahrheit ≠ Daten-Wahrheit.
+2. **NPAT-zentrierte Breitensuche** über den FK-Graphen; jede neue Zieltabelle in die
+   Warteschlange; Status je Tabelle in `config/tables.yaml` fortschreiben.
+3. **Verkryptung:** personenidentifizierende Varchars (Namen, Adressen, VERNR/KVNR,
+   EDIFACT-Inhalte NC301M/V/W, Freitexte) NIE im Klartext selektieren/loggen —
+   nur HASHBYTES-SHA256 oder LEN/Initial. Details/Feldliste: Analyse_Datenbank.md §4.
+4. **Verlustfreiheit:** unbekannte Codes nie raten, nie verwerfen → Rohcode unter
+   `urn:ish:<katalog>`; kuratierte Displays nur bei gesicherter Deutung.
+5. **Medizin ≠ Abrechnung:** Encounter bleiben unangetastet; NAPX→Account-Klammer,
+   NFFZ→Extension. KEIN Encounter.replaces/partOf für Zusammenführungen.
+6. **Datums-Pipeline:** Mapper (roh) → privacy (Shift/hash_id auf Rohwerten) →
+   `normalize_resource()` (ISO-8601 Europe/Berlin) → NDJSON. Sentinels: `_echtes_datum`
+   (0101-01-01 = SAP-Leerdatum via Qlik = OFFENER Fall → status in-progress).
 
-Schwesterprojekt `Ingolf` (medatixx/Praxis) liefert die bewährten Muster (dbsource,
-privacy, Registry-getriebener Export, Golden-Record-Test). **Dieses Projekt übernimmt
-diese Muster, aber NICHT den PVS-Ausbau.**
+## Wichtigste verifizierte Fakten (Kurzliste; Vollstand: config/tables.yaml + docs/VERIFY_LOG)
+- NDRG hat ENGLISCHE Spalten (CLIENT/INSTITUTION/PATCASEID). NLEI/NLEM-Key = [MANDT,LNRLS].
+- GPART == PERNR == PHYSNO (1:1, 236.114) → EIN Practitioner-ID-Schema für NGPA/NPER/
+  NFPZ/NKBVLANR/NBSNR. Pipeline mergt NGPA(Name)+NPER(LANR/FACHR).
+- Tote Felder in DIESEM Haus: NICP.OPART, NBEW.UNFAV/VGNREF/NFGREF, NFAL.FACHR/ENDTYP,
+  NDIA.DIASI (Wahrheit: DIAGW). Bewegungskette per ORDER BY BWIDT/BWIZT ableiten.
+- §301-Meldedaten: NC301S (Index) + NC301M (EDIFACT-Rohtext, gechunkt) + NC301V/W (Segmente).
+- N1MEORDER leer → Medikation/Vitalwerte via COPRA5/6 (siehe DIAS-Baum) erschließen.
+- Nicht replizierte Kataloge: TN14K, TN14O, N2DT, TN26B/D → Rohcode-only.
 
-Randbedingungen (nicht verhandelbar):
-- Reine **Sekundärnutzung**. Kein Schreiben in SAP, keine KIS-/PVS-Funktion, keine
-  Abrechnung, keine Arbeitsliste, keine Primärdokumentation. §301/DRG nur lesend als Analytik.
-- Klardaten verlassen die Maschine nicht. Pseudonymisierung/Date-Shift ist Export-Option.
-- Installation und Betrieb **ohne Adminrechte** (siehe `docs/DEPLOYMENT.md`).
-- Read-only auf die Quelle (dedizierter Login `db_datareader`).
+## Arbeitsregeln für Sessions
+- Jede neue Erkenntnis SOFORT in `config/tables.yaml` (notes, 'verifiziert Rx') und bei
+  Korrekturen in `docs/VERIFY_LOG_R8-R13.md` (neue Runde anhängen) dokumentieren.
+- Mapper-Änderungen IMMER mit Test in `tests/test_core.py`; Referenz-Konsistenz
+  (ID-Schemata) explizit asserten. `python -m pytest tests/ -q` muss grün sein.
+- Online-Aggregate >50 Mio Zeilen (NLEI, N2LABOR001) timeouten → Lastfenster/Batch.
+- Backlog-Reihenfolge: Analyse_Datenbank.md §8.
 
-## Abgrenzung zu Ingolf (WICHTIG)
-Aus Ingolf übernommen: `dbsource` (pyodbc→pytds-Fallback), `privacy` (HMAC-Pseudonyme,
-per-Patient-Date-Shift, wertbasiertes `hash_id`, Freitext-De-ID, Gate enforce/warn/off),
-Registry-Ansatz (`tables.yaml`), stabile FHIR-IDs (uuid5), idempotenter Upsert,
-Golden-Record-Test, No-Admin-Store.
-**NICHT übernommen: der gesamte `pvs/`-Zweig** (klinischer Kernel/Ereignisstrom,
-Fall/Schein-Aggregat, KVDT/ADT-Serializer, GOÄ/PADneXt-Rechnung, Strangler-Migration).
-SAP_FIHR bleibt Read-only-Analytik.
-
-## Quelle (verifiziert 15.07.2026)
-- MSSQL `replicate`, Schema `sap` (1.152 Basistab.) + `hrp` (~101). CDC über Qlik-`__ct`.
-- IS-H-Kern: NPAT, NFAL, NBEW, NDIA/NDIP, NICP, NLEI, NDRG, NDOC, N2TEXT, N2LABOR,
-  NORG/NGPA/NADR, NKTR/NFPZ (Kostenträger/Versicherung), NC301* (§301).
-- i.s.h.med: N1CORDER/N1ANF (Aufträge), N2TEXT (Dok.), N2LABOR (Befunde).
-- HR/Orga: hrp.HRP1000/HRP1001, hrp.PA0001-0003 (→ Practitioner).
-- Mengengerüst siehe `docs/CONCEPT.md` §2. Größte Tabelle NLEI ≈ 210 Mio Zeilen.
-
-## Verifikationsdisziplin
-Feldkennungen und Enum-Kodierungen, die noch nicht gegen die Live-DB bzw. offizielle
-Doku (sapdatasheet.org, SAP IS-H Datenmodell) geprüft sind, sind im Code mit `# VERIFY`
-markiert. Vor Produktivlauf auflösen — nicht raten.
-**Verifiziert (Live-Runden 1–3, `docs/VERIFY_RESULTS*.md`):** NPAT, NFAL, NBEW, NDIA,
-NICP (PK=LNRIC!), NAPX/NAPX_FAL (Fallzusammenführung), NGPA, NKTR, NKSK (Coverage-
-Quelle), NGEB, NBAU. **Altbestand-Abgleich (`docs/ALTBESTAND_ANALYSE.md`):** BEWTY
-2=Entlassung/3=Verlegung (korrigiert!), BWEDT=9999=offen, DIAGW=Diagnosesicherheit,
-Katalogtabellen TN14T/TN14R/TN14U/TN14W/TN24T/NKDI, NFAL.STASP=Statistiksperre.
-Offen: N2LABOR/NDOC/N2TEXT-Details, PODIA/ARDIA-Konflikt (CONCEPT §20).
-Die historischen Ladeprozesse des Hauses liegen als Referenz unter `legacy/`
-(nur Semantik übernehmen, NIE das T-SQL-Framework).
-
-## Baureihenfolge (Roadmap — Details + Akzeptanzkriterien in docs/CONCEPT.md §12)
-Phase 1:  dbsource + Rechte-/PK-Check + `tables.yaml`-Registry + Spaltenkataloge aller
-          Tier-1-Tabellen + Keyset-Backfill Tier 1 → Parquet (Lastfenster durchgesetzt).
-Phase 2a: CDC über `__ct` als Delta-Parquet + Watermark-State + Retention-Lückenerkennung.
-Phase 2b: Merge-Views `bronze_current.*` + nächtliche Compaction (CONCEPT §14) —
-          ohne diesen Schritt sehen Gold/Silver/MCP keine CDC-Änderungen!
-Phase 3:  FHIR-Mapper Kern (Patient, Encounter, Condition, Procedure, Observation,
-          DocumentReference) mit subject-Lookup FALNR→PATNR, durchgängigem Date-Shift,
-          Provenance + FHIR-Index (CONCEPT §16), gegen Golden-Record-Patient.
-Phase 4:  Gold-Marts (DuckDB, über bronze_current) + Dashboard (FastAPI 127.0.0.1:8471)
-          inkl. DQ-Kacheln (CONCEPT §15).
-Phase 5:  Kuzu-Graph + MCP-Server (7 Tools) mit Härtung nach CONCEPT §17
-          (Sandbox-DuckDB, mcp.*-Views, Timeouts, Parameter-Hash-Audit).
-Phase 6:  Härtung — Pseudonymisierung End-to-End, Benutzerverwaltung, DSFA-Freigabe.
-
-Vor Implementierungsarbeit an einer Phase: `docs/ANALYSE.md` lesen — dort sind die
-bekannten Lücken des v0.1-Skeletts (z. B. CDC-Merge fehlt, MCP liest Bronze-Klardaten,
-Date-Shift inkonsistent, NPAT-PK fraglich) mit Datei-/Zeilenbezug priorisiert.
-
-## Konventionen
-- Python 3.11+, stdlib-first. DB treiberfrei über `pytds` (No-Admin); `pyodbc` optional.
-- Analysespeicher: DuckDB-Datei (kein Dienst, kein Admin). Graph: Kuzu (embedded, Cypher).
-- FHIR-IDs stabil per uuid5 (idempotenter Upsert). Datumswerte laufen durch Date-Shift.
-- Kodiersysteme: ICD-10-GM, OPS, ATC, LOINC (Map-Konfig), UCUM.
-- Schlüssel im IS-H immer mandantenscharf: (MANDT, EINRI, FALNR/PATNR, LFDNR).
-
-## Tests (ohne DB lauffähig)
-`python -m pytest tests/ -q` — Fixtures statt Live-DB. Golden-Record-Test mit fixierten
-Sollwerten für einen bekannten Testfall (`tests/test_golden.py`).
-
-## Datenschutz
-Verarbeitung besonderer Kategorien (Art. 9 DSGVO). AV/Rechtsgrundlage vor Produktivbetrieb
-klären (Christopher Schrey). Re-ID-Vault getrennt sichern, niemals in Exporte/Analysezone.
-MCP-Server hat keinen Netz-Egress. LLM-Frontend-Entscheidung (Claude Desktop vs. LibreChat
-+ lokales Modell) ist eine Datenschutzentscheidung — siehe `docs/CONCEPT.md` §20.
+## Repo-Betrieb (Ergänzung zur Methode — Details in docs/)
+- Gesamtkonzept: `docs/CONCEPT.md` (+ `CONCEPT_EXT.md`, `ALTBESTAND_ANALYSE.md`,
+  `GESAMTREVIEW.md`); Verifikationshistorie: `docs/VERIFY_RESULTS*.md` (R1-R4, remote)
+  und `docs/VERIFY_LOG_R8-R13.md` (R8-R16, lokal gegen 10.50.8.250).
+- Pipeline (alles user-space, No-Admin): Keyset-Backfill + `__ct`-CDC (Delta-Parquet,
+  Retention-Waechter) -> `bronze_current`-Merge-Views + Compaction (`extract/merge.py`)
+  -> FHIR-NDJSON mit Index/Provenance (`fhir/ndjson.py`; Reihenfolge Mapper -> Shift ->
+  `normalize_resource`) -> Gold-Marts/FTS/DQ -> maskierte `mcp.*`-Schicht -> Kuzu-Graph.
+- MCP-Server gehaertet nach CONCEPT §17 (Sandbox-DuckDB, mcp.*-Zwang, Timeouts,
+  Audit-Hash-Kette). Betrieb/Installation: `docs/DEPLOYMENT.md` (Setup.bat, Nightly).
+- Verproben ohne DB: `python tools/seed_demo.py --pipeline` + `python -m sapfhir.api.app`.
+- Tests: `python -m pytest tests/ -q` (ohne DB lauffaehig) — muss vor jedem Push gruen sein.
+- Git: Branch `claude/concept-analysis-expansion-nwg4ua`; jede Session pusht ihre
+  Ergebnisse dorthin (Remote- und Lokal-Sessions arbeiten am selben Stand).
