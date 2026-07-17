@@ -1,8 +1,16 @@
 # GREENBAY clinical — IS-H Edition (Arbeitstitel „ishx")
 ## FHIR-basiertes Entladetool + Auswertungsdashboard + Patienten-MCP-Server
 
-Version 0.2 · 15.07.2026 · Konzept für Rollout via Claude Code
+Version 0.3 · 17.07.2026 · Konzept für Rollout via Claude Code
 Verwandtes Projekt: `ingolf` (medatixx/Praxis) — **hier explizit OHNE PVS-Ansatz**: reine Read-only-Sekundärnutzung, keine Rückschreibung, keine Abrechnung, keine Primärdokumentation.
+
+**Änderungen v0.3** (nach Integration der Live-Runden R8–R16; Details in
+`docs/GESAMTREVIEW.md`, Methode in `docs/Analyse_Datenbank.md`):
+- §6 Mapping-Tabelle auf den verifizierten R16-Stand gehoben (NDOC=DVS-Schlüssel,
+  Labor=N2LABOR/N2LABOR001, NFPZ=participant, NKSK=Coverage, NAPX=Account,
+  NFAL-Fallende=ENDDT mit Offen-Sentinel, Practitioner=NGPA≡NPER).
+- Datums-Pipeline verbindlich: Mapper (roh) → Shift → `normalize_resource()`.
+- Registry 85 Tabellen; DIAS-Abdeckungsdiff als automatischer DQ-Job.
 
 **Änderungen v0.2** (Begründungen in `docs/ANALYSE.md`):
 - §6 korrigiert: FHIR-IDs per **uuid5** (nicht sha1) — konsistent mit Code und CLAUDE.md.
@@ -123,22 +131,27 @@ Entscheidungen und Begründung:
 
 ## 6. FHIR-R4-Mapping (Kern, ISiK-Basis-orientiert)
 
-| IS-H | FHIR-Ressource | Anmerkungen |
+| IS-H | FHIR-Ressource | Anmerkungen (verifiziert R8–R16, Details `docs/VERIFY_LOG_R8-R13.md`) |
 |---|---|---|
-| NPAT (+NADR, NPAE) | Patient | Identifier: PATNR (+ optional KVNR aus NKSK/NFPZ-Kontext); Adresse aus NADR via ADRNR |
-| NFAL | Encounter (Top-Level) + Account | FALAR → class (stationär/ambulant/teilstat.); Encounter.identifier = EINRI-FALNR |
-| NBEW | Encounter.location[] + Sub-Encounter je Bewegung | BEWTY (Aufnahme/Verlegung/Entlassung/amb. Besuch), ORGFA/ORGPF → Location/ServiceProvider, Zeitraum BWIDT/BWIZT–BWEDT/BWEZT; STORN → entered-in-error |
-| NDIA (+NDIP) | Condition | ICD-10-GM (DKEY1), Lokalisation, Diagnosetyp (Aufnahme/Entlass/Neben) via NDIP-Verwendung; encounter-Referenz über FALNR, **subject über FALNR→PATNR-Lookup (§16.2)** |
-| NICP | Procedure | OPS (ICPK1/ICPML), Datum, durchführende OE; subject via Lookup |
-| N2LABOR | Observation (laboratory) | Wert/Einheit/Referenzbereich; LOINC-Mapping-Tabelle als Konfig (Start: hauseigene Codes als CodeableConcept.text); UCUM-Einheiten §18 |
-| NLEI/NLEM | ChargeItem (Tier 2) | nur Analytik, kein Billing-Workflow |
-| NDRG | Encounter-Extension + Claim (optional) | DRG, CMI-Berechnung im Gold-Layer |
-| NDOC + N2TEXT | DocumentReference (+ Binary optional) | Kategorie aus Dokumenttyp; Volltext in DuckDB-FTS, nicht in FHIR |
-| N1CORDER/N1ANF | ServiceRequest | klinische Aufträge |
-| NAPP/NTMN | Appointment (Tier 2) | |
-| NORG + hrp.HRP1000/1001 | Organization + Location (Hierarchie) | OE-Baum aus HRP1001-Relationen (A/B 002, 003) |
-| hrp.PA0002 (+PA0001) | Practitioner (+ PractitionerRole) | pseudonymisierbar (Konfig-Schalter) |
-| NFPZ/NKTR | Coverage + Organization (Kostenträger) | |
+| NPAT (+NADR via ADRNR+ADROB) | Patient | PATNR-Identifier; Adresse direkt auf NPAT bzw. NADR; Tod TODKZ/TODDT; Merge RFPAT→link(replaces); Hausarzt HARNR→generalPractitioner |
+| NFAL | Encounter (Top-Level) | FALAR→class; **Fallende = ENDDT** (ENDAT=Entbindung!); Sentinel 0101-01-01 = OFFENER Fall → `in-progress` ohne period.end; hospitalization aus Aufnahme-/Entlassbewegung (NBEW) |
+| NBEW | Sub-Encounter je Bewegung (partOf) | BEWTY 1/2/3/4/6/7 (2=Entlassung!); ORGFA→serviceProvider(NORG), ZIMMR/BETT→Location(NBAU); BWGR→reasonCode; Kette per ORDER BY BWIDT/BWIZT (VGNREF/NFGREF sind leer) |
+| NDIA | Condition | DKEY1/DKAT1 (System je Katalog), DKEY2 nur bei echtem Zweitkode; Klartext DITXT bzw. NKDI-Lookup→display; Flags *DIA→category[]; Sicherheit **DIAGW** (G/V/A/Z→verification-/clinicalStatus) |
+| NICP (+N1LSTEAM) | Procedure | **PK=LNRIC**; ICPML/ICPMK('36'); performedPeriod BGDOP/BZTOP–ENDOP/EZTOP; performer=ORGFA/ORGPF(NORG) + OP-Team aus N1LSTEAM (Joinpfad offen, Backlog #2); LSLOK→bodySite; subject via FALNR→PATNR-Lookup |
+| N2LABOR (Kopf) + N2LABOR001 (Werte) | DiagnosticReport + Observation | DVS-Schlüssel; N2VALUE ist Freitext → robuste Parser (Komparatoren, Dezimalkomma), referenceRange aus N2NORMAL, interpretation aus N2ABNORMAL bzw. abgeleitet |
+| NKSK (+NVVP) | Coverage | Kostenübernahme je Fall (BELNR); payor=KOSTR→NKTR; subscriberId=NVVP.VERNR (**KVNR → immer hash_id**); 0009999999=Selbstzahler |
+| NAPX/NAPX_FAL | **Account** (Abrechnungsklammer) | R11: Encounter bleiben unangetastet, KEIN replaces/partOf; Encounter.account → Account(APXNR); LEAD/REASON als Extensions |
+| NFFZ | Encounter-Extension `urn:ish:fallbezug` | klinische Fall↔Fall-Bezüge (M/N=Mutter/Kind gesichert); verlustfrei, Display nur für gesicherte Codes |
+| NFPZ | Encounter.participant | Fall↔behandelnde Person (PERNR), FARZT-Rolle als Rohcode |
+| NDOC (+N2TEXT) | DocumentReference | **DVS-Schlüssel** [DOKAR,DOKNR,DOKVR,DOKTL,LFDDOK]; DTID→type, MEDOK→category; Autor MITARB/ORGDO; Volltext N2TEXT.TXT → DuckDB-FTS, nicht FHIR |
+| N1CORDER | ServiceRequest | PK=CORDERID (UUID); patientenbezogen (kein FALNR); Requester ETRGP→Practitioner bzw. OE |
+| N1MEORDER | MedicationRequest | im Haus LEER (0 Zeilen) → Medikation via COPRA5/6 (eigener Adapter, Backlog #8) |
+| NRSF | AllergyIntolerance ODER Flag | kuratiertes Routing (Allergie/Infektion-MRE/Administrativ) — verhindert MRSA-als-Allergie |
+| NGPA ≡ NPER (GPART==PERNR) | Practitioner (EINE Ressource) | Pipeline-Merge: Name/Titel/IK aus NGPA + LANR/FACHR/Rollen aus NPER; auch Ziel von NFPZ/HARNR |
+| NKTR / TN01 / NORG / NC301P | Organization | Kostenträger (IK) / Einrichtung / Fachabteilung (partOf Einrichtung) / §301-Datenannahmestellen |
+| NBAU (+TN11H/NPOB) | Location | XKOOR/YKOOR sind LAGEPLAN-Koordinaten (kein Geo!); Hierarchie TN11H→partOf; OE-Zuordnung→managingOrganization; Ziel von NBEW.ZIMMR/BETT |
+| NGEB | Observation (vital-signs) | Geburtsgewicht/-länge/Kopfumfang je Kind-Fall (FALN1) |
+| NLEI/NLEM/NDRG/NC301S | nur Analytik-Pfad | ChargeItem-/DRG-/§301-Analytik im Gold-Layer, kein FHIR-Kern |
 
 Konventionen: `Resource.id = uuid5(namespace, resourceType|MANDT|EINRI|<PK>)` — deterministisch und idempotent (Re-Export upsertet statt zu duplizieren; Implementierung `src/sapfhir/fhir/ids.py`), `meta.source = sapfhir/<tabelle>`, Provenance pro Ausleitungslauf (§16.3). Kodierte `class`/`category`/`code`-Elemente tragen immer die offiziellen CodeSystem-URIs (v3-ActCode, ICD-10-GM: `http://fhir.de/CodeSystem/bfarm/icd-10-gm`, OPS: `http://fhir.de/CodeSystem/bfarm/ops`, LOINC, UCUM). Profile: ISiK-Basismodul wo deckungsgleich, sonst DE-Basisprofile (§19); Validierung stichprobenhaft mit `fhir.resources` (Pydantic) im CI, nicht im Massenpfad.
 
