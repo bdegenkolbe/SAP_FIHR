@@ -109,7 +109,38 @@ Wipe von `data\` (dokumentieren für das Löschkonzept, CONCEPT §10/§20.12). S
 (`setx SAPFHIR_... ""`) und Claude-Desktop-/LibreChat-Konfigurationseinträge manuell
 entfernen (`docs/MCP_SETUP.md`).
 
-## 9. Troubleshooting
+## 9. Lokal mit Claude Code + eigenem mssql-MCP arbeiten (PC-A)
+
+Die Remote-Sessions (claude.ai/code) erreichen weder lokale MCP-Server noch die
+On-Prem-Replika. Für Live-Verifikation deshalb **lokal** arbeiten:
+
+```bat
+:: 1) Projekt holen (Git for Windows vorausgesetzt; alternativ GitHub Desktop
+::    oder "Code -> Download ZIP" im Browser)
+git clone https://github.com/bdegenkolbe/SAP_FIHR.git
+cd SAP_FIHR
+git checkout claude/concept-analysis-expansion-nwg4ua
+
+:: 2) Umgebung (optional, fuers Verproben): installer\Setup.bat
+::    oder minimal:  python -m venv .venv && .venv\Scripts\pip install -r requirements.txt -e .
+
+:: 3) mssql-MCP fuer dieses Projekt registrieren:
+::    Variante a) .mcp.json.example -> .mcp.json kopieren, Command aus der
+::    bestehenden %APPDATA%\Claude\claude_desktop_config.json uebernehmen
+::    Variante b) per CLI:  claude mcp add mssql -- <startkommando-des-servers>
+
+:: 4) Claude Code im Projektordner starten:
+claude
+```
+
+Beim ersten Start fragt Claude Code, ob die Projekt-`.mcp.json` geladen werden
+darf → bestätigen. Danach stehen die mssql-Tools in der lokalen Session bereit;
+CLAUDE.md wird automatisch gelesen, der Arbeitsstand ist identisch mit dem Branch.
+Ergebnisse (VERIFY-Läufe, Registry-Korrekturen) committen und pushen — dann kann
+jede andere Session (auch die Remote-Session) nahtlos weitermachen.
+`.mcp.json` ist gitignored (lokale Pfade/Secrets gehören nicht ins Repo).
+
+## 10. Troubleshooting
 
 | Symptom | Ursache/Abhilfe |
 |---|---|

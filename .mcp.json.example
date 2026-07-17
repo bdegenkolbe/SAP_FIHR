@@ -1,0 +1,17 @@
+{
+  "//": "Projekt-MCP-Konfiguration fuer LOKALE Claude-Code-Sessions (PC-A).",
+  "//2": "Kopie nach .mcp.json (gitignored), Command an die eigene mssql-MCP-",
+  "//3": "Installation anpassen — denselben Eintrag nutzt auch Claude Desktop",
+  "//4": "(%APPDATA%\\Claude\\claude_desktop_config.json), von dort kopieren.",
+  "mcpServers": {
+    "mssql": {
+      "command": "C:\\pfad\\zu\\mssql-mcp\\start.cmd",
+      "args": [],
+      "env": {
+        "MSSQL_HOST": "sql-replica.klinik.intern",
+        "MSSQL_DATABASE": "replicate",
+        "MSSQL_READONLY": "1"
+      }
+    }
+  }
+}

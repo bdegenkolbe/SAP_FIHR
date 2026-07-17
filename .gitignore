@@ -11,3 +11,4 @@ config/loinc_map.csv
 *_stage/
 .DS_Store
 src/*.egg-info/
+.mcp.json
