@@ -73,6 +73,52 @@ if app:
             "SELECT run_id, table_name, rows, ts FROM silver.silver_runs "
             "ORDER BY ts DESC LIMIT 100"))
 
+    @app.get("/api/analytics/kpis")
+    def kpis():
+        one = lambda sql: (_q(sql) or [{}])[0]
+        return JSONResponse({
+            "faelle": one("SELECT COUNT(*) n FROM mcp.fall "
+                          "WHERE COALESCE(STORN,'') IN ('','0')").get("n"),
+            "offen": one("SELECT COUNT(*) n FROM mcp.fall "
+                         "WHERE COALESCE(STORN,'') IN ('','0') AND (ENDDT IS NULL "
+                         "OR substr(CAST(ENDDT AS VARCHAR),1,4) IN ('0101','9999'))"
+                         ).get("n"),
+            "patienten": one("SELECT COUNT(*) n FROM mcp.patient "
+                             "WHERE COALESCE(STORN,'') IN ('','0')").get("n"),
+            "labor": one("SELECT COUNT(*) n FROM mcp.labor").get("n"),
+            "vwd_mittel": one("SELECT AVG(vwd_tage) v FROM gold.verweildauer").get("v"),
+            "vwd_median": one("SELECT MEDIAN(vwd_tage) v FROM gold.verweildauer").get("v"),
+        })
+
+    @app.get("/api/analytics/vwd_histogramm")
+    def vwd_histogramm():
+        return JSONResponse(_q(
+            "SELECT bucket, COUNT(*) AS n FROM (SELECT CASE"
+            " WHEN vwd_tage <= 1 THEN '0-1' WHEN vwd_tage <= 3 THEN '2-3'"
+            " WHEN vwd_tage <= 6 THEN '4-6' WHEN vwd_tage <= 10 THEN '7-10'"
+            " WHEN vwd_tage <= 15 THEN '11-15' WHEN vwd_tage <= 21 THEN '16-21'"
+            " ELSE '>21' END AS bucket, vwd_tage FROM gold.verweildauer"
+            " WHERE vwd_tage >= 0) GROUP BY bucket"))
+
+    @app.get("/api/analytics/alter_geschlecht")
+    def alter_geschlecht():
+        # GBDAT ist in der maskierten Schicht nur das Geburtsjahr (pseudonymize).
+        return JSONResponse(_q(
+            "SELECT CAST(LEAST(FLOOR((year(current_date) - "
+            "  TRY_CAST(substr(CAST(GBDAT AS VARCHAR),1,4) AS INT)) / 10) * 10, 90)"
+            "  AS INT) AS band, GSCHL, COUNT(*) AS n "
+            "FROM mcp.patient WHERE COALESCE(STORN,'') IN ('','0') "
+            "  AND TRY_CAST(substr(CAST(GBDAT AS VARCHAR),1,4) AS INT) "
+            "      BETWEEN 1900 AND year(current_date) "
+            "GROUP BY 1, 2 ORDER BY 1"))
+
+    @app.get("/api/analytics/fachrichtungen")
+    def fachrichtungen():
+        return JSONResponse(_q(
+            "SELECT COALESCE(NULLIF(TRIM(FACHR),''),'ohne') AS fachr, COUNT(*) AS n "
+            "FROM mcp.fall WHERE COALESCE(STORN,'') IN ('','0') "
+            "GROUP BY 1 ORDER BY n DESC LIMIT 12"))
+
     @app.get("/api/analytics/faelle_monat")
     def faelle_monat():
         return JSONResponse(_q("SELECT * FROM gold.faelle_monat"))
@@ -100,10 +146,24 @@ if app:
     # d.h. pseudonymize_view greift auch hier.
     @app.get("/api/patient360/{patnr}")
     def patient360(patnr: str):
+        patient = _q(
+            "SELECT GSCHL, GBDAT, TODKZ FROM mcp.patient "
+            "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0')", [patnr])
         faelle = _q(
-            "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR FROM mcp.fall "
-            "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0') "
+            "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR, "
+            "  CASE WHEN ENDDT IS NULL OR substr(CAST(ENDDT AS VARCHAR),1,4)"
+            "       IN ('0101','9999') THEN 1 ELSE 0 END AS offen "
+            "FROM mcp.fall WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0') "
             "ORDER BY BEGDT DESC LIMIT 50", [patnr])
+        diagnosen = _q(
+            "SELECT d.DIADT, d.DKEY1, d.DITXT, d.KHDIA, d.FALNR "
+            "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
+            "WHERE f.PATNR = ? AND COALESCE(d.STORN,'') IN ('','0') "
+            "ORDER BY d.DIADT DESC LIMIT 50", [patnr])
+        labor = _q(
+            "SELECT KATTEXT, BEFDT, WERT, EINH, REFBER, ABNORMAL FROM mcp.labor "
+            "WHERE PATNR = ? AND BEFDT IS NOT NULL "
+            "ORDER BY KATTEXT, BEFDT LIMIT 500", [patnr])
         timeline = _q(
             "SELECT * FROM ("
             " SELECT BEGDT AS datum, 'Fall' AS typ, FALNR AS ref,"
@@ -114,7 +174,7 @@ if app:
             "   LEFT JOIN ref.bewegungstyp rb"
             "     ON CAST(b.BEWTY AS VARCHAR) = rb.\"BEWTY\" WHERE f.PATNR = ?"
             " UNION ALL SELECT d.DIADT, 'Diagnose', d.FALNR,"
-            "   COALESCE(d.DITXT, d.DKEY1)"
+            "   d.DKEY1 || COALESCE(' ' || d.DITXT, '')"
             "   FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"
             " UNION ALL SELECT p.BGDOP, 'Prozedur', p.FALNR,"
             "   COALESCE(p.BTEXT, CAST(p.ICPML AS VARCHAR))"
@@ -122,10 +182,15 @@ if app:
             " UNION ALL SELECT l.BEFDT, 'Labor', l.FALNR,"
             "   l.KATTEXT || ': ' || l.WERT || ' ' || COALESCE(l.EINH,'')"
             "   FROM mcp.labor l WHERE l.PATNR = ?"
+            " UNION ALL SELECT dk.DODAT, 'Dokument', dk.FALNR,"
+            "   'Dokument ' || COALESCE(dk.DOKAR,'') FROM mcp.dokument dk"
+            "   WHERE dk.PATNR = ? AND COALESCE(dk.STORN,'') IN ('','0')"
             ") WHERE datum IS NOT NULL ORDER BY datum DESC LIMIT 300",
-            [patnr] * 5)
-        return JSONResponse({"patnr": patnr, "faelle": faelle,
-                             "timeline": timeline})
+            [patnr] * 6)
+        return JSONResponse({"patnr": patnr,
+                             "patient": patient[0] if patient else None,
+                             "faelle": faelle, "diagnosen": diagnosen,
+                             "labor": labor, "timeline": timeline})
 
     web_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "web")
     if os.path.isdir(web_dir):

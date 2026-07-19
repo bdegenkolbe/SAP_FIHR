@@ -118,6 +118,14 @@ NFAL.STASP-Statistiksperre bleibt als Analytik-/MCP-Ausschluss aktiv.
 | 8 | COPRA5/6-Adapter für Medikation/Vitalwerte | R10/R14 | neues Arbeitspaket |
 | 9 | ~~vvp-/personal-/bewegungen-Lookups~~ **erledigt** (LIST(STRUCT)-Broadcast-Joins); offen bleibt `team` (haengt am NICP↔N1LSTEAM-Joinpfad, #2) | Review | mit #2 |
 | 10 | ~~DIAS-Abdeckungsdiff als DQ-Job~~ **erledigt** (`_meta.dias_coverage` + Dashboard-Kachel) | §5 Paket | — |
+| 11 | Governance-Grundschicht: Login (Argon2id+TOTP), Rollen, Session, Audit-Kette auf API, Modus-Badge | Ingolf P1a | docs/INGOLF_FUNKTIONSVERGLEICH.md §5 |
+| 12 | Patientensuche mit Facetten (ICD/Alter/Labor/Fachr) vor Patient 360 | Ingolf P1b | dito |
+| 13 | Aggregatschutz mask(n<5) zentral in der API | Ingolf P1c | dito |
+| 14 | Fehler-207-Fallback (fehlende Spalte -> NULL AS col + WARN) im Extraktor | Ingolf P1d | dito |
+| 15 | Kohorten-Builder (Kriterien-JSON, UND/ODER) + Forschungsexport + MCP-Tool cohort_query | Ingolf P2a/P2d | dito |
+| 16 | FHIR-Profil-Layer R4/MII-KDS (meta.profile + Pflichtfelder) | Ingolf P2b | dito |
+| 17 | Settings-UI mit Write-Through + DPAPI-Secrets | Ingolf P2c | dito |
+| 18 | Dokument-Intelligence-Port (documents/annotate) NACH SOOD-Verify (#4), nur mit Rollenmodell (#11) | Ingolf P3 | dito |
 
 ## 5. Prüfergebnis
 
