@@ -73,17 +73,23 @@ Alle `ZNRKT_*` teilen die **Fallklammer-PK-Wurzel** `[MANDT, EINRI, FALNR, KOSTR
 | `ZNRKT_REKL` | 138 | 1.339.366 | `[…,LFDNR,REKL_POS,REKL_ST_POS]` | **Reklamations-/Statuszeilen** (operatives Herz, aktuell bis 2026) |
 | `ZNRKT_DRG` | 147 | 193.243 | `[…,LFDNR,DRG_LFDNR_RKT,DRG_LFDNR_NDRG]` | **Erlös-Nachrechnung** je Sicht (6× ISH/KK/MDK/MDE/ANF/RKT); Root allein nur 178.425 → mehrere DRG-Zeilen je Vorgang |
 | `ZNRKT_MDK` | 47 | 18.153 | `[…,LFDNR,MDKPOS]` | MDK-**Begehungstermine** (Alt-Workflow, Gutachtendaten ≤2013) |
-| `ZNRKT_ICD` | — | 275.544 | (VERIFY) | ICD-Streit je Vorgang |
-| `ZNRKT_OPS` | — | 48.335 | (VERIFY) | OPS-Streit je Vorgang |
-| `ZNRKT_BER` | — | 957.295 | (VERIFY) | Berichte/Unterlagen-Positionen |
-| `ZNRKT_AUF` | — | 944.348 | (VERIFY) | Aufgaben/Wiedervorlagen |
-| `ZNRKT_FAK` | — | 552.286 | (VERIFY) | Fakturabezug/Rechnungen |
-| `ZNRKT_KG` (+`_TXT`) | — | 238.146 (+1.749) | (VERIFY) | Prüfgrund-Katalog + Texte |
-| `ZNRKT_MCS` | — | 216.089 | (VERIFY) | MD-Comm-Server / elektr. Kommunikation (§301) |
-| `ZNRKT_Z75` | — | 163.355 | (VERIFY) | Zusatzentgelte-Streit |
-| `ZNRKT_TOB` | — | 76.795 | (VERIFY) | Tage ohne Berechnung |
-| `ZNRKT_BEA` | — | 15.234 | (VERIFY) | Beatmungsstunden-Streit |
-| `ZNRKT_KLA` | — | 4.442 | (VERIFY) | Klageverfahren (Sozialgericht) |
+| `ZNRKT_BER` | — | 957.295 | `[…,BER_LFDNR]` | Berichte/Unterlagen-Positionen |
+| `ZNRKT_AUF` | 28 | 944.353 | `[…,AUF_LFDNR]` | **Aufgaben/Wiedervorlagen** (97 Typen) — Kern Stufe 2 |
+| `ZNRKT_FAK` | 32 | 552.286 | `[…,FAK_MODUL,REKL_POS,KLA_LFDNR,FAK_LFDNR]` | Fakturabezug/Rechnungen |
+| `ZNRKT_ICD` | 45 | 275.544 | `[…,ICD_LFDNR_RKT,ICD_LFDNR_NDIA]` | ICD-Streit (6 Sichten, → NDIA) |
+| `ZNRKT_KG` | 34 | 238.146 | `[…,KGSNR,KGPOS]` | Akten-/Unterlagenanforderung (NICHT Katalog!) |
+| `ZNRKT_MCS` | — | 216.089 | `[…,MCS_LFDNR]` | MD-Comm-Server / elektr. §301-Kommunikation |
+| `ZNRKT_Z75` | — | 163.355 | `[…,Z75_LFDNR_RKT,Z75_LFDNR_NLEI]` | Zusatzentgelte-Streit (→ NLEI) |
+| `ZNRKT_TOB` | — | 76.795 | `[…,TOB_LFDNR]` | Tage ohne Berechnung |
+| `ZNRKT_OPS` | — | 48.335 | `[…,OPS_LFDNR_RKT,OPS_LFDNR_NICP]` | OPS-Streit (→ NICP) |
+| `ZNRKT_BEA` | — | 15.234 | `[…,BEA_LFDNR_RKT,BEA_LFDNR_NFAL]` | Beatmungsstunden-Streit (→ NFAL) |
+| `ZNRKT_KLA` | 77 | 4.442 | `[…,KLA_LFDNR]` | Klageverfahren (SG→LSG→BSG) |
+| `ZNRKT_KG_TXT` | 10 | 1.749 | `[…,OBJNR,OBUNR,TXT_LFDNR]` | Langtexte zu KG-Anforderungen |
+
+Alle PKs live verifiziert (R18, 100 % eindeutig). Muster: Streitzeilen tragen einen
+Doppelschlüssel RKT-Position + Quelltabellen-Position und brücken so zum medizinischen
+Kern (OPS→NICP, ICD→NDIA, Z75→NLEI, BEA→NFAL) — der saubere Join-Pfad für den
+Kodier-Feedback-Loop.
 
 **Mengengerüst & fachliche Kennzahlen (live, storniert ausgefiltert):**
 - **229.047 Fälle** mit MD-Prüfvorgang, **244.715 Vorgänge** (KOPF), nur 1.175 storniert.

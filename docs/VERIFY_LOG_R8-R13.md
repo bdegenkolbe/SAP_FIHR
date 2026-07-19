@@ -249,6 +249,41 @@ Rezept festgehalten (für künftige Neuläufe nach Objektbaum-Updates).
 
 ---
 
+## R18 — RKT/MD-Management-Familie vollstaendig (Dreiklang aller 16 ZNRKT-Tabellen)
+
+Fortsetzung von R17 (MD-Management-App). Restliche 11 `ZNRKT_*` live PK-verifiziert;
+alle 16 der Familie jetzt schema+PK-bestaetigt. Gemeinsame Fallklammer-Wurzel
+`[MANDT,EINRI,FALNR,KOSTR,LFDNR]`.
+
+- **PKs verifiziert (100 % eindeutig):** ZNRKT_ICD `[…,ICD_LFDNR_RKT,ICD_LFDNR_NDIA]`
+  (275.544), OPS `[…,OPS_LFDNR_RKT,OPS_LFDNR_NICP]` (48.335), Z75
+  `[…,Z75_LFDNR_RKT,Z75_LFDNR_NLEI]` (163.355), BEA `[…,BEA_LFDNR_RKT,BEA_LFDNR_NFAL]`
+  (15.234), TOB `[…,TOB_LFDNR]` (76.795), BER `[…,BER_LFDNR]` (957.295), AUF
+  `[…,AUF_LFDNR]` (944.353), MCS `[…,MCS_LFDNR]` (216.089), KLA `[…,KLA_LFDNR]` (4.442),
+  KG `[…,KGSNR,KGPOS]` (238.146), KG_TXT `[…,OBJNR,OBUNR,TXT_LFDNR]` (1.749).
+- **PK-Korrektur ZNRKT_FAK:** `[…,FAK_MODUL,REKL_POS,KLA_LFDNR]` allein nur 227.357 von
+  552.286 distinct → um `FAK_LFDNR` ergaenzt, dann 100 % eindeutig.
+- **Deutungs-Korrektur ZNRKT_KG:** der R17-Verdacht „Pruefgrund-Katalog" ist **widerlegt**
+  — KG ist das Akten-/Unterlagenanforderungs-Tracking je Fall (KGANF/KGERINNER/KGRETOUR),
+  KG_TXT dessen Langtexte. Ein aufloesbarer Pruefgrund-Katalog existiert in der Familie
+  nicht (REKL_GRUND/AUF_TYP bleiben Rohcodes; REKL_STAND/REKL_ERLGR sind bereits
+  denormalisierter Klartext).
+- **Muster bestaetigt:** RKT-Streitzeilen tragen einen Doppelschluessel
+  „RKT-Position + Quelltabellen-Position" und bruecken so zum medizinischen Kern
+  (OPS→NICP, ICD→NDIA, Z75→NLEI, BEA→NFAL). Das ist der saubere Join-Pfad, um
+  Beanstandungen an die Original-Kodierung/-Leistung zurueckzubinden.
+- **ZNRKT_AUF im Detail** (Kern fuer Stufe-2-Fristen-Cockpit): 944.353 Zeilen, 97
+  Aufgabentypen; `AUF_TERMIN` (Wiedervorlage), `AUF_ERL='X'` (erledigt), `AUF_BEARB`
+  (Bearbeiter, personenident.). Groesste offene Typen: EV_BEA 266, GA_VORL 139, KLFORTG
+  130, LE_NEG 63, EV_ANTKRK 62.
+- **ZNRKT_KLA im Detail:** kompletter Sozialgerichts-Instanzenweg (Sozialgericht → LSG →
+  BSG) mit Streitwert, Netto vor/nach, Zinsen, Gutachten.
+
+Alle Registry-VERIFY-Marker der RKT-Familie durch verifizierte PKs ersetzt
+(`config/tables.yaml`, RKT-Block). Personenident. Felder je Tabelle vermerkt.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

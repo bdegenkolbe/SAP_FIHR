@@ -1180,84 +1180,112 @@ tables:
             hieraus gespeist, sondern aus ZNRKT_DRG (6 Sichten). MDKTERMIN 100% befuellt,
             MDKKONSENS 91% / MDKDISSENS 3%. Fuer aktuelle Analytik nur eingeschraenkt
             relevant (Begehungs-Historie). PERSONENIDENT.: MDKARZT1-3, MDKBEM -> Verkryptung."
-  # Restliche RKT-Familie (Existenz+Zeilenzahl R17 live bestaetigt, voller Dreiklang offen;
-  # PK-Wurzel [MANDT,EINRI,FALNR,KOSTR,LFDNR] plausibel, Positions-Suffix je Tabelle VERIFY):
+  # Restliche RKT-Familie — voller Dreiklang R18 (alle PKs live 100% eindeutig).
+  # Muster: RKT-Streitzeilen tragen Doppelschluessel RKT-Position + Quelltabellen-Position
+  # (Bruecke zum medizinischen Kern: OPS->NICP, ICD->NDIA, Z75->NLEI, BEA->NFAL).
   ZNRKT_ICD:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, ICD_LFDNR_RKT, ICD_LFDNR_NDIA]  # verifiziert R18 (275.544, 100%)
     cdc: ct
-    notes: "ICD-Streit je Vorgang, 275.544 Zeilen. Dreiklang offen."
+    notes: "ICD-Diagnose-Streit je Vorgang (45 Spalten), 275.544 Zeilen. ICD-Pendant zu
+            ZNRKT_DRG: 6 Sichten ICD_DKEY1_ISH/KK/MDK/MDE/RKT/ANF (welcher ICD je Partei),
+            plus DIAGW/CCL/DRG_CATEGORY. ICD_LFDNR_NDIA bruecke zu NDIA. PERSONENIDENT.: ICD_BEM."
   ZNRKT_OPS:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, OPS_LFDNR_RKT, OPS_LFDNR_NICP]  # verifiziert R18 (48.335, 100%)
     cdc: ct
-    notes: "OPS-Streit je Vorgang, 48.335 Zeilen. Dreiklang offen."
+    notes: "OPS-Prozedur-Streit je Vorgang, 48.335 Zeilen. OPS_LFDNR_NICP bruecke zu NICP."
   ZNRKT_Z75:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, Z75_LFDNR_RKT, Z75_LFDNR_NLEI]  # verifiziert R18 (163.355, 100%)
     cdc: ct
-    notes: "Zusatzentgelte-Streit, 163.355 Zeilen. Dreiklang offen."
+    notes: "Zusatzentgelte-Streit (§ Anlage 5/6 FPV), 163.355 Zeilen. Z75_LFDNR_NLEI bruecke zu NLEI."
   ZNRKT_BEA:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, BEA_LFDNR_RKT, BEA_LFDNR_NFAL]  # verifiziert R18 (15.234, 100%)
     cdc: ct
-    notes: "Beatmungsstunden-Streit, 15.234 Zeilen. Dreiklang offen."
+    notes: "Beatmungsstunden-Streit, 15.234 Zeilen. BEA_LFDNR_NFAL bruecke zu NFAL."
   ZNRKT_TOB:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, TOB_LFDNR]   # verifiziert R18 (76.795, 100%)
     cdc: ct
-    notes: "Tage ohne Berechnung (ToB), 76.795 Zeilen. Dreiklang offen."
+    notes: "Tage ohne Berechnung (ToB), 76.795 Zeilen. TOB_GRUND = Grundcode."
   ZNRKT_BER:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, BER_LFDNR]   # verifiziert R18 (957.295, 100%)
     cdc: ct
-    notes: "Berichte/Unterlagen-Positionen, 957.295 Zeilen. Dreiklang offen."
+    notes: "Berichte/Unterlagen-Positionen, 957.295 Zeilen. BER_TYP = Berichtstyp."
   ZNRKT_AUF:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, AUF_LFDNR]   # verifiziert R18 (944.353, 100%)
     cdc: ct
-    notes: "Aufgaben/Wiedervorlagen, 944.348 Zeilen. Fuer Fristen-Cockpit relevant. Dreiklang offen."
+    notes: "AUFGABEN/WIEDERVORLAGEN (28 Spalten), 944.353 Zeilen - operatives Rueckgrat des
+            Workflows, KERN fuer Stufe-2-Fristen-Cockpit/Arbeitskorb der MD-Management-App.
+            97 Aufgabentypen (AUF_TYP): AKTE_PRÜF/AKTE_ANF (Aktenanforderung), KOPIE_*
+            (Kopien), GA_* (Gutachten), MDK_*/VVF_* (MD-/Eroerterungsverfahren-Schritte),
+            KLAGE_*/KL_* (Klage), AWP_* (Aufwandspauschale), EV_* (Eroerterung). AUF_TERMIN
+            = Wiedervorlage, AUF_ERL='X'=erledigt, AUF_BEARB = Bearbeiter (PERSONENIDENT.),
+            AUF_BEM (Freitext). Verknuepft zu REKL_POS/REKL_ST_POS. Bruecke medizinischer
+            Kern nicht noetig (reine Prozesssteuerung)."
   ZNRKT_FAK:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, FAK_MODUL, REKL_POS, KLA_LFDNR, FAK_LFDNR]
+                                          # KORRIGIERT R18: Root+MODUL+REKL_POS+KLA_LFDNR nur
+                                          # 227.357/552.286 distinct -> FAK_LFDNR ergaenzt -> 100%.
     cdc: ct
-    notes: "Fakturabezug/Rechnungen, 552.286 Zeilen. Dreiklang offen."
+    notes: "Fakturabezug je Vorgang (32 Spalten), 552.286 Zeilen. FAK_NETWR/FAK_STREIT/
+            FAK_ERGEBNIS = Rechnungs-/Streit-/Ergebnisbetrag, FAK_VBELN=SD-Beleg,
+            LF301/WORKSIGN=§301-EDIFACT-Bezug. FAK_MODUL trennt Herkunft (REKL vs KLA)."
   ZNRKT_MCS:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, MCS_LFDNR]   # verifiziert R18 (216.089, 100%)
     cdc: ct
-    notes: "MD-Communication-Server / elektr. Kommunikation (§301-Datenaustausch),
-            216.089 Zeilen. Dreiklang offen."
+    notes: "MD-Communication-Server / elektr. §301-Datenaustausch mit MD/Kasse, 216.089
+            Zeilen. PERSONENIDENT.: MCSARZT (MD-Arzt) -> Verkryptung."
   ZNRKT_KLA:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, KLA_LFDNR]   # verifiziert R18 (4.442, 100%)
     cdc: ct
-    notes: "Klageverfahren (Sozialgericht), 4.442 Zeilen. Dreiklang offen."
+    notes: "KLAGEVERFAHREN Sozialgericht (77 Spalten), 4.442 Zeilen. Kompletter Instanzenweg:
+            KLA_STREITW, KLA_NETWR_VOR/NACH, Sozialgericht (KLA_AKZ_SOZ/SOZ_DAT), LSG
+            (KLA_LSG/LSG_DAT), BSG (KLA_BSG/BSG_DAT), Zinsen (KLA_NETWR_ZINS), Gutachten
+            (KLA_GAPRF/GADAT/GAERG). PERSONENIDENT.: KLAARZT, KLA_FAELLE (Freitext)."
   ZNRKT_KG:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (evtl. Katalog-PK statt Fallklammer!)
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, KGSNR, KGPOS]   # verifiziert R18 (238.146, 100%)
     cdc: ct
-    notes: "Pruefgrund-Zuordnung, 238.146 Zeilen. Verdacht: Katalog/Zuordnung Pruefgruende;
-            Texte in ZNRKT_KG_TXT (1.749 Zeilen). Dreiklang offen -> ggf. ref_*-Loader."
+    notes: "KORRIGIERT R18: KEIN Pruefgrund-Katalog (Verdacht widerlegt), sondern Akten-/
+            Unterlagenanforderungs-Tracking je Fall (34 Spalten), 238.146 Zeilen: KGANF
+            (Anforderung), KGZIEL, KGANFDAT, KGBEARBSTAT, KGERINNER* (Erinnerung/Mahnung),
+            KGRETOUR* (Ruecklaeufer). Relevant fuer Fristen (Unterlagen an Kasse/MDK).
+            PERSONENIDENT.: KGBEM. Langtexte in ZNRKT_KG_TXT."
+  ZNRKT_KG_TXT:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, OBJNR, OBUNR, TXT_LFDNR]   # verifiziert R18 (1.749, 100%)
+    cdc: ct
+    notes: "Langtext-Zeilen zu ZNRKT_KG-Anforderungen (10 Spalten), 1.749 Zeilen. TEXT ist
+            Freitext -> potenziell personenident., in Auswertung nicht im Klartext."
