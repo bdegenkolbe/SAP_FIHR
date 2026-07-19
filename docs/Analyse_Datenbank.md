@@ -173,6 +173,33 @@ aus derselben Bronze-Schicht:
    eigene Quellsysteme führen — COPRA ist der Schlüssel für Medikation/Vitalwerte
    (IS-H-seitig leer, s. N1MEORDER).
 
+**Automatisierte Diff-Methode (R17, reproduzierbar):**
+```
+1. legacy/dias/TEST_DIAS_Objektbaum.zip entpacken -> TEST_DIAS_Objektbaum.xml (SOAP/CLR-
+   serialisiert, ~1 Mio Zeilen). SQL-Text der Sichten liegt NICHT in eigenen <m_SQL>-Tags,
+   sondern als Klartext-Tokens im Fliesstext (Tabellennamen ungeschema't, ohne 'sap.'-Praefix).
+2. Kandidaten extrahieren: grep -oE '\b(N[A-Z0-9]{2,8}|TN[A-Z0-9]{2,8}|ZN[A-Z0-9_]{2,10}|
+   HRP[0-9]{3,6})\b' TEST_DIAS_Objektbaum.xml | sort | uniq -c | sort -rn
+   -> reproduziert das dokumentierte Ranking EXAKT (NDOC 203/201 diff durch __ct-Varianten,
+   NBEW 131, NPAT 35 - Treffer bestaetigt die Methode).
+3. Rauschen filtern: SQL-Keywords (NULL/NOT/NUMERIC/NVARCHAR/NEXT/NOCOUNT/NEWID/NULLIF),
+   deutsche Fuellwoerter (NICHT/NUR/NEU/NEIN), Spaltennamen (NAME1-4/NAMS/NOTKZ/NPKZ/
+   NACH*-Familie = Adressfelder, NWAT*-Familie = Flag-Spalten) manuell aus der Trefferliste
+   entfernen.
+4. VERBINDLICH: verbleibende Kandidaten NICHT aus der Wortliste als "existent" werten
+   (Text-Wahrheit ist NICHT Schema-Wahrheit!) -> gegen Replicate.INFORMATION_SCHEMA.TABLES
+   (schema='sap') pruefen. Nur live bestaetigte Treffer sind echte Tabellenreferenzen.
+5. Gegen tables.yaml-Tabellennamen diffen (comm/Mengendifferenz) -> Luecken-Liste.
+```
+**R17-Ergebnis:** 85 live bestaetigte SAP-Tabellenreferenzen im DIAS-Baum, davon 43 bereits
+in tables.yaml, **42 Luecken** (siehe `config/tables.yaml` Block "R17 DIAS-Diff-Neufunde").
+Vier davon (N2ANKER, NPAP, NOEK, NTPK/NTPT) waren als informeller Freitext-Kommentar aus der
+R14-Vollinventur bereits vermerkt; 38 sind echte Erstfunde, darunter die komplette
+`ZNRKT_*`-Tabellenfamilie (13 Tabellen, Erlös-Nachrechnung, größte NLCO mit 72,4 Mio Zeilen)
+und mehrere kleine Kataloge (TN10B/S, TN11C/P, TN14B, TN15S, TN17U/18U, TN40B, TNK01, TNKFA).
+Alle 42 tragen Status `entdeckt` (Zeilenzahl via sys.partitions, noch KEIN PK-Uniqueness-Test,
+noch KEIN Datenaudit) — nächste Session: Dreiklang je Tabelle vor jeder weiteren Nutzung.
+
 ---
 
 ## 6. base-table-main = historisierte Real-Time-Transformationsstrecke

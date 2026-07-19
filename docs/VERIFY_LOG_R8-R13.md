@@ -170,7 +170,86 @@ den Dreiklang sapdatasheet → Spalten-Existenz → **Befüllung/Inhalt**.
 
 ---
 
-## Offene Punkte (Stand R16)
+## R17 — DIAS-Abdeckungs-Kandidaten (9x Dreiklang) + automatisierter DIAS-Diff
+
+**Anlass:** Live-DB (`higl-main`) wieder erreichbar (VPN); Abarbeitung der 9 offenen
+`# VERIFY`-PKs aus der GESAMTREVIEW-§2.2-Ergänzung + Backlog-Punkt 3 (DIAS-Diff
+automatisieren). Alle Prüfungen read-only, Schreibzugriff dreifach ausgeschlossen
+(Environment `readonly:true` + Tool-Level-Guard vor jeder DB-Verbindung + Script-Flag).
+
+**Katalogtexte (TN14U/TN14W/TN24T):**
+- **TN14U** (Bewegungsart-Texte): PK `[MANDT,EINRI,BEWTY,BWART]` bestätigt, 82 Zeilen,
+  100 % eindeutig. `SPRAS` existiert, Haus ist aber einsprachig (`D`) → Uniqueness
+  unberührt. BWART-Beispiele bestätigt: `AO`=amb. Operation (BEWTY=4), `VB`=vorstationär
+  (BEWTY=1 UND 4, je nach Aufnahme-/Fallart-Kontext).
+- **TN14W** (Entlassungszustand-Texte): **Registry-Tippfehler korrigiert** — Spalte heißt
+  `ENTZU`, nicht `ENTLZ` (existiert nicht!). PK `[MANDT,EINRI,ENTZU]`, nur 3 Zeilen
+  (AF/AU/KA = Arbeitsfähig/-unfähig/keine Angabe — Arbeitsfähigkeits-Status, kein
+  allgemeiner Entlassungsgrund). Zusatzfund: `TN14D` teilt dieselbe Spalte `ENTZU` ohne
+  Textspalte = Customizing-Gültigkeitstabelle je Einrichtung; TN14W liefert die Texte.
+- **TN24T** (Behandlungskategorie-Texte): PK `[MANDT,BEKAT]` bestätigt, 140 Zeilen,
+  100 % eindeutig (`EINRI` existiert, aber nicht zur Eindeutigkeit nötig). `BLTXT`
+  (30 Zeichen) = Langtext bestätigt. Katalog enthält u. a. ASV-Verträge mit
+  Partnerklinik-Namen im Klartext (Institutions-, keine Patientendaten).
+
+**NAPX-Peripherie (NAPX_BEW/DIA/ICP/DRG) — alle vier bestätigt/korrigiert:**
+- **NAPX_BEW**: PK `[MANDT,APXNR,LFDBEW_NEW]` — 612.532 Zeilen, 100 % eindeutig. Der in
+  GESAMTREVIEW vermerkte „Split-Verdacht" bestätigt sich **nicht**: keine Duplikate.
+  `STORN='X'` bei 25,9 % (158.854 Zeilen).
+- **NAPX_DIA**: PK `[MANDT,APXNR,LFDNR_NEW]` — 547.765 Zeilen, 100 % eindeutig.
+- **NAPX_ICP**: PK `[MANDT,APXNR,LNRIC]` — 415.734 Zeilen, 100 % eindeutig.
+- **NAPX_DRG**: **PK-Korrektur** — `[MANDT,APXNR]` allein ist NICHT eindeutig (nur 28.755
+  von 35.849 Zeilen distinct). Richtige PK: `[MANDT,APXNR,DRG_SEQNO]` (dann 100 %
+  eindeutig) — mehrere DRG-Regruppierungen je Zusammenführung möglich.
+  `CANCEL_FLAG='X'` bei 38,6 % (13.851/35.849), konsistent mit Storno-Neugruppierung.
+
+**NTMN (Termine, Appointment-Kandidat):** PK `[MANDT,TMNID]` bestätigt — 11.527.423
+Zeilen (exakt die dokumentierte „11,5 Mio"-Schätzung), 100 % eindeutig, `EINRI` nicht
+zur Eindeutigkeit nötig. Privacy-konformer Fill-Audit (nur Fill-Rate, kein Klartext):
+PATNR 85,9 %, FALNR 66,8 %, BEKAT 35,8 % (→ TN24T), STORN='X' 16,7 %. **Wichtig:**
+NNAME/VNAME zu 7,6 % befüllt (Termine ohne PATNR-Link, z. B. externe Zuweisungen) —
+diese Felder sind personenidentifizierend und MÜSSEN durch `privacy.py` laufen, dürfen
+nie roh exportiert werden; ebenso TELF1 (9,4 %) und EMAIL (0,06 %). Tote Felder in
+diesem Haus: `FATYP` (>99,999 % leer), `NOTI_STATUS` (100 % leer). Datums-Sentinel-
+Ausreißer: `TMNDT`-Maximum ist `3007-03-14` (kein Standard-`9999-12-31` — separat in
+`normalize.py` abfangen, falls NTMN gemappt wird).
+
+**TNDRG — vollständige Neudeutung:** Die Registry-Annahme „DRG-Katalog, löst NDRG-Codes
+auf" ist **widerlegt** — die Tabelle hat **gar keine DRG-Spalte**. Tatsächlich:
+Landesbasisfallwert(LBFW)-Historie je Gültigkeitsperiode (`BEGDT/ENDDT`, 48 Zeilen,
+2002 bis heute, `BASER` in EUR, `WAERS`, `CAREVAL`). PK `[MANDT,EINRI,ENDDT]`, 100 %
+eindeutig. Dient der Euro-Umrechnung von `COST_WEIGHT` (aus NAPX_DRG) im
+base-table-main-Erlösstrang, nicht der Code-Textauflösung — DRG-Codes (z. B. „F14A")
+bleiben Rohcode, kein Textkatalog im Haus gefunden (Verlustfreiheits-Prinzip bestätigt).
+
+**Neufund bei der TNDRG-Recherche:** `sap.ZNRKT_DRG` (147 Spalten, 193.243 Zeilen) —
+bislang unerfasste Haus-Z-Tabelle für die vollständige Erlös-Nachrechnung je
+Fall+Kostenträger über 6 parallele Sichten (`_ISH/_KK/_MDK/_MDE/_ANF/_RKT` =
+i.s.h.med/Krankenkasse/MDK-Prüfung/MDE/Anforderung/Rechnung). PK-Kandidat
+`[MANDT,EINRI,FALNR,KOSTR,LFDNR]` — noch NICHT Dreiklang-geprüft.
+
+**DIAS-Abdeckungsdiff automatisiert (Backlog #3):** `legacy/dias/TEST_DIAS_Objektbaum.zip`
+entpackt (SOAP/CLR-serialisiert, ~1 Mio Zeilen; SQL-Text liegt als Klartext-Token im
+Fließtext, nicht in eigenen Tags). Methode: Regex-Extraktion aller `N*/TN*/ZN*/HRP*`-
+Wortgrenzen-Tokens, Häufigkeit gezählt — reproduziert das dokumentierte Ranking exakt
+(NBEW 131, NPAT 35 — Treffer bestätigt die Methode). Rauschen (SQL-Keywords, deutsche
+Füllwörter, Spaltennamen) gefiltert, verbleibende Kandidaten gegen
+`Replicate.INFORMATION_SCHEMA.TABLES` live verifiziert (Text-Wahrheit ≠ Schema-Wahrheit).
+**Ergebnis: 85 live bestätigte Tabellenreferenzen im DIAS-Baum, davon 42 OHNE
+Registry-Eintrag.** Vier waren als Freitext-Kommentar aus der R14-Vollinventur bereits
+bekannt (N2ANKER, NPAP, NOEK, NTPK+NTPT); 38 sind echte Erstfunde — darunter die
+komplette `ZNRKT_*`-Familie (13 Tabellen neben ZNRKT_DRG, größte `NLCO` mit 72,4 Mio
+Zeilen als eigenständige Tabelle außerhalb der ZNRKT-Familie) und mehrere kleine
+Kataloge (TN10B/S, TN11C/P, TN14B, TN15S, TN17U/18U, TN40B, TNK01, TNKFA). Alle 42 als
+Status `entdeckt` in `tables.yaml` (Block „R17 DIAS-Diff-Neufunde") mit live
+bestätigter Zeilenzahl (sys.partitions) dokumentiert — PK-Uniqueness und Fill-Audit
+stehen für jede einzeln noch aus, bevor sie gemappt oder in den Analytik-Pfad
+übernommen werden dürfen. Methode ist in `Analyse_Datenbank.md` §5 als reproduzierbares
+Rezept festgehalten (für künftige Neuläufe nach Objektbaum-Updates).
+
+---
+
+## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;
    NAPX_FAL-Lookup (FALNR→APXNR) und NFPZ-/NKDI-Lookups als Broadcast-Joins.
@@ -181,3 +260,9 @@ den Dreiklang sapdatasheet → Spalten-Existenz → **Befüllung/Inhalt**.
 5. Rest-`# VERIFY` in tables.yaml: NAPX-Peripherie-Reihenfolgen, NC301V-Feinschlüssel,
    nicht-replizierte Kataloge (TN26B/D, TN14K/O, N2DT), NLOC (leer) — alle niedrigprior.
 6. **De-ID-Pflicht** bei NC301M/W (EDIFACT-Klartext, NAD-Segmente) vor jeder Ausleitung.
+7. **NEU R17:** 42 DIAS-genutzte Tabellen ohne Registry-Eintrag (Status `entdeckt`,
+   siehe `tables.yaml` Block „R17 DIAS-Diff-Neufunde") — vor jeder Nutzung vollen
+   Dreiklang fahren. Priorität nach Zeilenzahl/DIAS-Häufigkeit: ZNRKT_*-Familie
+   (Erlös-Nachrechnung, direkt an ZNRKT_DRG/TNDRG/NAPX_DRG anschließend), danach
+   NLCO/N1COMPA/NTSP/NCIR/N1APCN (großvolumig, Domäne noch unklar).
+8. **ZNRKT_DRG** (147 Spalten, 193.243 Zeilen) noch nicht Dreiklang-geprüft.

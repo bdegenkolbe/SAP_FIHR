@@ -981,67 +981,151 @@ tables:
     schema: sap
     fhir: null                         # -> Bewegungsart-Texte (BWART)
     tier: 1
-    pk: [MANDT, EINRI, BEWTY, BWART]   # VERIFY (sprachabhaengig SPRAS?)
+    pk: [MANDT, EINRI, BEWTY, BWART]   # verifiziert R17 (82 Zeilen, 100% eindeutig).
+                                         # SPRAS existiert, Haus ist aber einsprachig
+                                         # 'D' (n_sprachen=1) -> fuer Uniqueness irrelevant.
     cdc: full
-    notes: "Bewegungsart-Texte (Altbestand-verjoint). BWART VB=vorstationaer, AO=AOP."
+    notes: "Bewegungsart-Texte (Altbestand-verjoint). BWART VB=vorstationaer (BEWTY=4,
+            'Vorstat. Beha.'), AO=amb. Operation/AOP (BEWTY=4). BEWTY=1 Aufnahmearten,
+            BEWTY=2 Entlassungsarten (bestaetigt)."
   TN14W:
     schema: sap
-    fhir: null                         # -> Entlassungszustand-Texte
+    fhir: null                         # -> Entlassungszustand-Texte (Arbeitsfaehigkeit)
     tier: 2
-    pk: [MANDT, ENTLZ]                 # VERIFY
+    pk: [MANDT, EINRI, ENTZU]          # KORRIGIERT R17: Spalte heisst ENTZU, nicht ENTLZ
+                                         # (ENTLZ existiert nicht!). 3 Zeilen, 100% eindeutig.
     cdc: full
-    notes: "Entlassung-Zustand-Texte (Altbestand-verjoint)."
+    notes: "Entlassung-Zustand-Texte = Arbeitsfaehigkeit bei Entlassung (Altbestand-
+            verjoint). Nur 3 Codes: AF=Arbeitsfaehig, AU=Arbeitsunfaehig, KA=keine Angabe.
+            TN14D teilt dieselbe Spalte ENTZU (PK [MANDT,EINRI,ENTZU], KEINE Textspalte)
+            = Customizing-Gueltigkeitstabelle je Einrichtung; TN14W liefert die Texte."
   TN24T:
     schema: sap
     fhir: null                         # -> Behandlungskategorie-Texte
     tier: 2
-    pk: [MANDT, BEKAT]                 # VERIFY (BLTXT = Text, lt. Altbestand-Join)
+    pk: [MANDT, BEKAT]                 # verifiziert R17 (140 Zeilen, 100% eindeutig;
+                                         # EINRI existiert, aber nicht zur Eindeutigkeit noetig)
     cdc: full
-    notes: "Behandlungskategorie-Texte (NFAL.BEKAT -> BLTXT; Altbestand-verjoint)."
+    notes: "Behandlungskategorie-Texte (NFAL.BEKAT -> BLTXT bestaetigt; BKTXT=Kurztext
+            15 Zeichen, BLTXT=Langtext 30 Zeichen; Altbestand-verjoint). Katalog enthaelt
+            u.a. ASV-Vertraege (Ambulante Spezialfachaerztliche Versorgung) mit
+            Partnerklinik-Namen im Klartext (Institutions-, keine Patientendaten)."
 
   # ---- DIAS-Abdeckungs-Kandidaten (GESAMTREVIEW §2.2 Kat. 1) ---------------
-  # PKs noch NICHT live uniqueness-getestet -> vor Backfill Dreiklang fahren.
+  # R17: alle PKs live uniqueness-getestet gegen higl-main (siehe VERIFY_LOG R17).
   NAPX_BEW:
     schema: sap
     fhir: null                         # Zusammenfuehrungs-Detail Bewegungen
     tier: 2
-    pk: [MANDT, EINRI, APXNR, LFDBEW_NEW]   # VERIFY (Altbestand: Splits moeglich!)
+    pk: [MANDT, APXNR, LFDBEW_NEW]      # verifiziert R17 (612.532 Zeilen, 100% eindeutig;
+                                         # Split-Verdacht NICHT bestaetigt, EINRI nicht nötig)
     cdc: ct
     notes: "Bewegungs-Mapping alt->neu je Zusammenfuehrung (FALNR_OLD/LFDBEW_OLD ->
-            LFDBEW_NEW). Fuer DRG-Neugruppierung des Gesamtfalls; DIAS-genutzt."
+            LFDBEW_NEW). Fuer DRG-Neugruppierung des Gesamtfalls; DIAS-genutzt.
+            STORN='X' bei 158.854/612.532 Zeilen (25,9%)."
   NAPX_DIA:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, APXNR, LFDNR_NEW]      # VERIFY
+    pk: [MANDT, APXNR, LFDNR_NEW]      # verifiziert R17 (547.765 Zeilen, 100% eindeutig)
     cdc: ct
     notes: "Diagnose-Mapping alt->neu (DRG_DIA_SEQNO/DRG_CATEGORY/CCL); DIAS-genutzt."
   NAPX_ICP:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, APXNR, LNRIC]          # VERIFY
+    pk: [MANDT, APXNR, LNRIC]          # verifiziert R17 (415.734 Zeilen, 100% eindeutig)
     cdc: ct
     notes: "Prozedur-Mapping je Zusammenfuehrung (LNRIC, DRG_SEQNO); DIAS-genutzt."
   NAPX_DRG:
     schema: sap
     fhir: null
     tier: 2
-    pk: [MANDT, APXNR]                 # VERIFY
+    pk: [MANDT, APXNR, DRG_SEQNO]      # KORRIGIERT R17: [MANDT,APXNR] allein NICHT eindeutig
+                                         # (28.755 von 35.849 Zeilen distinct) -> DRG_SEQNO
+                                         # ergaenzt, dann 100% eindeutig. Mehrere DRG-
+                                         # Regruppierungen je Zusammenfuehrung moeglich.
     cdc: ct
-    notes: "DRG-Ergebnis des zusammengefuehrten Gesamtfalls; DIAS-genutzt."
+    notes: "DRG-Ergebnis des zusammengefuehrten Gesamtfalls; DIAS-genutzt. CANCEL_FLAG='X'
+            bei 13.851/35.849 Zeilen (38,6%) - konsistent mit Storno-Neugruppierung."
   NTMN:
     schema: sap
     fhir: null                         # nur-Analytik (R14); Appointment-Kandidat
     tier: 3
-    pk: [MANDT, EINRI, TMNID]          # VERIFY
+    pk: [MANDT, TMNID]                 # verifiziert R17 (11.527.423 Zeilen, 100% eindeutig;
+                                         # EINRI nicht zur Eindeutigkeit noetig, aber Join-relevant)
     cdc: watermark
     watermark_col: UPDAT
-    notes: "Termine klassisch IS-H (11,5 Mio; R14: nur-Analytik). DIAS-genutzt."
+    notes: "Termine klassisch IS-H (11,5 Mio; R14: nur-Analytik). DIAS-genutzt.
+            R17 Fill-Audit (privacy-konform, nur Fill-Rate): PATNR 85,9%, FALNR 66,8%,
+            BEKAT 35,8% (-> TN24T), STORN='X' 16,7%. Personenidentifizierend UND befuellt:
+            NNAME/VNAME 7,6% (Termine ohne PATNR-Link, z.B. externe Zuweisungen -> muss
+            durch privacy.py laufen, NICHT roh exportieren), TELF1 9,4%, EMAIL 0,06%.
+            Tote Felder in diesem Haus: FATYP (>99,999% leer), NOTI_STATUS (100% leer).
+            Datums-Sentinel-Ausreisser TMNDT: Max 3007-03-14 (kein Standard-9999-12-31,
+            in normalize.py separat abfangen)."
   TNDRG:
     schema: sap
-    fhir: null                         # -> DRG-Katalog (Klartexte, Bewertungsrelation)
+    fhir: null                         # LBFW-Historie, KEIN DRG-Code-Katalog
     tier: 2
-    pk: [MANDT, DRG]                   # VERIFY (jahresversioniert?)
+    pk: [MANDT, EINRI, ENDDT]           # KORRIGIERT R17: Tabelle hat GAR KEINE DRG-Spalte!
+                                         # 48 Zeilen, 100% eindeutig ueber Gueltigkeitsperiode.
     cdc: full
-    notes: "DRG-Katalog; loest NDRG-Codes auf; Altbestand+DIAS-genutzt."
+    notes: "WIDERLEGT R17: TNDRG loest KEINE NDRG-Codes auf (keine DRG-Spalte vorhanden).
+            Tatsaechlich Landesbasisfallwert(LBFW)-Historie je Gueltigkeitsperiode
+            (BEGDT/ENDDT, 2002-heute, BASER in EUR, WAERS, CAREVAL). Dient der
+            Euro-Umrechnung von COST_WEIGHT (NAPX_DRG) im base-table-main-Erlösstrang,
+            NICHT der Code-Textauflösung. DRG-Codes (z.B. 'F14A') bleiben Rohcode -
+            kein Textkatalog im Haus gefunden (Verlustfreiheits-Prinzip bestaetigt).
+            NEUFUND: sap.ZNRKT_DRG, siehe eigener Registry-Eintrag unten -> Backlog."
+
+  # ---- R17-Neufund (noch nicht Dreiklang-geprueft, nur Schema+Zeilenzahl live) ----
+  ZNRKT_DRG:
+    schema: sap
+    fhir: null                          # Erloes-Nachrechnung, Tier 2/3 Analytik
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (Kandidat aus Spaltenreihenfolge,
+                                                # Uniqueness NOCH NICHT live getestet)
+    cdc: full
+    notes: "R17 entdeckt bei TNDRG-Recherche (search_schema '%DRG%'): Haus-Z-Tabelle
+            (147 Spalten, 193.243 Zeilen), keine Standard-SAP-Tabelle. Enthaelt die
+            komplette DRG-Erloes-Nachrechnung je Fall+Kostentraeger(KOSTR)+Zeile ueber
+            6 parallele Sichten (Suffixe _ISH/_KK/_MDK/_MDE/_ANF/_RKT = i.s.h.med/
+            Krankenkasse/MDK-Pruefung/MDE/Anforderung/Rechnung): je Sicht VWD_BILL
+            (Verweildauer), UGVD/MVWD/OGVD (untere/mittlere/obere Grenzverweildauer),
+            BWREL/EFFBWR (Bewertungsrelation effektiv), GRUNDPREIS, ZUABSCH_BETR
+            (Zu-/Abschlag), DRG_ENTGELT (Ergebnis in EUR) sowie CARE_*-Pflegeentgelt-
+            Spiegelbild je Sicht. DRG_CODE_ISH/_KK/_MDK/_MDE/_RKT/_ANF: 6 parallele
+            DRG-Code-Felder (Aenderung durch MDK-Pruefung/Widerspruch nachvollziehbar).
+            Noch KEIN Dreiklang (PK-Uniqueness offen, Fill-Audit offen) -> naechste
+            Session vor Nutzung im base-table-main-Erloesstrang pruefen."
+
+  # ---- R17 DIAS-Diff-Neufunde (Analyse_Datenbank.md Abschnitt 5, Backlog #3) -------
+  # Automatisierter Abgleich TEST_DIAS_Objektbaum.xml vs. Registry: 85 live bestaetigte
+  # SAP-Tabellenreferenzen im DIAS-Baum, davon 42 OHNE Registry-Eintrag (siehe Methode
+  # in Analyse_Datenbank.md §5). Status 'entdeckt': Existenz + Zeilenzahl live bestaetigt
+  # (sys.partitions), PK/Fill-Audit noch NICHT gefahren -> Dreiklang vor jeder Nutzung.
+  # Vier bereits informell aus R14-Vollinventur bekannt (N2ANKER/NPAP/NOEK/NTPK+NTPT),
+  # 38 echte Erstfunde. Zeilenzahlen R17 (sys.partitions, absteigend):
+  #   NLCO 72.424.425 | N1COMPA 18.031.889 | NTSP 12.615.673 | NCIR 12.143.991 |
+  #   N1APCN 3.788.235 | NPAP 1.446.039 | ZNRKT_REKL 1.339.364 | NTPK 1.001.348 |
+  #   NTPT 1.001.345 | ZNRKT_BER 957.295 | ZNRKT_AUF 944.348 | ZNRKT_FAK 552.286 |
+  #   N2ANKER 547.521 | ZNRKT_ICD 275.544 | ZNRKT_KOPF 244.715 | ZNRKT_KG 238.146 |
+  #   ZNRKT_MCS 216.089 | ZNRKT_Z75 163.355 | NLAZ 131.553 | ZNRKT_TOB 76.795 |
+  #   ZNRKT_OPS 48.335 | ZNRKT_MDK 18.153 | ZNRKT_BEA 15.234 | TN11P 4.864 |
+  #   ZNRKT_KLA 4.442 | NOEK 2.587 | TN40B 2.367 | ZNRKT_KG_TXT 1.749 | TN10B 786 |
+  #   NPTW 713 | TNKFA 245 | NTSI 192 | TN14B 82 | TNK01 70 | N1TAT 62 | N1STGR 42 |
+  #   TN18U 34 | N2ZTPDEF 27 | TN10S 21 | N1LSSTT 11 | TN11C 8 | TN15S 6 | TN17U 6
+  # Deutungshypothesen (aus Tabellennamen/SAP-Konvention, NICHT verifiziert):
+  #   NLCO/NCIR/NTSP/N1APCN/N1COMPA: grossvolumige Transaktionstabellen unklarer Domaene
+  #     (NLCO evtl. Leistungs-Cost-Zuordnung analog NLEI/NLKZ - VERIFY).
+  #   ZNRKT_*-Familie (ausser DRG, s.o.): weitere Sichten derselben Erloes-Nachrechnung
+  #     wie ZNRKT_DRG (ISH/KK/MDK/MDE/ANF/RKT je FALNR+KOSTR+LFDNR) - ZNRKT_KOPF vermutlich
+  #     Kopfsatz/Header der Nachrechnung, ZNRKT_ICD/ZNRKT_OPS vermutlich Diagnose-/
+  #     Prozedur-Zeilen dieser Nachrechnung (analog NAPX_DIA/NAPX_ICP-Struktur).
+  #   TN10B/S, TN11C/P, TN14B, TN15S, TN17U/18U, TN40B, TNK01, TNKFA: kleine Kataloge
+  #     (billig, cdc:full-Kandidaten wie TN14U/W/TN24T oben).
+  #   N1TAT/N1STGR/N1LSSTT/N1COMPA/N1APCN: N1-Praefix = i.s.h.med-Zusatzmodule, moeglich
+  #     verwandt mit N1CORDER/N1LSTEAM (bereits registriert) - Zusammenhang VERIFY.
+  # Keine Zeile hier wurde geraten oder verworfen (Verlustfreiheits-Prinzip) - alle 42
+  # bleiben in der Warteschlange W bis zum vollen Dreiklang.
