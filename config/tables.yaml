@@ -1084,21 +1084,19 @@ tables:
     schema: sap
     fhir: null                          # Erloes-Nachrechnung, Tier 2/3 Analytik
     tier: 2
-    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (Kandidat aus Spaltenreihenfolge,
-                                                # Uniqueness NOCH NICHT live getestet)
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, DRG_LFDNR_RKT, DRG_LFDNR_NDRG]
+                                          # verifiziert R17 (193.243 Zeilen, 100% eindeutig;
+                                          # Fallklammer-Root allein nur 178.425 -> mehrere
+                                          # DRG-Zeilen je Pruefvorgang)
     cdc: full
-    notes: "R17 entdeckt bei TNDRG-Recherche (search_schema '%DRG%'): Haus-Z-Tabelle
-            (147 Spalten, 193.243 Zeilen), keine Standard-SAP-Tabelle. Enthaelt die
-            komplette DRG-Erloes-Nachrechnung je Fall+Kostentraeger(KOSTR)+Zeile ueber
-            6 parallele Sichten (Suffixe _ISH/_KK/_MDK/_MDE/_ANF/_RKT = i.s.h.med/
-            Krankenkasse/MDK-Pruefung/MDE/Anforderung/Rechnung): je Sicht VWD_BILL
-            (Verweildauer), UGVD/MVWD/OGVD (untere/mittlere/obere Grenzverweildauer),
+    notes: "Teil der RKT/MD-Management-Familie (ZNRKT_*, siehe eigener Block unten +
+            docs/MD_MANAGEMENT_KONZEPT.md). DRG-Erloes-Nachrechnung je Fall+
+            Kostentraeger(KOSTR)+Vorgang ueber 6 parallele Sichten (Suffixe
+            _ISH/_KK/_MDK/_MDE/_ANF/_RKT = i.s.h.med/Krankenkasse/MD-Pruefung/MD-Entscheid/
+            Anforderung/Rechnung): je Sicht VWD_BILL, UGVD/MVWD/OGVD (Grenzverweildauern),
             BWREL/EFFBWR (Bewertungsrelation effektiv), GRUNDPREIS, ZUABSCH_BETR
-            (Zu-/Abschlag), DRG_ENTGELT (Ergebnis in EUR) sowie CARE_*-Pflegeentgelt-
-            Spiegelbild je Sicht. DRG_CODE_ISH/_KK/_MDK/_MDE/_RKT/_ANF: 6 parallele
-            DRG-Code-Felder (Aenderung durch MDK-Pruefung/Widerspruch nachvollziehbar).
-            Noch KEIN Dreiklang (PK-Uniqueness offen, Fill-Audit offen) -> naechste
-            Session vor Nutzung im base-table-main-Erloesstrang pruefen."
+            (Zu-/Abschlag), DRG_ENTGELT (EUR), CARE_*-Pflegeentgelt je Sicht. Speist das
+            DIAS-Vergleichstripel Forderung_MD/Forderung_Kasse/Ergebnisvereinbarung."
 
   # ---- R17 DIAS-Diff-Neufunde (Analyse_Datenbank.md Abschnitt 5, Backlog #3) -------
   # Automatisierter Abgleich TEST_DIAS_Objektbaum.xml vs. Registry: 85 live bestaetigte
@@ -1129,3 +1127,137 @@ tables:
   #     verwandt mit N1CORDER/N1LSTEAM (bereits registriert) - Zusammenhang VERIFY.
   # Keine Zeile hier wurde geraten oder verworfen (Verlustfreiheits-Prinzip) - alle 42
   # bleiben in der Warteschlange W bis zum vollen Dreiklang.
+  # HINWEIS: Die ZNRKT_*-Familie ist unten als eigener MD-Management-Block gefuehrt
+  # (R17-Vertiefung, docs/MD_MANAGEMENT_KONZEPT.md) - sie zaehlt zu den 42, wird dort
+  # aber fachlich zusammenhaengend statt als Einzel-Stubs dokumentiert.
+
+  # ==== RKT / MD-Management (Medizincontrolling, MDK/MD-Pruefverfahren §275c SGB V) ====
+  # Kundeneigene Z-Tabellenfamilie (kein SAP-Standard, keine sapdatasheet-Referenz).
+  # Gemeinsame Fallklammer-PK-Wurzel [MANDT,EINRI,FALNR,KOSTR,LFDNR] (Fall+Kostentraeger+
+  # Pruefvorgang), haengt an NFAL/NKTR. Storno je *_STORN='X'. Vollstaendige Domaenen-
+  # analyse + App-Konzept: docs/MD_MANAGEMENT_KONZEPT.md. Erloesrelevanz hoch
+  # (Rechnungsvolumen unter Pruefung dreistellige Mio EUR p.a.). ZNRKT_DRG s. eigener
+  # Eintrag oben (Erloes-Nachrechnung, 6 Sichten). Alle fhir:null (Analytik-Pfad, Tier 2/3).
+  ZNRKT_KOPF:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # verifiziert R17 (244.715 Zeilen, 100% eindeutig)
+    cdc: ct
+    notes: "Vorgangskopf des MD-Pruefverfahrens (127 Spalten). 229.047 Faelle, 244.715
+            Vorgaenge, 1.175 storniert. RKTTYP: 0_DRG 110.568 / FORMRABW (formale
+            Rechnungsabweisung) 54.829 / INTPRUE 19.644 / 0_PSYCH 1.758 / 0_SONST,0_AMBU.
+            Fristen PRF_BEG/END + FRIST1-3 (§275c-Fristen), Streitwert STREITW_ERLDIF
+            (Erloesdifferenz) + STREITW_STRAFZ (Aufwandspauschale/Strafzahlung),
+            MEDO_INIT_*-Flags (Pruefdimensionen DRG/Z75/BEA/OPS/ICH/ICN/FAK), WIKE_*/
+            XXXX_*-Spalten = Fallklammer-Grenzen bei Wiederaufnahme/Zusammenfuehrung.
+            PERSONENIDENT.: ARZT_MDK, RKT_STWRT_TXT, MAHNSP, SACHBEARB -> Verkryptung."
+  ZNRKT_REKL:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, REKL_POS, REKL_ST_POS]   # verifiziert R17
+                                          # (1.339.366 Zeilen, 100% eindeutig)
+    cdc: ct
+    notes: "Reklamations-/Statuszeilen (138 Spalten) - operatives Herz des Workflows,
+            aktuell bis 2026. RKT_PHASE: RKZ (Rechnungskuerzung/formal) -> MDK
+            (medizinisch). REKL_STAND (denormalisierter Klartext, ~30 Stufen): Beginn ->
+            Uebergabe Med.Co. -> Pruefung Med.Co. -> Berichte angefordert -> Unterlagen an
+            Kasse/MDK -> Pruefung beendet -> Eingang LE positiv/negativ (Leistungsentscheid)
+            -> Rechnungskorrektur -> Aufwandspauschale -> erledigt. Gruende REKL_GRUND1-4,
+            OPS/ICD-Streit REK_* vs VVF_* (Vergleichs-/Eroerterungsverfahren §17c KHG),
+            17C-Flag, EDI_REK_LF301 (§301-Verknuepfung). Rechnung-Netto unter Pruefung
+            (REK_NETWR): 2019 1,22 Mrd / 2021 823 Mio / 2025 731 Mio EUR. PERSONENIDENT.:
+            REKL_BEM, REKL_ABRI* -> Verkryptung."
+  ZNRKT_MDK:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, MDKPOS]   # verifiziert R17 (18.153 Zeilen, eindeutig)
+    cdc: ct
+    notes: "MDK-BEGEHUNGSTERMINE (47 Spalten) - ALT-WORKFLOW: MDKGUTDAT max 2013,
+            CW_AUSG/ZIEL/ERG durchgaengig 0 (leer) - das DIAS-Vergleichstripel wird NICHT
+            hieraus gespeist, sondern aus ZNRKT_DRG (6 Sichten). MDKTERMIN 100% befuellt,
+            MDKKONSENS 91% / MDKDISSENS 3%. Fuer aktuelle Analytik nur eingeschraenkt
+            relevant (Begehungs-Historie). PERSONENIDENT.: MDKARZT1-3, MDKBEM -> Verkryptung."
+  # Restliche RKT-Familie (Existenz+Zeilenzahl R17 live bestaetigt, voller Dreiklang offen;
+  # PK-Wurzel [MANDT,EINRI,FALNR,KOSTR,LFDNR] plausibel, Positions-Suffix je Tabelle VERIFY):
+  ZNRKT_ICD:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    cdc: ct
+    notes: "ICD-Streit je Vorgang, 275.544 Zeilen. Dreiklang offen."
+  ZNRKT_OPS:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    cdc: ct
+    notes: "OPS-Streit je Vorgang, 48.335 Zeilen. Dreiklang offen."
+  ZNRKT_Z75:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Zusatzentgelte-Streit, 163.355 Zeilen. Dreiklang offen."
+  ZNRKT_BEA:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Beatmungsstunden-Streit, 15.234 Zeilen. Dreiklang offen."
+  ZNRKT_TOB:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Tage ohne Berechnung (ToB), 76.795 Zeilen. Dreiklang offen."
+  ZNRKT_BER:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    cdc: ct
+    notes: "Berichte/Unterlagen-Positionen, 957.295 Zeilen. Dreiklang offen."
+  ZNRKT_AUF:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (+Positions-Feld?)
+    cdc: ct
+    notes: "Aufgaben/Wiedervorlagen, 944.348 Zeilen. Fuer Fristen-Cockpit relevant. Dreiklang offen."
+  ZNRKT_FAK:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Fakturabezug/Rechnungen, 552.286 Zeilen. Dreiklang offen."
+  ZNRKT_MCS:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "MD-Communication-Server / elektr. Kommunikation (§301-Datenaustausch),
+            216.089 Zeilen. Dreiklang offen."
+  ZNRKT_KLA:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY
+    cdc: ct
+    notes: "Klageverfahren (Sozialgericht), 4.442 Zeilen. Dreiklang offen."
+  ZNRKT_KG:
+    schema: sap
+    fhir: null
+    tier: 2
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR]   # VERIFY (evtl. Katalog-PK statt Fallklammer!)
+    cdc: ct
+    notes: "Pruefgrund-Zuordnung, 238.146 Zeilen. Verdacht: Katalog/Zuordnung Pruefgruende;
+            Texte in ZNRKT_KG_TXT (1.749 Zeilen). Dreiklang offen -> ggf. ref_*-Loader."
