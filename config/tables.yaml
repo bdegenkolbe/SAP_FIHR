@@ -1329,3 +1329,14 @@ tables:
     cdc: full
     notes: "OM-Relationen (1.249.986): Person->Planstelle (A008/B008), Planstelle->Orgeinheit
             (A003/B003) usw. Fuer OE-Bruecke (Auth-Strecke 3.3, offener Punkt) heranziehbar."
+
+  # ==== OE-Baum / Berechtigungs-Bruecke (R19b, Hinweis Bjoern) ====
+  # Prototypen im test-Schema; Logik produktiv nachbauen (nicht auf test.* verlassen).
+  SETNODE:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, SETCLASS, SUBCLASS, SETNAME, LINEID]   # VERIFY (SAP-Set-Standard)
+    cdc: full
+    notes: "SAP-Set-/Hierarchieknoten - Basis des IS-H-OE-Baums. Quelle fuer die
+            Baum-Flachung (test.ish_orgbaum / dbo.SETNODE_Baumstrukturen_v1). Auth-Bruecke."
