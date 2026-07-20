@@ -49,16 +49,29 @@ WHERE SUBTY='90AD' AND UPPER(USRID)=UPPER(?) AND ? BETWEEN BEGDA AND ENDDA;
 zeitscheibenbasiert. Alle je PERNR gültigen `ORGEH` über die Zeit = die HR-Abteilungen
 des Mitarbeiters.
 
-**3.3 Orgeinheit → IS-H-OE — OFFENER PUNKT (kritische Brücke).** Die HR-`ORGEH`
-(OM-Objekt, 8-stellig) ist nicht zwingend identisch mit der IS-H-OE in
-`NBEW.OE/ORGFA/ORGPF` bzw. `NORG`. Zu verifizieren (nächster Schritt, mit Daten):
-1. **Direktgleichheit** prüfen: Schnittmenge `PA0001.ORGEH` ↔ `NORG.ORGID/OE`.
-2. **`NORG`-Referenz**: trägt `NORG` ein HR-Feld (ORGEH/Planstelle)? → direkter Join.
-3. **HRP1001-Relationen**: OM-Struktur (O→O/S→O) auf IS-H-OE abbilden.
-4. **Fallback**: kuratierte Mapping-Tabelle `mcp.oe_mapping (orgeh → ish_oe)`, gepflegt
-   vom Medizincontrolling (verlustfrei, versioniert).
-Bis zur Klärung gilt für Abteilungspersonal *fail-closed* (keine Sicht), Medizincontrolling/
-IT/Einzel-Logins sind davon unabhängig sofort nutzbar.
+**3.3 Orgeinheit → IS-H-OE — LIVE GEPRÜFT (R19): keine automatische Brücke, kuratierte
+Mapping-Tabelle nötig.** Die HR-`ORGEH` (OM-Objekt, 8-stellig, z. B. `50013834`) und die
+IS-H-OE (`NORG.ORGID`, hausspezifisch, z. B. `A02-1`, `URO`) liegen in **verschiedenen
+Coderäumen**. Verifizierte Befunde:
+- `NORG.MIGRATED_OBJID` durchgängig `00000000` → **kein** Migrations-Link (verworfen).
+- ID-Gleichheit `ORGEH ↔ ORGID`: nicht gegeben (numerisch vs. alphanumerisch).
+- Kürzel `HRP1000.SHORT` (OTYPE='O') ↔ `NORG.OKURZ/ORGID`: nur **83–85 von 2.406**
+  (~3,5 %); Name ↔ `STEXT`: 35. → als alleinige Brücke **nicht tragfähig**.
+- Operativ relevant sind **232 Fachabteilungs-OEs** (`NBEW.ORGFA`), nicht alle 2.406.
+
+**Empfohlener Weg (evidenzbasiert):** kuratierte, versionierte Mapping-Tabelle
+`mcp.oe_mapping (orgeh, ish_orgid, gueltig_von/bis)`:
+1. **Auto-Seed** aus den ~83 Kürzel-Treffern (`HRP1000.SHORT`=`NORG.OKURZ`) +
+   Namensgleichheit → Vorschlagsliste.
+2. **HRP1001** liefert die HR-**Hierarchie** (O→O), sodass Leitungskräfte automatisch die
+   Unter-OEs erben, und die **Namen** (`HRP1000.STEXT`) für die Pflege-UI.
+3. **Manuelle Vervollständigung** der Rest-Fachabteilungen durch das Medizincontrolling
+   (überschaubar: Ziel sind die 232 `ORGFA`, nicht 2.406). Verlustfrei, auditierbar.
+
+Bis das Mapping vollständig ist, gilt für Abteilungspersonal *fail-closed* (nur explizit
+gemappte OEs sichtbar); Medizincontrolling/IT/Einzel-Logins sind davon unabhängig sofort
+nutzbar. HRP1000/1001 tragen also **Resolution (AD→PERNR→ORGEH), Hierarchie und Namen** —
+die eigentliche OE-Zuordnung bleibt eine kuratierte (kleine) Mapping-Pflege.
 
 **3.4 IS-H-OE → Patient** — über die Bewegungen:
 ```sql
