@@ -287,6 +287,32 @@ Alle Registry-VERIFY-Marker der RKT-Familie durch verifizierte PKs ersetzt
 
 ---
 
+## R20 — Live-Anbindung der Datenpumpe (Credentials, treiberlos via pytds)
+
+- **Credentials angelegt:** Login `bdegenkolbe`, Passwort NUR im Windows Credential
+  Manager (`sapfhir:higl-main` + `mdmgmt:higl-main`); `connection.yaml` traegt nur den
+  Usernamen. `dbsource` um Keyring-Aufloesung erweitert (env `SAPFHIR_DB_PW` > Keyring).
+- **Bug gefunden+gefixt:** pytds nutzt `pyformat` (`%s`), der Code `qmark` (`?`) —
+  parametrisierte Queries schlugen im treiberlosen Pfad fehl. Fix: `_adapt()`-Shim je
+  Paramstyle (query/iter_query/scalar).
+- **Verbindungs-Check (live):** connected=True, DB=Replicate, SQL Server 2017;
+  Kern-Tabellen NPAT/NFAL/NBEW/NDIA/NICP sichtbar.
+- **⚠ SICHERHEITSBEFUND:** `IS_ROLEMEMBER('db_datawriter') = TRUE` — der persoenliche
+  Login hat SCHREIBRECHTE auf der Replika. Unsere Werkzeuge senden ausschliesslich
+  SELECT, aber die Defense-in-Depth-Schicht „Login KANN nicht schreiben" fehlt.
+  → Empfehlung: dedizierter Service-Login nur mit `db_datareader` fuer den Dauerbetrieb;
+  persoenlichen Login nur uebergangsweise verwenden.
+- **Registry-Live-Abgleich (107 Eintraege):** 5 nicht gefunden = exakt die bekannten
+  nicht replizierten Kataloge (TN14K/TN14O/N2DT/TN26B/TN26D — erwartet, CLAUDE.md).
+  12 Eintraege mit PK-Constraint-Abweichung (u. a. NLEI, NFFZ, N1LSTEAM, TN14U):
+  physischer DB-PRIMARY-KEY breiter/anders als unser logisch verifizierter PK (z. B.
+  SPRAS in TN14U). Kein Blocker (unsere Uniqueness-Tests bleiben gueltig), aber je
+  Tabelle bei naechster Gelegenheit DB-PK in die Registry-notes aufnehmen.
+- **Offen:** MDM-Live-ETL nutzt bisher nur pyodbc → pytds-Fallback (inkl. Paramstyle)
+  als kleines AP nachziehen.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;
