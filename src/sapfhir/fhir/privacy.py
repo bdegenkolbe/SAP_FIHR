@@ -62,8 +62,13 @@ class Privacy:
             return iso
         try:
             dt = _dt.datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+            # SAP-Sentinels NIE shiften: 0101-01-01 = Leerdatum, 9999 = offener Fall.
+            # Sie steuern downstream den Fall-Status (in-progress) und wuerden beim
+            # Shift zudem den datetime-Bereich sprengen (OverflowError).
+            if dt.year <= 1 or dt.year >= 9999:
+                return iso
             return (dt + _dt.timedelta(days=d)).isoformat()
-        except ValueError:
+        except (ValueError, OverflowError):
             return iso
 
     # -- Patient-Ressource entschaerfen ------------------------------------

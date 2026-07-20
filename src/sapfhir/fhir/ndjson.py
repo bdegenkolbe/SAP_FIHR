@@ -171,7 +171,7 @@ def _lookup_apxnr(con) -> dict:
         return {}
     return {str(r[0]).strip(): str(r[1]).strip() for r in con.execute(
         "SELECT FALNR, APXNR FROM bronze_current.napx_fal "
-        "WHERE COALESCE(STORN,'') IN ('','0')").fetchall()}
+        "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')").fetchall()}
 
 
 def _lookup_kodetext(con) -> dict:

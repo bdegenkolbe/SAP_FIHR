@@ -12,7 +12,7 @@ SELECT
     FALAR AS fallart,
     COUNT(*)                    AS faelle
 FROM bronze_current.nfal
-WHERE COALESCE(STORN,'') IN ('','0')
+WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')
   AND COALESCE(STASP,'') <> 'X'
 GROUP BY 1, 2
 ORDER BY 1;
@@ -30,7 +30,7 @@ FROM bronze_current.nfal
 WHERE FALAR = '1'
   AND ENDDT IS NOT NULL
   AND substr(CAST(ENDDT AS VARCHAR),1,4) NOT IN ('0101','9999')
-  AND COALESCE(STORN,'') IN ('','0');
+  AND COALESCE(TRIM(STORN),'') NOT IN ('X','1');
 
 -- Top-Hauptdiagnosen (ICD-10-GM) — nur echte KH-Hauptdiagnosen (KHDIA-Flag),
 -- sonst dominieren die ~96% Behandlungsdiagnosen die Statistik (VERIFY_RESULTS_3).
@@ -39,7 +39,7 @@ SELECT
     DKEY1 AS icd,
     COUNT(*) AS n
 FROM bronze_current.ndia
-WHERE COALESCE(STORN,'') IN ('','0')
+WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')
   AND COALESCE(KHDIA,'') = 'X'
 GROUP BY 1
 ORDER BY n DESC
@@ -57,7 +57,7 @@ SELECT
     SUM(CASE WHEN BHDIA='X' THEN 1 ELSE 0 END) AS behandlung,
     COUNT(*) AS gesamt
 FROM bronze_current.ndia
-WHERE COALESCE(STORN,'') IN ('','0')
+WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')
 GROUP BY 1
 ORDER BY 1;
 
@@ -79,6 +79,6 @@ SELECT
     COUNT(*)               AS offene_bewegungen
 FROM bronze_current.nbew
 WHERE (BWEDT IS NULL OR substr(CAST(BWEDT AS VARCHAR),1,4) = '9999')
-  AND COALESCE(STORN,'') IN ('','0')
+  AND COALESCE(TRIM(STORN),'') NOT IN ('X','1')
 GROUP BY 1
 ORDER BY offene_bewegungen DESC;

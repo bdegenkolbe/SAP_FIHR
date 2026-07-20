@@ -313,6 +313,54 @@ Alle Registry-VERIFY-Marker der RKT-Familie durch verifizierte PKs ersetzt
 
 ---
 
+## R21 — Erste Live-Kohorte „aktuelle Stationspatienten" durch die volle Pipeline
+
+**Kohorte:** offene stationaere Aufnahme-Bewegung (NBEW `BEWTY='1'`, `BWEDT`=9999-Sentinel,
+nicht storniert) → **2.611 Patienten** → volle Fall-Historie via NFAL → **53.157 Faelle**.
+Neues Modul `extract/cohort.py` (s. R20-Commit) laed gezielt: Kohorten-Tabellen
+(NPAT/NFAL/NBEW/NDIA/NICP/NKSK/NRSF) IN-Liste-gechunkt, Referenztabellen
+(NORG/NGPA/NKTR/NKDI/NPER/TN14*/TN26C/TN01/TN39*/TNK00) voll. Ergebnis: 217.572 NBEW,
+164.009 NDIA, 73.390 NICP, 50.569 NKSK — Extrakt komplett read-only, keine Fehler.
+
+**3 Projektionsbugs live gefunden + gefixt** (waren mit Demo-Daten unsichtbar):
+- `NBEW` haelt **kein PATNR** — Bewegungen haengen nur an FALNR; Patient nur ueber
+  NFAL erreichbar. Kohorten-Aufloesung entsprechend zweistufig (FALNR→PATNR via NFAL).
+- `NICP`-Projektion enthielt `ERDAT` — Spalte existiert dort nicht (nur UPDAT/STDAT/
+  TIMESTAMP). Aus `config/columns/NICP.yaml` entfernt.
+- `NORG`-Projektion enthielt `ORGKT` (Kurzbezeichnung) — reale Spalte heisst **`ORGKB`**.
+  Fehler war fatal (kompletter SELECT schlaegt fehl, nicht nur die eine Spalte).
+
+**Privacy-Fix:** `privacy.shift()` warf `OverflowError`, weil SAP-Sentinel-Daten
+(0101-01-01 Leerdatum, 9999-12-31 offener Fall) beim Datums-Shift den `datetime`-Bereich
+sprengen konnten. Fix: Sentinels (Jahr ≤1 oder ≥9999) werden nie geshiftet — sie steuern
+ohnehin den Offen-Fall-Status downstream und duerfen laut Methode unveraendert bleiben.
+
+**⚠ Datenbefund — STORN-Default ist Leerzeichen, nicht Leerstring:** Alle bisherigen
+„nicht storniert"-Filter der Form `COALESCE(STORN,'') IN ('','0')` griffen mit echten
+Daten **nicht**, weil das SAP-Feld bei gueltigen Zeilen ein **Leerzeichen `' '`** enthaelt
+(kein Leerstring). Folge: `gold.belegung_oe` (Stationsbelegung) blieb mit echten Daten
+leer, obwohl `bronze_current.nbew` 2.663 gueltige offene Bewegungen enthielt. Betroffen
+waren 14 Stellen (`gold/marts.sql` ×5, `api/app.py` ×9→ jetzt ersetzt, `gold/build.py` ×2,
+`mcp/server.py` ×2, `fhir/ndjson.py` ×1) — durchgaengig auf
+`COALESCE(TRIM(STORN),'') NOT IN ('X','1')` (positive Nicht-Storno-Logik statt
+Allowlist) umgestellt. Mit Demo-Seed-Daten (STORN korrekt `''`) blieb der Bug unsichtbar
+— **klassischer Fall, in dem nur echte Produktionsdaten den Fehler zeigen.**
+
+**Verifiziert nach Fix:** `gold.belegung_oe` zeigt 2.663 offene Bewegungen ueber reale
+Stationen (Top: Tagesklinik Adipositas 339, F02-1 171, G03-2 169, B02-2 146, ...) —
+deckt sich mit der unabhaengig gegen die Live-DB gemessenen Kontrollzahl (2.650/2.663,
+Differenz durch Snapshot-Zeitpunkt). FHIR-Ausleitung auf der Kohorte: 2.611 Patient,
+270.729 Encounter, 164.009 Condition, 73.390 Procedure, 50.569 Coverage, 236.117
+Practitioner, 19.756 Organization — alle 88 Tests weiterhin gruen (Demo-Seed hat
+korrekten STORN-Leerstring, TRIM-NOT-IN-Logik bleibt aequivalent).
+
+**Offen:** Gold-Build auf der echten Kohorte (~500k Zeilen inkl. FTS-Index ueber 164k
+Diagnosen) lief in der Praxis mehrere Minuten — deutlich laenger als mit Demo-Daten.
+Performance-Beobachtung, kein Fehler; bei Vollausbau (Tier 1 komplett, 85 Mio Zeilen)
+vorab Lastprofil pruefen (ROADMAP Q3-Nachbarschaft).
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

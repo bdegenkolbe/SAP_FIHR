@@ -105,13 +105,13 @@ if app:
         one = lambda sql: (_q(sql) or [{}])[0]
         return JSONResponse({
             "faelle": one("SELECT COUNT(*) n FROM mcp.fall "
-                          "WHERE COALESCE(STORN,'') IN ('','0')").get("n"),
+                          "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')").get("n"),
             "offen": one("SELECT COUNT(*) n FROM mcp.fall "
-                         "WHERE COALESCE(STORN,'') IN ('','0') AND (ENDDT IS NULL "
+                         "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1') AND (ENDDT IS NULL "
                          "OR substr(CAST(ENDDT AS VARCHAR),1,4) IN ('0101','9999'))"
                          ).get("n"),
             "patienten": one("SELECT COUNT(*) n FROM mcp.patient "
-                             "WHERE COALESCE(STORN,'') IN ('','0')").get("n"),
+                             "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')").get("n"),
             "labor": one("SELECT COUNT(*) n FROM mcp.labor").get("n"),
             "vwd_mittel": one("SELECT AVG(vwd_tage) v FROM gold.verweildauer").get("v"),
             "vwd_median": one("SELECT MEDIAN(vwd_tage) v FROM gold.verweildauer").get("v"),
@@ -134,7 +134,7 @@ if app:
             "SELECT CAST(LEAST(FLOOR((year(current_date) - "
             "  TRY_CAST(substr(CAST(GBDAT AS VARCHAR),1,4) AS INT)) / 10) * 10, 90)"
             "  AS INT) AS band, GSCHL, COUNT(*) AS n "
-            "FROM mcp.patient WHERE COALESCE(STORN,'') IN ('','0') "
+            "FROM mcp.patient WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
             "  AND TRY_CAST(substr(CAST(GBDAT AS VARCHAR),1,4) AS INT) "
             "      BETWEEN 1900 AND year(current_date) "
             "GROUP BY 1, 2 ORDER BY 1"))
@@ -143,7 +143,7 @@ if app:
     def fachrichtungen():
         return JSONResponse(_q(
             "SELECT COALESCE(NULLIF(TRIM(FACHR),''),'ohne') AS fachr, COUNT(*) AS n "
-            "FROM mcp.fall WHERE COALESCE(STORN,'') IN ('','0') "
+            "FROM mcp.fall WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
             "GROUP BY 1 ORDER BY n DESC LIMIT 12"))
 
     @app.get("/api/analytics/faelle_monat")
@@ -190,17 +190,17 @@ if app:
                                     detail="Kein Zugriff auf diesen Patienten (Berechtigung).")
         patient = _q(
             "SELECT GSCHL, GBDAT, TODKZ FROM mcp.patient "
-            "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0')", [patnr])
+            "WHERE PATNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1')", [patnr])
         faelle = _q(
             "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR, "
             "  CASE WHEN ENDDT IS NULL OR substr(CAST(ENDDT AS VARCHAR),1,4)"
             "       IN ('0101','9999') THEN 1 ELSE 0 END AS offen "
-            "FROM mcp.fall WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0') "
+            "FROM mcp.fall WHERE PATNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
             "ORDER BY BEGDT DESC LIMIT 50", [patnr])
         diagnosen = _q(
             "SELECT d.DIADT, d.DKEY1, d.DITXT, d.KHDIA, d.FALNR "
             "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
-            "WHERE f.PATNR = ? AND COALESCE(d.STORN,'') IN ('','0') "
+            "WHERE f.PATNR = ? AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
             "ORDER BY d.DIADT DESC LIMIT 50", [patnr])
         labor = _q(
             "SELECT KATTEXT, BEFDT, WERT, EINH, REFBER, ABNORMAL FROM mcp.labor "
@@ -226,7 +226,7 @@ if app:
             "   FROM mcp.labor l WHERE l.PATNR = ?"
             " UNION ALL SELECT dk.DODAT, 'Dokument', dk.FALNR,"
             "   'Dokument ' || COALESCE(dk.DOKAR,'') FROM mcp.dokument dk"
-            "   WHERE dk.PATNR = ? AND COALESCE(dk.STORN,'') IN ('','0')"
+            "   WHERE dk.PATNR = ? AND COALESCE(TRIM(dk.STORN),'') NOT IN ('X','1')"
             ") WHERE datum IS NOT NULL ORDER BY datum DESC LIMIT 300",
             [patnr] * 6)
         return JSONResponse({"patnr": patnr,

@@ -64,7 +64,7 @@ def build(warehouse: str = "data/warehouse.duckdb",
                 LEFT JOIN ref.icd r
                   ON CAST(d.DKAT1 AS VARCHAR) = r."DKAT"
                  AND CAST(d.DKEY1 AS VARCHAR) = r."DKEY"
-                WHERE COALESCE(d.STORN,'') IN ('','0')
+                WHERE COALESCE(TRIM(d.STORN),'') NOT IN ('X','1')
                   AND COALESCE(d.KHDIA,'') = 'X'
                 GROUP BY 1 ORDER BY n DESC LIMIT 50""")
         if "oe" in result["ref"] and "nbew" in views:
@@ -78,7 +78,7 @@ def build(warehouse: str = "data/warehouse.duckdb",
                   ON CAST(COALESCE(b.ORGPF, b.ORGFA) AS VARCHAR) = r."ORGID"
                 WHERE (b.BWEDT IS NULL
                        OR substr(CAST(b.BWEDT AS VARCHAR),1,4) = '9999')
-                  AND COALESCE(b.STORN,'') IN ('','0')
+                  AND COALESCE(TRIM(b.STORN),'') NOT IN ('X','1')
                 GROUP BY 1 ORDER BY offene_bewegungen DESC""")
 
         try:
