@@ -89,6 +89,14 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
 
   <div id="monitor" class="page act">
     <div class="kpis" id="mk"></div>
+    <div class="card">
+      <div class="hd"><h2>Kohorte laden</h2></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button id="cohortGo" class="go">Aktuelle Stationspatienten laden</button>
+        <span style="font-size:12px;color:var(--mut)">nur aktuell offene Faelle — keine Fallhistorie (siehe VERIFY_LOG R21)</span>
+      </div>
+      <div id="cohortStatus" style="margin-top:8px;font-size:13px"></div>
+    </div>
     <div class="card"><div class="hd"><h2>Tabellenstatus</h2></div><table id="mt"><thead><tr><th>Tabelle</th><th>Phase</th><th class="num">Zeilen</th><th>Watermark</th></tr></thead><tbody></tbody></table></div>
     <div class="card"><div class="hd"><h2>Datenqualität — Reconciliation</h2></div><table id="dq"><thead><tr><th>Tabelle</th><th class="num">Quelle</th><th class="num">Lokal</th><th class="num">Δ</th><th>Status</th></tr></thead><tbody></tbody></table></div>
   </div>
@@ -271,8 +279,38 @@ async function loadMonitor(){
   const di=await api('/api/monitor/dias').catch(()=>[]);
   if(di.length)$('#mk').innerHTML+=`<div class="kpi"><div class="l">DIAS-Abdeckung</div><div class="v">${di[0].in_registry}/${di[0].dias_genutzt}</div></div>`;
   const dq=await api('/api/monitor/reconciliation').catch(()=>[]);
-  $('#dq tbody').innerHTML=dq.map(r=>`<tr><td>${r.table_name}</td><td class="num">${r.source_rows==null?'—':NF.format(Number(r.source_rows))}</td><td class="num">${NF.format(Number(r.local_rows||0))}</td><td class="num">${r.delta==null?'—':r.delta}</td><td style="color:${r.status==='ALARM'?'var(--crit)':r.status==='OK'?'var(--good)':'var(--mut)'};font-weight:600">${r.status}</td></tr>`).join('');
+  $('#dq tbody').innerHTML=dq.map(r=>`<tr><td>${r.table_name}</td><td class="num">${r.source_rows==null?(r.status==='KOHORTE'?'Teilmenge':'—'):NF.format(Number(r.source_rows))}</td><td class="num">${NF.format(Number(r.local_rows||0))}</td><td class="num">${r.delta==null?'—':r.delta}</td><td style="color:${r.status==='ALARM'?'var(--crit)':r.status==='OK'?'var(--good)':r.status==='KOHORTE'?'#2a78d6':'var(--mut)'};font-weight:600">${r.status}</td></tr>`).join('');
 }
+
+/* ---------- Kohorte laden (Ladeknopf, R21) ---------- */
+let cohortPoll=null;
+function renderCohortStatus(s){
+  const box=$('#cohortStatus');
+  if(!s||s.state==='idle'){box.innerHTML='<span style="color:var(--mut)">noch nicht geladen</span>';return;}
+  const rows=(s.log||[]).slice(-6).map(l=>`<div style="color:var(--mut)">${l}</div>`).join('');
+  if(s.state==='running'){
+    box.innerHTML=`<div style="color:#2a78d6;font-weight:600">läuft …</div>${rows}`;
+  }else if(s.state==='done'){
+    const c=s.result&&s.result.cohort||{};
+    box.innerHTML=`<div style="color:var(--good);font-weight:600">fertig — ${NF.format(c.patienten||0)} Patienten, ${NF.format(c.faelle||0)} Faelle (${s.finished_at||''})</div>${rows}`;
+  }else if(s.state==='error'){
+    box.innerHTML=`<div style="color:var(--crit);font-weight:600">Fehler: ${s.error||''}</div>${rows}`;
+  }
+}
+async function pollCohort(){
+  const s=await api('/api/cohort/status').catch(()=>null);
+  renderCohortStatus(s);
+  if(s&&s.state==='running'){ cohortPoll=setTimeout(pollCohort,2000); }
+  else{ clearTimeout(cohortPoll); $('#cohortGo').disabled=false;
+    if(s&&s.state==='done'){ loadMonitor(); loadAnalytics(); } }
+}
+$('#cohortGo').onclick=async()=>{
+  $('#cohortGo').disabled=true;
+  const r=await fetch('/api/cohort/load',{method:'POST'}).then(r=>r.json()).catch(e=>({error:String(e)}));
+  if(r.error && !r.started){ $('#cohortStatus').innerHTML=`<span style="color:var(--crit)">${r.error}</span>`; $('#cohortGo').disabled=false; return; }
+  pollCohort();
+};
+pollCohort();
 
 /* ---------- Analytik ---------- */
 async function loadAnalytics(){

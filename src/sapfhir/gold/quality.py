@@ -52,18 +52,32 @@ def _tables(con) -> list[str]:
 
 def reconcile(con, source=None, threshold: float = 0.001) -> list[dict]:
     """Vergleicht bronze_current-Zeilen mit der Quelle. Ohne Live-Verbindung
-    dient rows_seen aus dem Extract-State als Quell-Approximation."""
+    dient rows_seen aus dem Extract-State als Quell-Approximation.
+
+    Tabellen, die NUR ueber einen Kohorten-Backfill geladen wurden (phase='cohort',
+    z.B. "aktuelle Stationspatienten"), sind absichtlich eine Teilmenge der Quelle —
+    ein Zeilenzahl-Abgleich gegen die Gesamttabelle waere hier ein Fehlalarm.
+    Solche Tabellen bekommen den eigenen Status 'KOHORTE' statt 'UNKNOWN'."""
     out = []
     for t in _tables(con):
         local = con.execute(f'SELECT COUNT(*) FROM bronze_current."{t}"').fetchone()[0]
         if source is not None:
             src_rows = source.scalar(f"SELECT COUNT(*) FROM sap.[{t.upper()}]")
+            status_override = None
         else:
             r = con.execute(
-                "SELECT MAX(rows_seen) FROM _meta.extract_state "
-                "WHERE lower(table_name)=? AND phase='backfill'", [t]).fetchone()
-            src_rows = r[0] if r and r[0] else None
-        if src_rows is None:
+                "SELECT phase, rows_seen FROM _meta.extract_state "
+                "WHERE lower(table_name)=? "
+                "ORDER BY CASE phase WHEN 'backfill' THEN 0 WHEN 'cdc' THEN 0 "
+                "  WHEN 'cohort' THEN 1 ELSE 2 END LIMIT 1", [t]).fetchone()
+            if r and r[0] == "cohort":
+                src_rows, status_override = None, "KOHORTE"
+            else:
+                src_rows = r[1] if r and r[1] else None
+                status_override = None
+        if status_override:
+            status, delta = status_override, None
+        elif src_rows is None:
             status = "UNKNOWN"
             delta = None
         else:

@@ -361,6 +361,53 @@ vorab Lastprofil pruefen (ROADMAP Q3-Nachbarschaft).
 
 ---
 
+## R22 — Korrektur: Kohorten-Scope faelschlich auf Lebenshistorie ausgeweitet + Ladeknopf
+
+**Fehlklassifikation in R21:** Der Auftrag „aktuelle Patienten auf Station" wurde von
+mir eigenmaechtig als „diese Patienten + ihre KOMPLETTE Fallhistorie" interpretiert
+(Schritt 2 in `resolve_current_inpatients`: NFAL-Expansion ueber ALLE PATNR). Ergebnis:
+aus 2.611 aktuell offenen Faellen wurden 53.157 historische Faelle / 217.572 Bewegungen —
+das ist NICHT "aktuelle Patienten auf Station", sondern eine 360-Grad-Akte, die niemand
+in diesem Schritt angefordert hatte. Zusaetzlich zeigte das Monitor-Dashboard fuer genau
+diese kohorten-geladenen Tabellen nur "—"/`UNKNOWN` (kein Vergleichswert vorhanden), was
+wie ein defekter Abgleich aussah statt als bewusste Teilladung erkennbar zu sein. Nutzer-
+Feedback (woertlich): *"Wenn ich nur die aktuell auf Station liegenden Patienten ziehen
+möchte kann ich nicht 217T Bewegungen ziehen. Da funktioniert der Filter nicht."*
+
+**Fix 1 — Scope-Parameter statt impliziter Annahme** (`extract/cohort.py`):
+`resolve_current_inpatients(..., load_scope="current"|"history")`, **Default = `current`**:
+Ladeumfang = GENAU die aktuell offenen Faelle (kein NFAL-Expansionsschritt mehr). Die
+360-Grad-Variante bleibt als `load_scope="history"` erhalten, ist aber jetzt explizites
+Opt-in und nirgendwo mehr Default. Ergebnis nach Korrektur (echter Lauf):
+**2.609 Patienten, 2.649 Faelle, 9.293 Bewegungen** (statt 53.157/217.572) — Faktor ~23
+kleiner, deckt sich mit der unabhaengig gemessenen Live-Zahl offener Bewegungen (~2.650).
+Nebeneffekt (erwartet, kein Bug): `vwd_mittel/median` sind mit `load_scope=current` jetzt
+`null` — offene Faelle haben per Definition kein `ENDDT`, Verweildauer braucht die
+(optionale) Historie oder abgeschlossene Faelle.
+
+**Fix 2 — DQ-Dashboard kennzeichnet Teilladungen** (`gold/quality.py`): Kohorten-geladene
+Tabellen werden jetzt in `_meta.extract_state` mit `phase='cohort'` protokolliert;
+`reconcile()` zeigt dafuer den eigenen Status **`KOHORTE`** statt `UNKNOWN` — sichtbar
+als bewusste Teilmenge, nicht als Abgleichsfehler. Frontend (`web/index.html`) faerbt
+`KOHORTE` neutral-blau statt grau.
+
+**Fix 3 — „Ladeknopf" (Nutzeranforderung):** Kohorten-Backfill + FHIR + Gold liefen bisher
+nur ueber von mir manuell gestartete Shell-Skripte — nicht wiederholbar durch den Nutzer
+selbst. Neu: `POST /api/cohort/load` (startet den kompletten Lauf in einem Hintergrund-
+Thread des laufenden API-Prozesses, liefert sofort `{"started":true}`) + `GET
+/api/cohort/status` (Zustand `idle|running|done|error`, Fortschritts-Log, Endergebnis).
+Button **„Aktuelle Stationspatienten laden"** im Entlade-Monitor (`web/index.html`)
+mit Live-Status-Polling (2s-Intervall) und automatischem Reload von Monitor/Analytik
+nach Abschluss. End-to-end ueber den echten Button-Endpunkt verifiziert (nicht nur CLI).
+
+**Lehre fuer kuenftige Sessions:** Bei Lade-/Scope-Entscheidungen den woertlichen Umfang
+der Nutzeranfrage als Default nehmen; Ausweitungen (z. B. "volle Historie fuer echten
+360-Grad-Kontext") sind eine separate, explizit zu benennende Erweiterung — nicht die
+Grundannahme. Wiederkehrende, nutzergetriggerte Ladevorgaenge gehoeren als API+UI-Aktion
+in die Anwendung, nicht in Ad-hoc-Shell-Skripte einer Session.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

@@ -6,6 +6,7 @@ Start: python -m sapfhir.api.app
 """
 from __future__ import annotations
 import os
+import threading
 
 import duckdb
 import yaml
@@ -53,6 +54,62 @@ def _audit_access(login, patnr, erlaubt):
 
 app = FastAPI(title="CliniBots Patient Insight") if FastAPI else None
 
+# --- Ladeknopf: Kohorten-Backfill "aktuelle Stationspatienten" (R21) ---------
+# Bewusst scope="current" (NUR aktuell offene Faelle, KEINE Fallhistorie-
+# Ausweitung) -- Details/Begruendung: docs/VERIFY_LOG_R8-R13.md R21.
+_COHORT_LOCK = threading.Lock()
+_COHORT_JOB = {"state": "idle", "log": [], "result": None, "error": None,
+              "finished_at": None}
+
+
+def _cohort_progress(msg: str):
+    _COHORT_JOB["log"].append(msg)
+    _COHORT_JOB["log"] = _COHORT_JOB["log"][-40:]
+
+
+def _run_cohort_job():
+    import datetime as _dt
+    try:
+        if not os.environ.get("SAPFHIR_PRIVACY_SECRET"):
+            try:
+                import keyring
+                env = (CFG or {}).get("source", {}).get("environment", "higl-main")
+                v = keyring.get_password("sapfhir:privacy", env)
+                if v:
+                    os.environ["SAPFHIR_PRIVACY_SECRET"] = v
+            except Exception:
+                pass
+        from sapfhir.extract import cohort as _cohort
+        from sapfhir.fhir import ndjson as _ndjson
+        from sapfhir.gold import build as _gold
+        rep = _cohort.run("config/connection.yaml", "current_inpatients",
+                          os.path.dirname(WAREHOUSE) or "data",
+                          load_scope="current", progress=_cohort_progress)
+        _cohort_progress("FHIR-Ausleitung ...")
+        fhir_res = _ndjson.run(CFG, warehouse=WAREHOUSE, full=True)
+        _cohort_progress(f"FHIR: {fhir_res.get('counts')}")
+        _cohort_progress("Gold-Marts + DQ ...")
+        _gold.build(warehouse=WAREHOUSE)
+        _cohort_progress("fertig.")
+        _COHORT_JOB["result"] = rep
+        _COHORT_JOB["state"] = "done"
+    except Exception as e:
+        _COHORT_JOB["error"] = str(e)
+        _COHORT_JOB["state"] = "error"
+    finally:
+        _COHORT_JOB["finished_at"] = _dt.datetime.now().isoformat(timespec="seconds")
+
+
+def _start_cohort_job() -> dict:
+    with _COHORT_LOCK:
+        if _COHORT_JOB["state"] == "running":
+            return {"started": False, "error": "Kohorten-Ladung laeuft bereits"}
+        _COHORT_JOB.update(state="running", log=[], result=None, error=None,
+                           finished_at=None)
+    t = threading.Thread(target=_run_cohort_job, daemon=True)
+    t.start()
+    return {"started": True}
+
 
 def _q(sql: str, params: list | None = None):
     con = duckdb.connect(WAREHOUSE, read_only=True)
@@ -68,6 +125,14 @@ def _q(sql: str, params: list | None = None):
 
 
 if app:
+    @app.post("/api/cohort/load")
+    def cohort_load():
+        return JSONResponse(_start_cohort_job())
+
+    @app.get("/api/cohort/status")
+    def cohort_status():
+        return JSONResponse(_COHORT_JOB)
+
     @app.get("/api/monitor/state")
     def monitor_state():
         return JSONResponse(_q(

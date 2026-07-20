@@ -25,6 +25,10 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 - ✅ Natives Deployment auf MFAI_BDE_HOME (beide Apps, Autostart, ops.ps1);
   Datenpumpe demo-e2e; Live-Config vorbereitet (`connection.yaml`, pytds).
 - ✅ Zielbild 2.0 (CONCEPT_P360_VOLLAUSBAU, Deep-Research-fundiert).
+- ✅ Kohorten-Backfill „aktuelle Stationspatienten" mit **Ladeknopf** im Entlade-Monitor
+  (`POST /api/cohort/load` + Status-Polling); Default-Scope korrigiert auf NUR aktuell
+  offene Faelle (kein automatischer Historie-Ausbau); DQ-Dashboard kennzeichnet
+  Kohorten-Teilladungen als `KOHORTE` statt `UNKNOWN`. Details/Lehre: VERIFY_LOG R22.
 
 ## Q. Querschnitt (laufend, kein Phasen-Gate)
 | AP | Inhalt | Herkunft |
