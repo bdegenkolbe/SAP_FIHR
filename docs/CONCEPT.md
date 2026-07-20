@@ -1,5 +1,9 @@
-# GREENBAY clinical — IS-H Edition (Arbeitstitel „ishx")
+# CliniBots Patient Insight (Codename SAP_FIHR / „ishx")
 ## FHIR-basiertes Entladetool + Auswertungsdashboard + Patienten-MCP-Server
+
+> **Produktname:** CliniBots Patient Insight (CliniBots-Produktwelt — Klinik. Daten.
+> Management.). Repo-/Codename bleibt `SAP_FIHR` bzw. Package `sapfhir`. Schwesterprodukt:
+> **CliniBots MDM** (Medizincontrolling/MD-Management, Repo `C:\ai\MD_Management`).
 
 Version 0.3 · 17.07.2026 · Konzept für Rollout via Claude Code
 Verwandtes Projekt: `ingolf` (medatixx/Praxis) — **hier explizit OHNE PVS-Ansatz**: reine Read-only-Sekundärnutzung, keine Rückschreibung, keine Abrechnung, keine Primärdokumentation.

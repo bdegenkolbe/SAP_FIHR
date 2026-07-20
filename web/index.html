@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SAP_FIHR Dashboard</title>
+<title>CliniBots Patient Insight</title>
 <link rel="icon" href="data:,">
 <!-- bewusst KEINE externen Ressourcen (Fonts/CDN) — on-prem ohne Egress -->
 <style>
 :root{
-  /* Chrome/Marke */
-  --p:#1A1A1A;--cy:#00BCFF;
+  /* Chrome/Marke — CliniBots */
+  --p:#173a48;--cy:#29ABE2;--cb-pink:#EC008C;--cb-cyan:#29ABE2;
+  --cb-grad:linear-gradient(120deg,#EC008C 0%,#9b3aa0 50%,#29ABE2 100%);
   /* Viz-Tokens (validierte Palette, hell) */
   --surface:#fcfcfb;--page:#f9f9f7;--ink:#0b0b0b;--ink2:#52514e;--mut:#898781;
   --grid:#e1e0d9;--axis:#c3c2b7;--bd:rgba(11,11,11,.10);
@@ -15,12 +16,18 @@
   --crit:#d03b3b;--good:#0ca30c;
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--page);color:var(--ink);font-size:14px}
-header{background:var(--p);color:#fff;padding:0 24px;height:58px;display:flex;align-items:center;gap:18px}
+body{font-family:'Poppins',"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--page);color:var(--ink);font-size:14px}
+header{background:var(--p);color:#fff;padding:0 24px;height:60px;display:flex;align-items:center;gap:12px}
+.logo{display:flex;align-items:center;gap:10px}
+.logo svg{width:34px;height:34px;flex:none}
+.logo .wm{font-weight:800;font-size:18px;letter-spacing:.4px;color:#fff}
+.logo .wm b{font-weight:800;color:var(--cb-cyan)}
 .prod{font-weight:700}.prod span{color:var(--cy)}
 nav{background:var(--surface);border-bottom:1px solid var(--grid);display:flex;padding:0 24px}
 nav a{padding:12px 16px;color:var(--mut);text-decoration:none;font-weight:600;border-bottom:3px solid transparent;cursor:pointer}
-nav a.act{color:var(--ink);border-color:var(--cy)}
+nav a:hover{color:var(--ink)}
+nav a.act{color:var(--cb-pink);border-color:var(--cb-pink)}
+.cbbar{height:6px;background:var(--cb-grad)}
 main{padding:22px 24px;max-width:1340px;margin:0 auto}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:18px}
 .kpi{background:var(--surface);border:1px solid var(--bd);border-radius:10px;padding:14px 16px}
@@ -61,7 +68,18 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
 .empty{color:var(--mut);font-size:13px;padding:8px 0}
 </style></head>
 <body>
-<header><div class="prod">SAP_FIHR <span>· IS-H → FHIR</span></div><div style="margin-left:auto;font-size:12px;color:#ccc">read-only · on-prem</div></header>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <linearGradient id="cbg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#EC008C"/><stop offset="0.5" stop-color="#9b3aa0"/><stop offset="1" stop-color="#29ABE2"/>
+  </linearGradient></defs></svg>
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M34 13.5A16 16 0 1 0 34 34.5" fill="none" stroke="url(#cbg)" stroke-width="7" stroke-linecap="round"/><circle cx="30.5" cy="19" r="3.6" fill="url(#cbg)"/></svg>
+    <div class="wm">CliniBots <b>Patient Insight</b></div>
+  </div>
+  <div style="font-size:12px;color:#9fb4bd;margin-left:6px">IS-H / i.s.h.med → FHIR &amp; Analytik</div>
+  <div style="margin-left:auto;font-size:12px;color:#9fb4bd">read-only · on-prem</div>
+</header>
 <nav>
   <a class="act" data-p="monitor">Entlade-Monitor</a>
   <a data-p="analytics">Klinik-Analytik</a>
@@ -107,7 +125,8 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
   </div>
 
 </main>
-<footer>Erstellt mit Claude AI · GREENBAY healthcare GmbH</footer>
+<div class="cbbar"></div>
+<footer><b style="color:var(--ink);font-style:normal">CliniBots Patient Insight</b> · Klinik. Daten. Management. — read-only · on-prem · GREENBAY healthcare GmbH</footer>
 <div id="tip"></div>
 <script>
 'use strict';

@@ -24,7 +24,7 @@ if os.path.exists("config/connection.yaml"):
         CFG = yaml.safe_load(f)
 WAREHOUSE = os.environ.get("SAPFHIR_WAREHOUSE", "data/warehouse.duckdb")
 
-app = FastAPI(title="SAP_FIHR Dashboard") if FastAPI else None
+app = FastAPI(title="CliniBots Patient Insight") if FastAPI else None
 
 
 def _q(sql: str, params: list | None = None):

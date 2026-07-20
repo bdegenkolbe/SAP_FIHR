@@ -1,4 +1,7 @@
-# SAP_FIHR — SAP IS-H / i.s.h.med → FHIR R4 (Read-only-Sekundärnutzung)
+# CliniBots Patient Insight — SAP IS-H / i.s.h.med → FHIR R4 (Read-only-Sekundärnutzung)
+
+*Produktname: **CliniBots Patient Insight** (CliniBots-Produktwelt). Repo-/Codename `SAP_FIHR`, Package `sapfhir`. Schwesterprodukt: **CliniBots MDM**.*
+
 
 On-Prem-Werkzeug: liest **read-only** eine MSSQL-Replika von SAP IS-H / i.s.h.med
 (`replicate`, Schemata `sap`/`hrp`) und exportiert den klinischen Bestand inkrementell
