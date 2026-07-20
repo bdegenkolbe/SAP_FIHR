@@ -11,7 +11,7 @@ import duckdb
 import yaml
 
 try:
-    from fastapi import FastAPI
+    from fastapi import FastAPI, Header, HTTPException
     from fastapi.responses import JSONResponse
     from fastapi.staticfiles import StaticFiles
     import uvicorn
@@ -23,6 +23,33 @@ if os.path.exists("config/connection.yaml"):
     with open("config/connection.yaml") as f:
         CFG = yaml.safe_load(f)
 WAREHOUSE = os.environ.get("SAPFHIR_WAREHOUSE", "data/warehouse.duckdb")
+
+# --- Berechtigung (docs/BERECHTIGUNGSKONZEPT.md) ---
+_AZCFG = CFG.get("authz", {}) if isinstance(CFG, dict) else {}
+AUTHZ_ENABLED = bool(_AZCFG.get("enabled", False))
+try:
+    from sapfhir.authz.service import Authz, DuckDBBackend
+    AUTHZ = Authz(DuckDBBackend(WAREHOUSE), roles=_AZCFG.get("roles", {}),
+                  expand=bool(_AZCFG.get("expand", True)))
+except Exception:
+    AUTHZ = None
+
+
+def _audit_access(login, patnr, erlaubt):
+    """Best-effort Zugriffs-Audit (eigene rw-Verbindung; blockiert nie)."""
+    try:
+        con = duckdb.connect(WAREHOUSE)
+        try:
+            con.execute("CREATE SCHEMA IF NOT EXISTS auth")
+            con.execute("CREATE TABLE IF NOT EXISTS auth.zugriff_audit"
+                        "(ts TIMESTAMP, login VARCHAR, patnr VARCHAR, erlaubt BOOLEAN)")
+            con.execute("INSERT INTO auth.zugriff_audit VALUES (now(), ?, ?, ?)",
+                        [login, patnr, bool(erlaubt)])
+        finally:
+            con.close()
+    except Exception:
+        pass
+
 
 app = FastAPI(title="CliniBots Patient Insight") if FastAPI else None
 
@@ -144,8 +171,23 @@ if app:
     # Patient 360 (CONCEPT §8, Seite 3): Read-only-Zeitstrahl aus der
     # MASKIERTEN mcp.*-Schicht — dieselbe Datenoberflaeche wie der MCP-Server,
     # d.h. pseudonymize_view greift auch hier.
+    @app.get("/api/authz/whoami")
+    def whoami(x_user: str | None = Header(default=None)):
+        if not AUTHZ_ENABLED:
+            return JSONResponse({"authz": "disabled", "login": x_user,
+                                 "hinweis": "authz.enabled=false → offener Dev-Betrieb"})
+        who = AUTHZ.whoami(x_user) if AUTHZ else {"login": x_user, "scope": "NONE"}
+        return JSONResponse({"authz": "enabled", **who})
+
     @app.get("/api/patient360/{patnr}")
-    def patient360(patnr: str):
+    def patient360(patnr: str, x_user: str | None = Header(default=None)):
+        # Deny-by-default, wenn Berechtigung aktiv (docs/BERECHTIGUNGSKONZEPT.md).
+        if AUTHZ_ENABLED:
+            erlaubt = bool(AUTHZ and AUTHZ.may_see_patient(x_user, patnr))
+            _audit_access(x_user, patnr, erlaubt)
+            if not erlaubt:
+                raise HTTPException(status_code=403,
+                                    detail="Kein Zugriff auf diesen Patienten (Berechtigung).")
         patient = _q(
             "SELECT GSCHL, GBDAT, TODKZ FROM mcp.patient "
             "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0')", [patnr])

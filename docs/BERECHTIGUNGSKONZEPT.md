@@ -159,6 +159,23 @@ Neue, gesicherte Auth-Tabellen (eigene Schicht, nicht in den Analytik-Marts):
 - Auflösung zur Laufzeit: `login → rolle`; bei Abteilungsrolle `login → PERNR → ish_oe[] →
   PATNR[]`.
 
+## 5b. Implementierung (R19d, umgesetzt)
+Modul `src/sapfhir/authz/` in CliniBots Patient Insight:
+- **`resolver.py`** — reine Logik (DB-frei, 11 Tests): SETNODE-Rollup (`build_adjacency`,
+  `descendant_sets`, zyklensicher), `department_kostl` (Station sieht eigene KoStl,
+  Leitung erbt Unter-OEs), `role_scope` (ALL/DEPT/NONE).
+- **`service.py`** — `Authz` + Backends (`InMemoryBackend` für Tests/Demo, `DuckDBBackend`
+  für das `auth`-Schema). `may_see_patient`, `filter_patnr`, `whoami`; **deny-by-default**
+  (unbekannt/ohne Rolle → keine Patienten; Vollrolle → alle).
+- **`sql.py`** — `build(con, src)` materialisiert `auth.login_pernr` (PA0105/90AD),
+  `auth.pernr_kostl` (PA0001), `auth.setnode`/`auth.setleaf` (SETNODE/SETLEAF, Klassen
+  0101–0103), `auth.oe_kostl` (NOEK) + View `auth.fall_kostl` (Patient→Kostenstelle über
+  mcp.bewegung/fall).
+- **API** (`api/app.py`): `GET /api/authz/whoami`; `patient360` mit `X-User`-Header-Gate
+  (403 bei fehlender Berechtigung) + Best-Effort-Zugriffs-Audit (`auth.zugriff_audit`).
+  Aktivierung über `config/connection.yaml` → `authz.enabled: true` (+ `roles`).
+  Default `false` = offener Dev-Betrieb (rückwärtskompatibel).
+
 ## 6. Offene Punkte / nächste Schritte
 1. **OE-Brücke (§3.3) verifizieren** — der einzige echte Blocker für die Abteilungsrolle.
 2. `PA0001`/`PA0105`/`HRP1000`/`HRP1001` in die Registry aufnehmen (Auth-Scope) + Dreiklang.

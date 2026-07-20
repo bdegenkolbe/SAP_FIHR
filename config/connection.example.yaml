@@ -58,3 +58,16 @@ mcp:
   row_limit: 1000
   query_timeout_s: 30
   pseudonymize_view: true              # Namen/Adressen im MCP maskieren
+
+authz:                                 # Berechtigung (docs/BERECHTIGUNGSKONZEPT.md)
+  enabled: false                       # true = deny-by-default erzwingen (Patient-360-Gate)
+  expand: true                         # Leitung erbt Unter-OEs (SETNODE-Rollup)
+  # Rollen je Login (UPPER). Vollrollen sehen ALLE: medizincontrolling|it|admin.
+  # Alles andere (z.B. 'abteilung') = Abteilungsregel ueber Kostenstelle. Ohne Eintrag: kein Zugriff.
+  roles:
+    # BJOERN: admin
+    # MC-USER: medizincontrolling
+    # STATIONSARZT: abteilung
+  # Voraussetzung fuer die Abteilungsregel: auth-Marts materialisiert
+  #   (python: sapfhir.authz.sql.build(con, src="bronze_current")) aus
+  #   PA0105/PA0001/SETNODE/SETLEAF/NOEK + mcp.bewegung/mcp.fall.
