@@ -4,7 +4,10 @@
 Quell-DB: MSSQL 10.50.8.250 (read-only), DB `Replicate`, Schema `sap` (Qlik-Replikat des
 SAP IS-H/i.s.h.med). Konstanten: MANDT='100', EINRI='0001'. Change-Tables `<T>__ct`.
 Haus-ETL-Referenz: DB `Analysen` (E-Statistik, base-table-main-Prozeduren).
-HRP-Schema ist AUSGEKLAMMERT (Anweisung Björn).
+HRP-Schema: für klinisch-analytische FHIR-Ausleitung AUSGEKLAMMERT; seit R19 IN Scope
+NUR für die Berechtigungs-/Datenverfügbarkeits-Strecke (Mitarbeiter↔Abteilung:
+PA0105/90AD→PERNR→PA0001.ORGEH→IS-H-OE→NBEW). Siehe docs/BERECHTIGUNGSKONZEPT.md +
+docs/PATIENT_DATENKATALOG.md. Mitarbeiter-Personendaten verkryptungspflichtig.
 
 ## Verbindliche Methode
 Lies ZUERST `docs/Analyse_Datenbank.md` — sie definiert das komplette Vorgehen:

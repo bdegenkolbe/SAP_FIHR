@@ -1289,3 +1289,43 @@ tables:
     cdc: ct
     notes: "Langtext-Zeilen zu ZNRKT_KG-Anforderungen (10 Spalten), 1.749 Zeilen. TEXT ist
             Freitext -> potenziell personenident., in Auswertung nicht im Klartext."
+
+  # ==== HRP / Auth-Strecke (R19) — Mitarbeiter<->Abteilung fuer Berechtigungskonzept ====
+  # NUR fuer RBAC/Datenverfuegbarkeit (docs/BERECHTIGUNGSKONZEPT.md), NICHT klinische FHIR-
+  # Ausleitung. Schema 'hrp'. Personendaten (USRID, Namen) verkryptungspflichtig.
+  PA0105:
+    schema: hrp
+    fhir: null
+    tier: 3
+    pk: [MANDT, PERNR, SUBTY, OBJPS, SPRPS, ENDDA, SEQNR]   # VERIFY (IT0105-Standard-PK)
+    cdc: watermark
+    watermark_col: ENDDA
+    notes: "Kommunikation IT0105. SUBTY='90AD' (37.803) = AD-/Windows-Login in USRID ->
+            Mapping AD-Benutzer -> PERNR (zeitscheibenbasiert BEGDA/ENDDA). USRID PERSONEN-
+            IDENTIFIZIEREND -> nur in Auth-Schicht, verkryptet in Analytik. Auth-Strecke 3.1."
+  PA0001:
+    schema: hrp
+    fhir: null
+    tier: 3
+    pk: [MANDT, PERNR, SUBTY, OBJPS, SPRPS, ENDDA, SEQNR]   # VERIFY (IT0001-Standard-PK)
+    cdc: watermark
+    watermark_col: ENDDA
+    notes: "Organisatorische Zuordnung IT0001 (364.611). PERNR->ORGEH (Orgeinheit),
+            PLANS (Planstelle), KOSTL (Kostenstelle), WERKS/BTRTL; zeitscheibenbasiert.
+            Auth-Strecke 3.2 (PERNR -> Orgeinheit). ENAME personenident. -> nicht selektieren."
+  HRP1000:
+    schema: hrp
+    fhir: null
+    tier: 3
+    pk: [MANDT, PLVAR, OTYPE, OBJID, ISTAT, BEGDA, ENDDA, LANGU, SEQNR]   # VERIFY (OM-Standard)
+    cdc: full
+    notes: "OM-Objekte (105.062): O=Orgeinheit, S=Planstelle, C=Job, P=Person, K=Kostenstelle.
+            Klartext der Orgeinheit-Bezeichnungen (STEXT). Auth-Strecke Hilfstabelle."
+  HRP1001:
+    schema: hrp
+    fhir: null
+    tier: 3
+    pk: [MANDT, OTYPE, OBJID, PLVAR, RSIGN, RELAT, ISTAT, PRIOX, BEGDA, ENDDA, VARYF, SEQNR]  # VERIFY
+    cdc: full
+    notes: "OM-Relationen (1.249.986): Person->Planstelle (A008/B008), Planstelle->Orgeinheit
+            (A003/B003) usw. Fuer OE-Bruecke (Auth-Strecke 3.3, offener Punkt) heranziehbar."
