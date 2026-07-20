@@ -59,39 +59,41 @@ Coderäumen**. Verifizierte Befunde:
   (~3,5 %); Name ↔ `STEXT`: 35. → als alleinige Brücke **nicht tragfähig**.
 - Operativ relevant sind **232 Fachabteilungs-OEs** (`NBEW.ORGFA`), nicht alle 2.406.
 
-**KORREKTUR R19b — der 3-Steller ist zu grob; es gibt einen echten IS-H-OE-BAUM.**
-(Hinweis Björn.) Fundstellen live:
-- **`test.ish_orgbaum`** — flachgeklopfter **IS-H-OE-Baum** (aus `sap.SETNODE`/`NORG`):
-  `OEID → Parent`, `Ebene`, `Pfad`, `Wurzel`, `OE_Typ` ((K) Klinik/Institut, (U) UKL-
-  Bereich, (D) Fremde), `Ebene1..6`. **2.271 OEs**; deckt **227 der 232 genutzten
-  `NBEW.ORGFA` (97,8 %)** ab → korrektes Roll-up Station→Klinik→Bereich statt 3-Token.
-- **`test.WPHR_OE_Baum_mit_Kostenstelle`** — **HR-Seite**: `AD_Login → OE_ID → OE_KOSTL
-  (Kostenstelle) → 10-stufige Hierarchie`, **6.164 AD-Logins**.
-- Basisquelle des Baums: `sap.SETNODE` (SAP-Set-Hierarchie) + `dbo.SETNODE_Baumstrukturen_v1`
-  (Echtzeit-Flachung). `NORG.ORGZU` ist KEIN Parent-Pointer (nur Namensfortsetzung).
+**FINALE STRUKTUR R19c — `SETNODE` = KOSTENSTELLEN-HIERARCHIE; die Kostenstelle ist der
+Pivot.** (Anweisung Björn: `SETNODE` ist maßgeblich; `test.ish_orgbaum`/
+`test.WPHR_OE_Baum_mit_Kostenstelle` sind Prototypen und werden **nicht** verwendet.)
+Live verifiziert:
+- **`sap.SETNODE`** (Kanten Set→Subset via `SETNAME → SUBSETNAME`) + **`sap.SETLEAF`**
+  (Blätter: `VALFROM/VALTO` = **10-stellige Kostenstellen**, z. B. `0093213300`) +
+  **`sap.SETHEADERT`** (Set-Bezeichnungen, z. B. `AERZTE`, `ABGR`). Das ist die
+  **Kostenstellen-Gruppen-Hierarchie** (SAP-CO, Klassen 0101–0103) — NICHT der
+  OE-Kurzcode-Baum (die `NBEW.ORGFA`-Codes wie `GYNA` sind bewusst NICHT in SETLEAF).
+- **Personenseite geschlossen:** `PA0001.KOSTL` (Mitarbeiter-Kostenstelle, 10-stellig
+  `0090113000…`) liegt im Format der SETLEAF-Blätter; **10/10 Top-Kostenstellen im
+  Set-Baum bestätigt**. → AD-Login → `PA0105`/90AD → PERNR → `PA0001.KOSTL` → Knoten im
+  `SETNODE`-Baum → Roll-up auf Department-Knoten → Menge aller Kostenstellen darunter.
 
-**Verbindung der beiden Bäume:** `WPHR.OE_ID` (HR-Raum, 20.689 IDs) hat **0 Überschneidung**
-mit `ish_orgbaum.OEID`/`NORG.ORGID` → **kein gemeinsamer OE-Code**. Der Pivot ist die
-**Kostenstelle**: HR-Seite `WPHR.OE_KOSTL` bzw. `PA0001.KOSTL` (je PERNR) ↔ IS-H-OE-
-Kostenstelle. **Nächste Verifikation:** IS-H-OE→Kostenstelle-Quelle (Kandidaten:
-`NORG.KSTKZ`, `ZNKVOE`, `ZNRKT_C_CENT_OE`). Alternativ liefert `WPHR` bereits
-`AD_Login → OE_KOSTL` fertig; fehlt nur `IS-H-OE (NBEW.ORGFA) → Kostenstelle`.
+**Zielbild der Strecke (kostenstellenbasiert):**
+```
+AD-Login --PA0105/90AD--> PERNR --PA0001.KOSTL--> Kostenstelle
+   --SETNODE/SETLEAF (Roll-up der KoStl-Gruppe)--> Menge KoStl des Departments (inkl. Unter)
+   --[IS-H-OE -> Kostenstelle]  <== EINZIGE offene Kante
+   --NBEW.ORGFA (IS-H-OE der Bewegung)--> sichtbare Patienten
+```
+Vorteil: Leitung erbt über die SETNODE-Rekursion automatisch alle Unter-Kostenstellen.
 
-**Neues Zielbild der Strecke (baumbasiert):**
-```
-AD-Login --WPHR/PA0105--> PERNR/OE_KOSTL(Kostenstelle)
-   --[Kostenstelle<->IS-H-OE]--> IS-H-OE
-   --ish_orgbaum (Roll-up ueber Pfad/Ebene)--> Menge zustaendiger OEs (inkl. Unter-OEs)
-   --NBEW.ORGFA--> sichtbare Patienten
-```
-Vorteil: Leitungsebene erbt via `Pfad`/`Ebene` automatisch alle Unter-OEs (Bereich→Kliniken→
-Stationen). **Caveat:** `test.*` sind Prototypen (Provenienz/Refresh unklar) — die Logik
-(`SETNODE`→`ish_orgbaum`, HR-Baum) in die eigene Pipeline produktiv nachbauen, nicht auf
-`test.*` verlassen.
+**Einzige offene Kante: IS-H-OE (`NBEW.ORGFA`/`NORG`) → Kostenstelle.** Kein `KOSTL`-Feld
+in `NORG/NBEW/NFAL/NLEI`. Zu klären (mit Björn / weitere Tabellensuche): IS-H-
+Leistungsstellen-/OE-Customizing mit Kostenstellenzuordnung, oder FI/CO-Buchungsbezug der
+Leistungen. Bis dahin *fail-closed* für Abteilungspersonal; Medizincontrolling/IT/Einzel-
+Logins unabhängig sofort nutzbar.
 
 ---
 
-**Historischer Zwischenstand (verworfen): Fach-Token.** Die *aktuell gültigen* HR-Orgeinheiten
+**Historische Zwischenstände (verworfen):** (a) 3-Token-Match (~3,5 %), (b) Fach-Token
+(76,5 %, aber grob), (c) `test.*`-Prototypbäume (nicht verwenden). Für Kontext siehe unten.
+
+**Fach-Token (verworfen).** Die *aktuell gültigen* HR-Orgeinheiten
 (`ISTAT='1'`, `ENDDA='9999-12-31'`) kodieren `SHORT = <DEPARTMENT>-<FACH>`, z. B.
 `DOPM-URO` (Urologie), `DIND-NEU` (Neurologie). Zwei nutzbare Ebenen:
 - **Department** (Präfix, ~15-20 Häuser): `DIND`, `DOPM`, `DM`, `DFKM`, `DKZM`, `DDIA`,

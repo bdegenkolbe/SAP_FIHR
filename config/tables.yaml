@@ -1340,3 +1340,20 @@ tables:
     cdc: full
     notes: "SAP-Set-/Hierarchieknoten - Basis des IS-H-OE-Baums. Quelle fuer die
             Baum-Flachung (test.ish_orgbaum / dbo.SETNODE_Baumstrukturen_v1). Auth-Bruecke."
+  SETLEAF:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, SETCLASS, SUBCLASS, SETNAME, LINEID]   # verifiziert R19c (SAP-Set-Standard)
+    cdc: full
+    notes: "SAP-Set-Blaetter: VALFROM/VALTO = 10-stellige KOSTENSTELLEN (0093213300...).
+            Mit SETNODE = Kostenstellen-Gruppen-Hierarchie (Klassen 0101-0103). Auth-Pivot:
+            PA0001.KOSTL matcht diese Blaetter (10/10 Top-KoStl bestaetigt)."
+  SETHEADERT:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, SETCLASS, SUBCLASS, SETNAME, LANGU]   # verifiziert R19c
+    cdc: full
+    notes: "Set-Bezeichnungen (DESCRIPT) je SETNAME - Klartext der Kostenstellen-Gruppen
+            (AERZTE, ABGR...). Fuer Department-Namen im Berechtigungs-UI."
