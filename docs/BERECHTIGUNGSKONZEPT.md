@@ -59,19 +59,29 @@ Coderäumen**. Verifizierte Befunde:
   (~3,5 %); Name ↔ `STEXT`: 35. → als alleinige Brücke **nicht tragfähig**.
 - Operativ relevant sind **232 Fachabteilungs-OEs** (`NBEW.ORGFA`), nicht alle 2.406.
 
+**Durchbruch über die GÜLTIGEN Zuordnungen (R19):** Die *aktuell gültigen* HR-Orgeinheiten
+(`ISTAT='1'`, `ENDDA='9999-12-31'`) kodieren `SHORT = <DEPARTMENT>-<FACH>`, z. B.
+`DOPM-URO` (Urologie), `DIND-NEU` (Neurologie). Zwei nutzbare Ebenen:
+- **Department** (Präfix, ~15-20 Häuser): `DIND`, `DOPM`, `DM`, `DFKM`, `DKZM`, `DDIA`,
+  `DBSM`, `DPSY`, … — grobe, robuste Gruppierung („Abteilung" im weiten Sinn).
+- **Fach-Token** (3-stellig, Suffix): `URO`, `NEU`, `GYN`, `HNO`, … Die IS-H-`NBEW.ORGFA`
+  sind Fach-Codes (`UROA`, `GYNA`, `HNOA`, `CH1A`, …). **65 von 85 IS-H-Fach-Tokens
+  (76,5 %) matchen automatisch** einen HR-Fach-Token (statt 3,5 % beim plain-Kürzel).
+
 **Empfohlener Weg (evidenzbasiert):** kuratierte, versionierte Mapping-Tabelle
-`mcp.oe_mapping (orgeh, ish_orgid, gueltig_von/bis)`:
-1. **Auto-Seed** aus den ~83 Kürzel-Treffern (`HRP1000.SHORT`=`NORG.OKURZ`) +
-   Namensgleichheit → Vorschlagsliste.
-2. **HRP1001** liefert die HR-**Hierarchie** (O→O), sodass Leitungskräfte automatisch die
-   Unter-OEs erben, und die **Namen** (`HRP1000.STEXT`) für die Pflege-UI.
-3. **Manuelle Vervollständigung** der Rest-Fachabteilungen durch das Medizincontrolling
-   (überschaubar: Ziel sind die 232 `ORGFA`, nicht 2.406). Verlustfrei, auditierbar.
+`mcp.oe_mapping (department, hr_fach, ish_orgfa, gueltig_von/bis)`:
+1. **Auto-Seed (~77 %)** über Fach-Token: `SUBSTRING(HRP1000.SHORT nach '-',3)` =
+   `LEFT(NBEW.ORGFA,3)` — deckt die große Mehrheit der ~85 genutzten Fachcodes ab.
+2. **Department-Gruppierung** aus dem SHORT-Präfix → Leitungskräfte/Departmentsicht erben
+   alle Fach-OEs ihres Departments; `HRP1001` liefert zusätzlich die Feinhierarchie,
+   `HRP1000.STEXT` die Klarnamen für die Pflege-UI.
+3. **Manuelle Vervollständigung** der ~20 Rest-Tokens (kein Auto-Match) durch das
+   Medizincontrolling — klein, verlustfrei, auditierbar.
 
 Bis das Mapping vollständig ist, gilt für Abteilungspersonal *fail-closed* (nur explizit
-gemappte OEs sichtbar); Medizincontrolling/IT/Einzel-Logins sind davon unabhängig sofort
-nutzbar. HRP1000/1001 tragen also **Resolution (AD→PERNR→ORGEH), Hierarchie und Namen** —
-die eigentliche OE-Zuordnung bleibt eine kuratierte (kleine) Mapping-Pflege.
+gemappte Fach-OEs sichtbar); Medizincontrolling/IT/Einzel-Logins sind davon unabhängig
+sofort nutzbar. HRP1000/1001 tragen **Resolution (AD→PERNR→ORGEH), Department-Struktur,
+Hierarchie und Namen**; die Fach-Token-Heuristik seedet die OE-Zuordnung zu ~77 %.
 
 **3.4 IS-H-OE → Patient** — über die Bewegungen:
 ```sql
