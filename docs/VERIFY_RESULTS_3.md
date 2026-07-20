@@ -1,4 +1,6 @@
-# SAP_FIHR — Verifikationsrunde 3 (NDIA-Diagnosetypen vertieft)
+# Verifikationsrunde 3 (NDIA-Diagnosetypen vertieft) — CliniBots Patient Insight
+
+> **STATUS: ARCHIV** — historisches Protokoll. Fortlaufendes Log ab R8: `VERIFY_LOG_R8-R13.md`.
 
 Stand 15.07.2026, `replicate` read-only. Vertieft die NDIA-Diagnoseverwendung und
 korrigiert zwei Mapper-Fehler.

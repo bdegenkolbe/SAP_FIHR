@@ -1,5 +1,9 @@
-# SAP_FIHR — Konzepterweiterung v0.2
+# Konzepterweiterung v0.2 — CliniBots Patient Insight (Codename SAP_FIHR)
 ## Vollständige N*-Tabellenauswertung, Referenz-/Katalogschicht, Terminologie
+
+> **STATUS: ARCHIV** (siehe `INDEX.md`). Inhalte sind in CONCEPT v0.3 (§18/§19) und die
+> Registry integriert; offene Punkte leben in `ROADMAP.md` (z. B. P2.4 N2OPDIAGNOSEN).
+> Nicht mehr fortschreiben.
 
 Ergänzung zu `docs/CONCEPT.md` (v0.1). Stand 15.07.2026.
 Grundlage: vollständiger Tabellenkatalog des Schemas `sap` (1.152 Basistabellen, davon

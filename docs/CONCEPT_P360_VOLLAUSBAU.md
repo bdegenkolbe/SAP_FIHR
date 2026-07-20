@@ -1,9 +1,10 @@
 # CliniBots Patient Insight 2.0 — Zielbild „Echte 360°" (Vollausbau)
 
-**Stand:** 20.07.2026 · Ergebnis aus Deep-Research (24 verifizierte Befunde, 24 Quellen,
-adversarial geprüft) + internem Konzept-vs.-Ist-Delta-Review. Bewusst **target-first**
-entworfen — was die Plattform sein soll, unabhängig davon, was heute gebaut ist.
-Der Abgleich mit dem Ist folgt in §8 (Roadmap).
+**Stand:** 20.07.2026 · **Rolle: ZIELBILD (leitend, siehe `INDEX.md`).** Ergebnis aus
+Deep-Research (24 verifizierte Befunde, 24 Quellen, adversarial geprüft) + internem
+Konzept-vs.-Ist-Delta-Review. Bewusst **target-first** entworfen — was die Plattform
+sein soll, unabhängig davon, was heute gebaut ist. Die Phasen aus §8 sind in
+`docs/ROADMAP.md` (einzige Roadmap) operationalisiert.
 
 **Diagnose in einem Satz:** Die Pipeline erzeugt bereits 16 FHIR-Ressourcentypen aus
 21 Tabellen — aber nur 4–5 erreichen die Oberfläche, es gibt keine Suche vor der Akte,

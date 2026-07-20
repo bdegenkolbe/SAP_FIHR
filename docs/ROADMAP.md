@@ -1,0 +1,87 @@
+# ROADMAP — CliniBots Patient Insight (die einzige Roadmap)
+
+**Stand: 20.07.2026 (R19).** Dieses Dokument ersetzt alle verstreuten Backlogs:
+CONCEPT §12 (Basisphasen) & §19 (Ausbau), GESAMTREVIEW §4 (#-Backlog),
+INGOLF_FUNKTIONSVERGLEICH §5 (P1a–P3), Analyse_Datenbank §8. Alte IDs sind unten je
+Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md-Regel 2).
+
+## 0. Erledigt (Fundament — Stand der Wahrheit)
+- ✅ Pipeline komplett: Keyset-Backfill + `__ct`-CDC → `bronze_current` + Compaction →
+  FHIR-NDJSON (16 Ressourcentypen aus 21 Tabellen, Mapper+Tests) → Gold → `mcp.*` →
+  Kuzu-Basisgraph. [CONCEPT §12 Phasen 1–5]
+- ✅ MCP-Server gehärtet (9 Tools, Sandbox, Audit-Hash-Kette). [CONCEPT §17]
+- ✅ Registry ~100 Tabellen, PKs live verifiziert R8–R19; DIAS-Abdeckungsdiff
+  automatisiert; ref_*-Klartextschicht + `resolve_code`. [GESAMTREVIEW #3, Analyse_DB §8.3/.4]
+- ✅ RKT/ZNRKT-Familie (16 Tabellen) verifiziert → **CliniBots MDM** als eigenes Produkt
+  gebaut, validiert, deployt (eigenes Repo/Roadmap).
+- ✅ Patienten-Datenkatalog (77 Tabellen / 37 Lücken) + Berechtigungskonzept mit live
+  verifizierter Kette (PA0105→PA0001→SETNODE/SETLEAF ⇄ NOEK→NBEW) + `authz`-Modul
+  (Resolver, deny-by-default, whoami/P360-Gate, 11 Tests).
+- ✅ Natives Deployment auf MFAI_BDE_HOME (beide Apps, Autostart, ops.ps1);
+  Datenpumpe demo-e2e; Live-Config vorbereitet (`connection.yaml`, pytds).
+- ✅ Zielbild 2.0 (CONCEPT_P360_VOLLAUSBAU, Deep-Research-fundiert).
+
+## Q. Querschnitt (laufend, kein Phasen-Gate)
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| Q1 | **Live-Backfill** fahren (User+PW → `dbsource --check` → `backfill --tier 1` → Gold-Rebuild) — wartet auf Zugang | DEPLOYMENT |
+| Q2 | **37 Katalog-Lücken** je Dreiklang schließen (Prio: ZCOPRA_01/ZISH_COPRA_FALNR, NLKZ/NLLZ, NCIR, NDOC_ZNA, NAMB/NMBG, NPIX/NPAE) | PATIENT_DATENKATALOG §3 |
+| Q3 | Lastfenster-Verifikationen: NICP↔N1LSTEAM-Alternativpfad, NDOC-Fill (54 M), N2LABOR-Familie | [Analyse_DB §8.2] |
+| Q4 | `authz.sql.build` in Nightly einhängen + AD-Header-Login (Reverse-Proxy) bzw. lokale Logins | BERECHTIGUNGSKONZEPT §6 |
+| Q5 | Fehler-207-Fallback im Extractor (Schema-Drift) | [INGOLF P1d / GESAMTREVIEW #14] |
+| Q6 | NFFZ-REFA-Katalog klären (Q/T/S) → ggf. Patient.link M/N | [Analyse_DB §8.5] |
+
+## P1 „Sichtbar machen" (2–3 SE) — größter Hebel, Daten liegen in mcp.*
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| P1.1 | P360-Sektionen für ALLE gemappten Ressourcen (Prozeduren, Risiken/Allergien, Coverage, Account, ServiceRequest, Org/Practitioner-Links, Geburt) | Zielbild §3 |
+| P1.2 | **Facettensuche** vor der Akte (ICD/OPS/Alter/Labor/OE/Zeitraum, Live-Count, Trefferliste) | [INGOLF P1b / GESAMTREVIEW #12] |
+| P1.3 | **Drilldown-Kontrakt v1**: alle Analytik-Charts → Fallliste → Akte, URL-State | Zielbild §1 |
+| P1.4 | Aggregatschutz `mask(n<5)` zentral in der API | [INGOLF P1c / GESAMTREVIEW #13] |
+| P1.5 | Mode-Badge (Pseudonym/Klartext) + CDC-Lag-Kachel + VERIFY-Kachel im Monitor | [INGOLF P1a-UI, CONCEPT §15.4/§19.4] |
+
+## P2 „Fall & Timeline" (2–3 SE)
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| P2.1 | 3-Ebenen-Encounter-Verlegungskette (MII KDS Fall V2025: Einrichtung→Abteilung→Versorgungsstelle) als Grafik im Fall-Detail | Zielbild §3.2 |
+| P2.2 | Interaktive Swimlane-Timeline (Brush/Zoom, Domänen-Toggle) | Zielbild §3.1 |
+| P2.3 | `map_appointment` (NAPP; NTMN nach Dreiklang) | [CONCEPT §6, Registry deklariert] |
+| P2.4 | N2OPDIAGNOSEN → Condition (surgical) | [CONCEPT_EXT §4/§8.6] |
+| P2.5 | Fall-Detail: DRG/Erlös-Panel + **MD-Badge → CliniBots-MDM-Deep-Link** | Zielbild §2 Stufe C |
+
+## P3 „Medikation & ZNA" (3–4 SE)
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| P3.1 | **COPRA-Adapter**: ZCOPRA_01 + ZISH_COPRA_FALNR Dreiklang → MedicationStatement + Observation(vital-signs) | [GESAMTREVIEW #8, Analyse_DB §8.7] |
+| P3.2 | NDOC_ZNA + NDOCSTORNO (entered-in-error) in DocumentReference | Datenkatalog |
+| P3.3 | Stationsboard (offene Bewegungen je Station, authz-gefiltert) + ZNA-/OP-Sicht | Zielbild §4 |
+
+## P4 „Steuern" (3 SE)
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| P4.1 | Erlös-/Leistungs-Marts: NLEI/NLKZ/NLLZ (Lastfenster!) + NDRG/TNDRG (LBFW) | [GESAMTREVIEW Großbaustelle, CONCEPT §19.2] |
+| P4.2 | MC-Dashboards: CMI/Erlös, VWD vs. GVD, Belegungs-Heatmap, Wiederaufnahmen, OP, ZNA — alle mit Drillthrough | Zielbild §5 |
+| P4.3 | Kodierqualität + MD-Risiko (Kennzahlen aus MDM-Verbund) | Zielbild §5 |
+
+## P5 „Forschen & Standards" (3–4 SE)
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| P5.1 | Kohorten-Builder (Kriterien-JSON, Live-Count) + ATLAS-Charakterisierung (any/365/180/30-Fenster) | [INGOLF P2a / GESAMTREVIEW #15] |
+| P5.2 | MCP-Tool `cohort_query` + NL→Kriterien (Review-Schritt) | [INGOLF P2d] |
+| P5.3 | FHIR-Profil-Layer `meta.profile` (Basis-R4 → ISiK → MII-KDS) | [INGOLF P2b / GESAMTREVIEW #16, CONCEPT §19.1] |
+| P5.4 | IPS-Export (`$summary`-Muster; eigener Generator, optional HAPI-Sidecar) | Zielbild §3.2 |
+| P5.5 | Forschungs-Sektion (Studien /UKL/ /UKU/, Biobank ZBIO_*; Consent-Einordnung prüfen) | Zielbild §2 Stufe D |
+
+## P6 „Vertrauen" (3+ SE)
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| P6.1 | Governance-Vollausbau: Login Argon2id+TOTP, Rollen, Session, security.db, API-Audit | [INGOLF P1a / GESAMTREVIEW #11] |
+| P6.2 | Settings-UI Write-Through + DPAPI-Secrets | [INGOLF P2c / GESAMTREVIEW #17] |
+| P6.3 | Dokument-Intelligence (Viewer, Annotation, NLP-lite; nach SOOD/SRGBTBREL-Verify) | [INGOLF P3 / GESAMTREVIEW #18] |
+| P6.4 | Graph-Vervollständigung (Labor/Dokument/Practitioner/Kostenträger-Knoten + Kanten, Pathway-Mining) | [CONCEPT §19.3] |
+| P6.5 | Provenance-Ressourcen je Lauf vollenden | [CONCEPT §16.3] |
+| P6.6 | SCD2-/CDPOS-Historisierungsstrang (Lastfenster) | [GESAMTREVIEW #7, Analyse_DB §8.6] |
+
+**Reihenfolge-Logik:** P1 zuerst (nur Frontend/API, sofortiger Mehrwert), Q1/Q2 parallel
+(Datenbasis), dann P2→P3→P4; P5/P6 nach Bedarf priorisierbar. CliniBots MDM hat eine
+eigene Roadmap im eigenen Repo; Verbundpunkte (P2.5, P4.3) stehen hier.

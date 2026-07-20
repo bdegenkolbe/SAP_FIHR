@@ -1,4 +1,6 @@
-# SAP_FIHR — Verifikationsrunde 4 (offizielle Doku, Konfliktauflösung)
+# Verifikationsrunde 4 (offizielle Doku, Konfliktauflösung) — CliniBots Patient Insight
+
+> **STATUS: ARCHIV** — historisches Protokoll. Fortlaufendes Log ab R8: `VERIFY_LOG_R8-R13.md`.
 
 Stand 15.07.2026 · Quelle: sapdatasheet.org (SAP-Data-Dictionary-Spiegel), ohne DB-Zugriff.
 Löst die in `docs/ALTBESTAND_ANALYSE.md §2` offen markierten Deutungskonflikte auf.

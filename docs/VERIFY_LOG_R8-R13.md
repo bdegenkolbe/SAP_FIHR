@@ -1,4 +1,7 @@
-# Verifikationslog Runden 8–13 — IS-H/i.s.h.med → FHIR R4
+# Verifikationslog ab Runde 8 (fortlaufend) — CliniBots Patient Insight
+
+> **STATUS: FORTLAUFENDES PROTOKOLL** (siehe `INDEX.md`) — aktuell R8–R19; neue Runden
+> werden hier angehängt. Dateiname „R8-R13" ist historisch und bleibt wegen Verweisen.
 
 Stand: 16.07.2026 · Methode je Tabelle: **erst Schlüsselpfad über sapdatasheet.org, dann
 Gegenprüfung gegen die Live-Replicate-DB** (`10.50.8.250 → Replicate.sap`, Spalten-Existenz,

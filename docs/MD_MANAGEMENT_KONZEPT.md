@@ -1,5 +1,12 @@
 # MD-Management (Medizincontrolling / MDK-Fallsteuerung) — Domänenanalyse & App-Konzept
 
+> **STATUS: UMGESETZT als „CliniBots MDM"** (eigenständiges Repo `C:\ai\MD_Management`,
+> Stufen 1–3 + Erlös-/Kassen-/Downcoding-Analytik, Audit-Hashkette, Credential-Store,
+> Deployment; siehe dortige `docs/VALIDIERUNG.md` + `docs/DEPLOYMENT.md`). Dieses
+> Dokument bleibt als **Domänenmodell-Referenz** (ZNRKT-Familie, DIAS-Tripel) und für
+> die Verbund-Schnittstelle (MD-Badge → MDM-Fall-Akte, `ROADMAP.md` P2.5/P4.3) gültig.
+> §5-Architekturoptionen/§6-Schritte sind historisch (Entscheidung: eigenständige App).
+
 **Stand:** R17-Anschluss (19.07.2026), Analyse live gegen `higl-main` (read-only).
 **Auslöser:** „Schau dir die Aufbereitung von RKT im DIAS-Cube an — das ist das
 MD-Management, hier müssen wir eine eigene Anwendung bauen." (Björn)

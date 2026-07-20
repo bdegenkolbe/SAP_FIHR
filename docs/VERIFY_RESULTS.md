@@ -1,4 +1,7 @@
-# SAP_FIHR — Live-Verifikationsergebnisse
+# Live-Verifikationsergebnisse (Runde 1, remote) — CliniBots Patient Insight
+
+> **STATUS: ARCHIV** — historisches Protokoll (Remote-Runden). Fortlaufendes Log ab R8:
+> `VERIFY_LOG_R8-R13.md`.
 
 Stand 15.07.2026, gegen Datenbank `replicate` (MSSQL, read-only). Löst die `# VERIFY`-
 Markierungen aus v0.1/v0.2 auf. Alle Abfragen TOP-100-stabil, keine Datenänderung.

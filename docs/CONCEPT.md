@@ -4,6 +4,11 @@
 > **Produktname:** CliniBots Patient Insight (CliniBots-Produktwelt — Klinik. Daten.
 > Management.). Repo-/Codename bleibt `SAP_FIHR` bzw. Package `sapfhir`. Schwesterprodukt:
 > **CliniBots MDM** (Medizincontrolling/MD-Management, Repo `C:\ai\MD_Management`).
+>
+> **Rolle dieses Dokuments (siehe `docs/INDEX.md`):** Architektur- & Betriebskonzept
+> (Pipeline, No-Admin, DQ, FHIR-Ausleitung, MCP-Härtung). Das **Produkt-Zielbild** steht
+> in `docs/CONCEPT_P360_VOLLAUSBAU.md`; die **einzige Roadmap** in `docs/ROADMAP.md`
+> (§12 hier = erledigte Basisphasen, §19-Ausbaupunkte dort aufgegangen).
 
 Version 0.3 · 17.07.2026 · Konzept für Rollout via Claude Code
 Verwandtes Projekt: `ingolf` (medatixx/Praxis) — **hier explizit OHNE PVS-Ansatz**: reine Read-only-Sekundärnutzung, keine Rückschreibung, keine Abrechnung, keine Primärdokumentation.
@@ -182,6 +187,10 @@ Weitere Ziel-Queries (Ausbaustufe §19.3): OE-Hierarchie-Rollup („alle Fälle 
 
 ## 8. Auswertungsdashboard
 
+> **Hinweis (R19):** Die drei Seiten unten sind der umgesetzte **Ist-Basis-Stand**.
+> Das verbindliche Ziel-UI (Facettensuche, Drilldown-Kontrakt, Swimlane-Timeline,
+> Stationsboard, MC-Dashboards, Kohorten-Builder) ist `CONCEPT_P360_VOLLAUSBAU.md`.
+
 Lokal, FastAPI + statisches Frontend (kein Build-Tooling nötig, Vanilla JS + Inline-SVG-Charts). Seiten:
 1. **Entlade-Monitor** — Tabellenstatus, Watermarks, CDC-Lag, Durchsatz, Läufe (Mockup 1). Zusätzlich (§15): DQ-Kacheln — Reconciliation-Status je Tabelle, ct-Retention-Alarm, offene `# VERIFY`-Punkte.
 2. **Klinik-Analytik** — Fälle/Monat, Verweildauer, CMI/DRG, Top-Diagnosen/Prozeduren, Belegung nach OE, ambulant/stationär (Mockup 2).
@@ -247,7 +256,7 @@ SAP_FIHR/
 ```
 `*` = im Konzept verankert, Implementierung folgt in der jeweiligen Phase (§12).
 
-## 12. Phasenplan (überarbeitet)
+## 12. Phasenplan (Basisphasen — Stand R19: Phasen 1–5 umgesetzt; Fortführung in `ROADMAP.md`)
 
 | Phase | Inhalt | Akzeptanz |
 |---|---|---|

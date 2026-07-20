@@ -1,5 +1,8 @@
 # Analyse des Projektstands (Konzept v0.1 → Basis für v0.2)
 
+> **STATUS: ARCHIV** (siehe `INDEX.md`). Historisches Review; alle Punkte in CONCEPT
+> v0.2/v0.3 eingearbeitet. Nicht mehr fortschreiben.
+
 Stand: 15.07.2026 · Reviewer: Claude Code · Bezug: `docs/CONCEPT.md` v0.1 + Quellcode-Skelett
 
 Gesamturteil: Das Konzept ist tragfähig und die Architekturentscheidungen (Medaillon,
