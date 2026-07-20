@@ -28,7 +28,11 @@ SELECT
     date_diff('day', TRY_CAST(BEGDT AS DATE), TRY_CAST(ENDDT AS DATE)) AS vwd_tage
 FROM bronze_current.nfal
 WHERE FALAR = '1'
-  AND ENDDT IS NOT NULL
+  AND BEGDT IS NOT NULL AND ENDDT IS NOT NULL
+  -- NFAL.BEGDT/ENDDT sind in diesem Haus meist Sentinel (R21: 10430/10433
+  -- FALAR=1-Faelle mit Sentinel-BEGDT) — echte Verweildauer gehoert auf die
+  -- NBEW-Bewegungskette (BWIDT/BWEDT), diese View ist nur ein Grob-Fallback.
+  AND substr(CAST(BEGDT AS VARCHAR),1,4) NOT IN ('0101','9999')
   AND substr(CAST(ENDDT AS VARCHAR),1,4) NOT IN ('0101','9999')
   AND COALESCE(TRIM(STORN),'') NOT IN ('X','1');
 
