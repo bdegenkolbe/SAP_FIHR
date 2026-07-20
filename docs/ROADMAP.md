@@ -5,6 +5,11 @@ CONCEPT §12 (Basisphasen) & §19 (Ausbau), GESAMTREVIEW §4 (#-Backlog),
 INGOLF_FUNKTIONSVERGLEICH §5 (P1a–P3), Analyse_Datenbank §8. Alte IDs sind unten je
 Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md-Regel 2).
 
+> **Einbettung:** Die Phasen hier sind im `GESAMTKONZEPT.md` §7 zu Suite-Meilensteinen
+> M0–M5 gebündelt (M0=Q1/Q4 · M1=P1+P2 · M2=MDM-2027 · M3=P3+P4 · M4=P5 · M5=P6) und je
+> Use-Case begründet. Neu aus dem Gesamtkonzept (siehe unten): AP-M1, AP-M6 (MDM-Repo),
+> AP-K3 sowie Nachrecherchen N1–N4.
+
 ## 0. Erledigt (Fundament — Stand der Wahrheit)
 - ✅ Pipeline komplett: Keyset-Backfill + `__ct`-CDC → `bronze_current` + Compaction →
   FHIR-NDJSON (16 Ressourcentypen aus 21 Tabellen, Mapper+Tests) → Gold → `mcp.*` →
@@ -61,7 +66,8 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 |---|---|---|
 | P4.1 | Erlös-/Leistungs-Marts: NLEI/NLKZ/NLLZ (Lastfenster!) + NDRG/TNDRG (LBFW) | [GESAMTREVIEW Großbaustelle, CONCEPT §19.2] |
 | P4.2 | MC-Dashboards: CMI/Erlös, VWD vs. GVD, Belegungs-Heatmap, Wiederaufnahmen, OP, ZNA — alle mit Drillthrough | Zielbild §5 |
-| P4.3 | Kodierqualität + MD-Risiko (Kennzahlen aus MDM-Verbund) | Zielbild §5 |
+| P4.3 | Kodierqualität + MD-Risiko (Kennzahlen aus MDM-Verbund) — inkl. **Kodier-Feedback-Loop MDM→CPI** (beanstandete Konstellationen als Hinweis in der Fall-Akte) | Zielbild §5, GESAMTKONZEPT UC-M5 |
+| P4.4 | **AP-K3** Entlassmanagement-Transparenz: 48h-Melde-KPI + VWD-Überschreiter-Liste (bewusst OHNE VWD-Senkungs-Versprechen) | GESAMTKONZEPT UC-K3 [A] |
 
 ## P5 „Forschen & Standards" (3–4 SE)
 | AP | Inhalt | Herkunft |
@@ -82,6 +88,21 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 | P6.5 | Provenance-Ressourcen je Lauf vollenden | [CONCEPT §16.3] |
 | P6.6 | SCD2-/CDPOS-Historisierungsstrang (Lastfenster) | [GESAMTREVIEW #7, Analyse_DB §8.6] |
 
+## MDM (Verbund-relevante Pakete; Führung im MDM-Repo)
+| AP | Inhalt | Herkunft |
+|---|---|---|
+| AP-M1 | **§275c-Quoten-Cockpit**: eigene Quartals-Quote, Abstand zur Staffelschwelle, Simulation Regime 2025 (5/10/15 @60/40) vs. **2027 (5/15/25 @80/60)** — harte Deadline 1.1.2027 | GESAMTKONZEPT UC-M1 [A] |
+| AP-M6 | **GKV-SV-Benchmark-Import** (CSV/XLSX Q1/2020–Q1/2026, standortbezogen; vorhandenen Monitoring-Skill nutzen) → „wir vs. Bund/Land" | GESAMTKONZEPT UC-M6 [A] |
+
+## N. Nachrecherchen (aus Verifikations-Lücken; N1 priorisiert)
+| AP | Inhalt |
+|---|---|
+| N1 | Erlösverluste/Erfolgsquoten je Kassenart **selbst aus GKV-SV-CSVs auswerten** (Rohdaten offen; zugleich MDM-Demonstrator) |
+| N2 | Personalaufwand MD-Management (DGfM/FoKA) + eigene Messung aus ZNRKT_AUF-Durchlaufzeiten |
+| N3 | Publizierte Effekte Belegung/OP/Wiederaufnahme/QM/Pflegecontrolling (eigene Recherche-Runde) |
+| N4 | Wettbewerbs-Funktionsvergleich (TIP HCe, Tiplu MOMO, ORBIS BI, MetaKIS, LOGEX): FHIR/on-prem/MDM-Lücke |
+
 **Reihenfolge-Logik:** P1 zuerst (nur Frontend/API, sofortiger Mehrwert), Q1/Q2 parallel
-(Datenbasis), dann P2→P3→P4; P5/P6 nach Bedarf priorisierbar. CliniBots MDM hat eine
-eigene Roadmap im eigenen Repo; Verbundpunkte (P2.5, P4.3) stehen hier.
+(Datenbasis), dann P2→P3→P4; P5/P6 nach Bedarf priorisierbar. **AP-M1 hat eine externe
+Deadline (1.1.2027).** CliniBots MDM hat eine eigene Roadmap im eigenen Repo;
+Verbundpunkte (P2.5, P4.3, AP-M1, AP-M6) stehen hier gespiegelt.

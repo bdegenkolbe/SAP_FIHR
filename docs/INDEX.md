@@ -13,7 +13,10 @@
 ## Leserichtung
 ```
 INDEX.md (hier)
- ├─ 1. CONCEPT_P360_VOLLAUSBAU.md   ← ZIELBILD (wohin)          [leitend]
+ ├─ 0. GESAMTKONZEPT.md              ← SUITE: CPI + CPI MDM      [OBERSTES LEITDOKUMENT]
+ │      (Use-Case-Katalog mit Evidenz, Personas, Capability-Map,
+ │       Produkt-Verzahnung, Nutzenrechnung, Meilensteine M0–M5)
+ ├─ 1. CONCEPT_P360_VOLLAUSBAU.md   ← ZIELBILD CPI (wohin)       [leitend]
  ├─ 2. CONCEPT.md (+ dessen §14–§19) ← ARCHITEKTUR (wie gebaut)  [leitend]
  ├─ 3. ROADMAP.md                    ← EINE Roadmap (was wann)   [leitend]
  ├─ 4. Analyse_Datenbank.md          ← METHODE (Dreiklang etc.)  [verbindlich]
@@ -25,6 +28,7 @@ INDEX.md (hier)
 ### Leitend (aktiv gepflegt — Widersprüche hierzu sind Fehler)
 | Dokument | Rolle |
 |---|---|
+| `GESAMTKONZEPT.md` | **Oberstes Leitdokument der Suite** (CPI + CPI MDM): evidenzklassifizierter Use-Case-Katalog ([A] extern verifiziert / [B] hausintern gemessen / [C] Hypothese), Personas, Capability-Map, Produkt-Verzahnung, Nutzenrechnung (inkl. §275c-Regimewechsel 2027), Meilensteine M0–M5, Nachrecherchen N1–N4. |
 | `CONCEPT_P360_VOLLAUSBAU.md` | **Zielbild** Patient Insight 2.0: Drilldown-Kontrakt, 3 Lenses, FHIR-Vollkatalog A–D, P360-Akte/Timeline, MC-Dashboards, Kohorten-Builder. Deep-Research-fundiert (24 verifizierte Quellen). |
 | `CONCEPT.md` (v0.3) | **Architektur & Betriebskonzept**: Medaillon-Pipeline, No-Admin, Delta-Merge (§14), DQ (§15), FHIR-Ausleitung v2 (§16), MCP-Härtung (§17), Terminologie (§18). §8/§12/§19 sind durch Zielbild+ROADMAP überlagert (dort markiert). |
 | `ROADMAP.md` | **Die einzige Roadmap.** Ersetzt: CONCEPT §12/§19-Ausbau, GESAMTREVIEW §4-Backlog, INGOLF §5, Analyse_Datenbank §8-Backlog (dort jeweils Verweis). |
