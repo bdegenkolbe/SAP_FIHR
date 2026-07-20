@@ -82,11 +82,25 @@ AD-Login --PA0105/90AD--> PERNR --PA0001.KOSTL--> Kostenstelle
 ```
 Vorteil: Leitung erbt über die SETNODE-Rekursion automatisch alle Unter-Kostenstellen.
 
-**Einzige offene Kante: IS-H-OE (`NBEW.ORGFA`/`NORG`) → Kostenstelle.** Kein `KOSTL`-Feld
-in `NORG/NBEW/NFAL/NLEI`. Zu klären (mit Björn / weitere Tabellensuche): IS-H-
-Leistungsstellen-/OE-Customizing mit Kostenstellenzuordnung, oder FI/CO-Buchungsbezug der
-Leistungen. Bis dahin *fail-closed* für Abteilungspersonal; Medizincontrolling/IT/Einzel-
-Logins unabhängig sofort nutzbar.
+**Letzte Kante GESCHLOSSEN via `sap.NOEK` (Hinweis Björn).** `NOEK` mappt IS-H-OE →
+Kostenstelle, zeitscheibenbasiert: `[MANDT, ORGFA, ORGPF, ENDDT]` → **`KOSTL`** (+`BEGDT`).
+Live: 2.587 Zeilen, **510 ORGFA → 606 Kostenstellen**, alle mit KOSTL, 2.418 aktuell.
+Stichprobe bestätigt: alle geprüften OEs (inkl. der zuvor „ungematchten" `KLCL`, `EMIS1`)
+sind enthalten; `KOSTL` (`0093117100`…) liegt im selben 10-stelligen Raum wie `SETLEAF`
+und `PA0001.KOSTL`. Eine OE kann auf mehrere Kostenstellen zeigen (je Pflege-OE/Periode).
+
+**Vollständige, verifizierte Kette (Patient ⇄ Mitarbeiter über die Kostenstelle):**
+```
+Mitarbeiter: AD-Login --PA0105/90AD--> PERNR --PA0001.KOSTL--> Kostenstelle E
+             --SETNODE/SETLEAF-Rollup--> Menge der Kostenstellen des Departments von E
+Patient:     NBEW.ORGFA/ORGPF --NOEK--> Kostenstelle(n) des Falls
+Sichtbar  ⇔  Fall-Kostenstelle ∈ Department-Kostenstellenmenge von E
+```
+Alle vier Joins live bestätigt (`PA0105`→PERNR, `PA0001`→KOSTL∈SETLEAF 10/10, `NOEK`→
+KOSTL, `NBEW`→ORGFA∈NOEK). Zeitscheiben (`BEGDA/ENDDA`, `BEGDT/ENDDT`) je Join beachten;
+Historie „war je in meiner Abteilung" = Bewegung, deren NOEK-Kostenstelle jemals unter dem
+Department des Mitarbeiters lag. Medizincontrolling/IT/Einzel-Logins bleiben rollenbasiert
+(alle Patienten).
 
 ---
 

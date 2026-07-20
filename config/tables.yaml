@@ -1357,3 +1357,13 @@ tables:
     cdc: full
     notes: "Set-Bezeichnungen (DESCRIPT) je SETNAME - Klartext der Kostenstellen-Gruppen
             (AERZTE, ABGR...). Fuer Department-Namen im Berechtigungs-UI."
+  NOEK:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, ORGFA, ORGPF, ENDDT]   # verifiziert R19c (2.587 Zeilen)
+    cdc: full
+    notes: "IS-H-OE -> KOSTENSTELLE (zeitscheibenbasiert BEGDT/ENDDT). SCHLIESST die
+            Berechtigungs-Kette: NBEW.ORGFA/ORGPF -> NOEK.KOSTL -> SETNODE/SETLEAF-Rollup
+            <-> PA0001.KOSTL (Mitarbeiter). 510 ORGFA -> 606 KoStl; KOSTL im selben
+            10-stelligen Raum wie SETLEAF/PA0001. Eine OE kann mehrere KoStl haben."
