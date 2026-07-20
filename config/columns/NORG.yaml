@@ -6,7 +6,7 @@ select:
   - EINRI
   - ORGID      # VERIFY Schluessel
   - ORGNA      # Name VERIFY
-  - ORGKT      # Kurztext VERIFY
+  - ORGKB      # Kurzbezeichnung (R20: real ORGKB, nicht ORGKT)      # Kurztext VERIFY
   - ORGTY      # Typ (Fachabteilung/Pflege/...) VERIFY
   - FACHR      # Fachrichtung VERIFY
   - ERDAT
