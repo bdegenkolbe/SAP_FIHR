@@ -54,12 +54,15 @@ def _audit_access(login, patnr, erlaubt):
 
 app = FastAPI(title="CliniBots Patient Insight") if FastAPI else None
 
-# --- Ladeknopf: Kohorten-Backfill "aktuelle Stationspatienten" (R21) ---------
-# Bewusst scope="current" (NUR aktuell offene Faelle, KEINE Fallhistorie-
-# Ausweitung) -- Details/Begruendung: docs/VERIFY_LOG_R8-R13.md R21.
+# --- Ladeknopf: Kohorten-Backfill "aktuelle Stationspatienten" (R21/R22/R23) -
+# Scope ist ein EXPLIZITER Parameter, keine stille Annahme (Lehre aus R22):
+#   "history" (DEFAULT) = inkl. kompletter Fallhistorie -> speist die
+#     Patientensicht (Patient 360, siehe GESAMTKONZEPT UC-K1) mit echtem Kontext.
+#   "current" = nur die aktuell offenen Faelle (schneller Probelauf).
+# Details/Begruendung: docs/VERIFY_LOG_R8-R13.md R21-R23.
 _COHORT_LOCK = threading.Lock()
 _COHORT_JOB = {"state": "idle", "log": [], "result": None, "error": None,
-              "finished_at": None}
+              "finished_at": None, "load_scope": None}
 
 
 def _cohort_progress(msg: str):
@@ -67,7 +70,7 @@ def _cohort_progress(msg: str):
     _COHORT_JOB["log"] = _COHORT_JOB["log"][-40:]
 
 
-def _run_cohort_job():
+def _run_cohort_job(load_scope: str):
     import datetime as _dt
     try:
         if not os.environ.get("SAPFHIR_PRIVACY_SECRET"):
@@ -84,7 +87,7 @@ def _run_cohort_job():
         from sapfhir.gold import build as _gold
         rep = _cohort.run("config/connection.yaml", "current_inpatients",
                           os.path.dirname(WAREHOUSE) or "data",
-                          load_scope="current", progress=_cohort_progress)
+                          load_scope=load_scope, progress=_cohort_progress)
         _cohort_progress("FHIR-Ausleitung ...")
         fhir_res = _ndjson.run(CFG, warehouse=WAREHOUSE, full=True)
         _cohort_progress(f"FHIR: {fhir_res.get('counts')}")
@@ -100,15 +103,17 @@ def _run_cohort_job():
         _COHORT_JOB["finished_at"] = _dt.datetime.now().isoformat(timespec="seconds")
 
 
-def _start_cohort_job() -> dict:
+def _start_cohort_job(load_scope: str = "history") -> dict:
+    if load_scope not in ("current", "history"):
+        load_scope = "history"
     with _COHORT_LOCK:
         if _COHORT_JOB["state"] == "running":
             return {"started": False, "error": "Kohorten-Ladung laeuft bereits"}
         _COHORT_JOB.update(state="running", log=[], result=None, error=None,
-                           finished_at=None)
-    t = threading.Thread(target=_run_cohort_job, daemon=True)
+                           finished_at=None, load_scope=load_scope)
+    t = threading.Thread(target=_run_cohort_job, args=(load_scope,), daemon=True)
     t.start()
-    return {"started": True}
+    return {"started": True, "load_scope": load_scope}
 
 
 def _q(sql: str, params: list | None = None):
@@ -126,8 +131,8 @@ def _q(sql: str, params: list | None = None):
 
 if app:
     @app.post("/api/cohort/load")
-    def cohort_load():
-        return JSONResponse(_start_cohort_job())
+    def cohort_load(scope: str = "history"):
+        return JSONResponse(_start_cohort_job(load_scope=scope))
 
     @app.get("/api/cohort/status")
     def cohort_status():

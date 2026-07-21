@@ -91,9 +91,13 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
     <div class="kpis" id="mk"></div>
     <div class="card">
       <div class="hd"><h2>Kohorte laden</h2></div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <button id="cohortGo" class="go">Aktuelle Stationspatienten laden</button>
-        <span style="font-size:12px;color:var(--mut)">nur aktuell offene Faelle — keine Fallhistorie (siehe VERIFY_LOG R21)</span>
+        <label style="font-size:12px;color:var(--ink);display:flex;gap:5px;align-items:center">
+          <input type="checkbox" id="cohortHistory" checked>
+          inkl. Fallhistorie (Patientensicht)
+        </label>
+        <span id="cohortHint" style="font-size:12px;color:var(--mut)">Patient 360 braucht Kontext aus früheren Fällen — Umfang wächst mit der Historie der Patienten</span>
       </div>
       <div id="cohortStatus" style="margin-top:8px;font-size:13px"></div>
     </div>
@@ -292,7 +296,8 @@ function renderCohortStatus(s){
     box.innerHTML=`<div style="color:#2a78d6;font-weight:600">läuft …</div>${rows}`;
   }else if(s.state==='done'){
     const c=s.result&&s.result.cohort||{};
-    box.innerHTML=`<div style="color:var(--good);font-weight:600">fertig — ${NF.format(c.patienten||0)} Patienten, ${NF.format(c.faelle||0)} Faelle (${s.finished_at||''})</div>${rows}`;
+    const sc=s.load_scope==='current'?'nur aktuelle Faelle':'inkl. Fallhistorie';
+    box.innerHTML=`<div style="color:var(--good);font-weight:600">fertig (${sc}) — ${NF.format(c.patienten||0)} Patienten, ${NF.format(c.faelle||0)} Faelle (${s.finished_at||''})</div>${rows}`;
   }else if(s.state==='error'){
     box.innerHTML=`<div style="color:var(--crit);font-weight:600">Fehler: ${s.error||''}</div>${rows}`;
   }
@@ -306,7 +311,8 @@ async function pollCohort(){
 }
 $('#cohortGo').onclick=async()=>{
   $('#cohortGo').disabled=true;
-  const r=await fetch('/api/cohort/load',{method:'POST'}).then(r=>r.json()).catch(e=>({error:String(e)}));
+  const scope=$('#cohortHistory').checked?'history':'current';
+  const r=await fetch('/api/cohort/load?scope='+scope,{method:'POST'}).then(r=>r.json()).catch(e=>({error:String(e)}));
   if(r.error && !r.started){ $('#cohortStatus').innerHTML=`<span style="color:var(--crit)">${r.error}</span>`; $('#cohortGo').disabled=false; return; }
   pollCohort();
 };

@@ -408,6 +408,34 @@ in die Anwendung, nicht in Ad-hoc-Shell-Skripte einer Session.
 
 ---
 
+## R23 — Klarstellung nach R22: Fallhistorie ist gewuenscht (Patientensicht), Scope muss nur SICHTBAR sein
+
+Nutzer-Feedback nach R22: *"es ist gut, dass wir die historie der liegenden Patienten
+einbeziehen. wir haben ja die patientensicht."* Praezisierung: Die Kritik in R21/R22 galt
+NICHT der Fallhistorie an sich (die ist fuer Patient 360 / GESAMTKONZEPT UC-K1 ausdruecklich
+gewuenscht), sondern (a) dass die Ausweitung unangekuendigt/implizit geschah und (b) dass
+das DQ-Dashboard die Teilladung wie einen Fehler aussehen liess. Beides ist mit R22 bereits
+behoben (KOHORTE-Status, Ladeknopf). Fehlender Baustein: der Scope selbst war im Ladeknopf
+hart auf `"current"` verdrahtet, ohne Rueckfrage/Sichtbarkeit.
+
+**Fix:** `POST /api/cohort/load?scope=history|current` — **Default jetzt `history`**
+(fuettert die Patientensicht mit echtem Kontext). Neuer Umschalter im Monitor-UI
+(„inkl. Fallhistorie (Patientensicht)", Checkbox, standardmaessig aktiv) macht die
+Entscheidung bei jedem Lauf sichtbar und aenderbar — statt einer stillen Codeannahme in
+beide Richtungen. `_COHORT_JOB` fuehrt `load_scope` mit, UI zeigt es im Fertig-Status an.
+
+**Ergebnis (echter Lauf, scope=history):** 2.625 Patienten, 54.009 Faelle, 220.815
+Bewegungen, 274.824 Encounter (FHIR) — bewusst gewaehlt, nicht mehr zufaellig. VWD
+wieder berechenbar (16 Tage Ø/Median, dank abgeschlossener historischer Faelle).
+Patient-360-Endpunkt liefert wieder die volle Fallgeschichte je Patient.
+
+**Praezisierte Lehre:** Nicht "Scope immer eng", sondern "Scope immer EXPLIZIT, SICHTBAR
+und AENDERBAR" — als Parameter im Code, als Umschalter/Rueckmeldung in der UI, nie als
+unausgesprochene Codeannahme in irgendeine Richtung. Memory-Eintrag
+`feedback_scope_default_narrow.md` entsprechend nachgeschaerft.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;
