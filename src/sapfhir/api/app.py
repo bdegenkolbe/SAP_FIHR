@@ -297,6 +297,46 @@ if app:
         return JSONResponse({"total": total, "page": page, "page_size": page_size,
                              "rows": rows})
 
+    @app.get("/api/fall/{falnr}")
+    def fall_detail(falnr: str, x_user: str | None = Header(default=None)):
+        """Fall-Drilldown (ROADMAP P2.5 v1): Kopf + Bewegungskette + Diagnosen +
+        Prozeduren. Bewegungskette per ORDER BY BWIDT/LFDNR (Methodik: NBEW-Kette,
+        nicht NFAL-Daten). DRG/Erloes + MD-Badge folgen, sobald NDRG/ZNRKT in der
+        Kohorte liegen."""
+        kopf = _q(
+            "SELECT f.FALNR, f.PATNR, f.FALAR, f.BEGDT, f.ENDDT, f.FACHR, f.STATU, "
+            "  CASE WHEN f.ENDDT IS NULL OR substr(CAST(f.ENDDT AS VARCHAR),1,4) "
+            "       IN ('0101','9999') THEN 1 ELSE 0 END AS offen "
+            "FROM mcp.fall f WHERE f.FALNR = ? "
+            "  AND COALESCE(TRIM(f.STORN),'') NOT IN ('X','1')", [falnr])
+        if not kopf:
+            raise HTTPException(status_code=404, detail="Fall nicht gefunden")
+        if AUTHZ_ENABLED:
+            patnr = kopf[0].get("PATNR")
+            erlaubt = bool(AUTHZ and AUTHZ.may_see_patient(x_user, patnr))
+            _audit_access(x_user, patnr, erlaubt)
+            if not erlaubt:
+                raise HTTPException(status_code=403, detail="Kein Zugriff (Berechtigung).")
+        bewegungen = _q(
+            "SELECT b.LFDNR, b.BEWTY, b.BWART, b.BWIDT, b.BWEDT, "
+            "  COALESCE(b.ORGPF, b.ORGFA) AS oe, r.\"TEXT\" AS typ_text, "
+            "  ro.\"TEXT\" AS oe_name "
+            "FROM mcp.bewegung b "
+            "LEFT JOIN ref.bewegungstyp r ON CAST(b.BEWTY AS VARCHAR) = r.\"BEWTY\" "
+            "LEFT JOIN ref.oe ro ON CAST(COALESCE(b.ORGPF,b.ORGFA) AS VARCHAR) = ro.ORGID "
+            "WHERE b.FALNR = ? AND COALESCE(TRIM(b.STORN),'') NOT IN ('X','1') "
+            "ORDER BY b.BWIDT, b.LFDNR", [falnr])
+        diagnosen = _q(
+            "SELECT DIADT, DKEY1, DITXT, KHDIA FROM mcp.diagnose "
+            "WHERE FALNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
+            "ORDER BY DIADT DESC LIMIT 100", [falnr])
+        prozeduren = _q(
+            "SELECT BGDOP, ICPML, BTEXT FROM mcp.prozedur "
+            "WHERE FALNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
+            "ORDER BY BGDOP DESC LIMIT 100", [falnr])
+        return JSONResponse({"kopf": kopf[0], "bewegungen": bewegungen,
+                             "diagnosen": diagnosen, "prozeduren": prozeduren})
+
     @app.get("/api/patient360/{patnr}")
     def patient360(patnr: str, x_user: str | None = Header(default=None)):
         # Deny-by-default, wenn Berechtigung aktiv (docs/BERECHTIGUNGSKONZEPT.md).

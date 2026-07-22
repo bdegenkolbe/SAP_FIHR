@@ -77,6 +77,16 @@ tr.sub td{color:var(--ink2);font-size:12px;background:rgba(0,0,0,.015)}
 tr.expandable{cursor:pointer}
 .caret{display:inline-block;transition:transform .12s;color:var(--mut)}
 tr.open .caret{transform:rotate(90deg)}
+/* Fall-Drilldown-Drawer (P2.5 v1) */
+#fdBack{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:60;display:none}
+#fdrawer{position:fixed;top:0;right:-720px;width:min(700px,94vw);height:100vh;z-index:61;
+  background:var(--card,#fff);box-shadow:-6px 0 24px rgba(0,0,0,.18);
+  transition:right .18s ease;overflow-y:auto;padding:18px 22px}
+#fdrawer.open{right:0}
+#fdrawer h2{margin:0;font-size:16px}
+#fdrawer .sect{margin-top:18px}
+#fdrawer .sect h3{font-size:12px;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--ink2);margin:0 0 6px}
 .fallgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .fallcard{border:1px solid var(--grid);border-radius:9px;padding:12px 14px}
 .fallcard .fn{font-weight:650;font-variant-numeric:tabular-nums}
@@ -194,6 +204,24 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
   </div>
 
 </main>
+<!-- Fall-Drilldown-Drawer (P2.5 v1): Klick auf Fall-Zeile/-Balken -->
+<div id="fdBack"></div>
+<aside id="fdrawer" aria-label="Fall-Detail">
+  <div style="display:flex;gap:10px;align-items:center">
+    <h2 id="fdTitle">Fall</h2>
+    <span id="fdBadges" style="display:flex;gap:6px"></span>
+    <a id="fdMdm" class="tgl" target="_blank" rel="noopener"
+       style="margin-left:auto;text-decoration:none">⚖ CliniBots MDM</a>
+    <button id="fdClose" class="tgl">✕ schließen</button>
+  </div>
+  <div id="fdMeta" style="font-size:12px;color:var(--ink2);margin-top:4px"></div>
+  <div class="sect"><h3>Bewegungskette</h3>
+    <table id="fdBew"><thead><tr><th>von</th><th>bis</th><th>Typ</th><th>OE</th></tr></thead><tbody></tbody></table></div>
+  <div class="sect" id="fdDiaSect"><h3>Diagnosen</h3>
+    <table id="fdDia"><thead><tr><th>Datum</th><th>ICD</th><th>Text</th><th></th></tr></thead><tbody></tbody></table></div>
+  <div class="sect" id="fdIcpSect"><h3>Prozeduren</h3>
+    <table id="fdIcp"><thead><tr><th>Datum</th><th>OPS</th><th>Text</th></tr></thead><tbody></tbody></table></div>
+</aside>
 <div class="cbbar"></div>
 <footer><b style="color:var(--ink);font-style:normal">CliniBots Patient Insight</b> · Klinik. Daten. Management. — read-only · on-prem · GREENBAY healthcare GmbH</footer>
 <div id="tip"></div>
@@ -494,7 +522,8 @@ async function loadP360(){
   $('#pprobMore').onclick=()=>renderProb(grp.length);
   /* Faelle: offene zuerst, dann nach Jahr gruppiert; nie Sentinel-Rohwerte */
   const fRow=f=>{const b=dfmt(f.BEGDT), e=dfmt(f.ENDDT);
-    return `<tr><td style="font-variant-numeric:tabular-nums">${f.FALNR}</td>
+    return `<tr class="rowlink" data-falnr="${f.FALNR}" style="cursor:pointer">
+      <td style="font-variant-numeric:tabular-nums">${f.FALNR}</td>
       <td>${falart(f.FALAR)}</td>
       <td style="font-variant-numeric:tabular-nums">${b||'—'} – ${f.offen?'laufend':(e||'—')}</td>
       <td>${f.offen?'<span class="badge open">offen</span>':'abgeschlossen'}</td></tr>`;};
@@ -509,6 +538,8 @@ async function loadP360(){
     if(y!==curYear){curYear=y;html+=`<tr class="grp"><td colspan="4">${y}</td></tr>`;}
     html+=fRow(f);});
   $('#pfaelle tbody').innerHTML=html;
+  $('#pfaelle tbody').querySelectorAll('tr[data-falnr]').forEach(tr=>
+    tr.onclick=()=>loadFall(tr.dataset.falnr));
   /* Labor: Panel NUR zeigen, wenn Daten vorhanden (keine leeren Gefaesse) */
   const groups={};d.labor.forEach(r=>{const v=pnum(r.WERT);if(v==null||!r.BEFDT)return;
     (groups[r.KATTEXT]=groups[r.KATTEXT]||[]).push({t:new Date(String(r.BEFDT).slice(0,10)).getTime(),
@@ -566,8 +597,9 @@ function renderTimeline(){
       bars.forEach(({a,b,f})=>{if(b<from||a>to)return;
         const px=x(Math.max(a,from)),pw2=Math.max(x(Math.min(b,to))-px,3);
         const r=el('rect',{x:px,y:cy-7,width:pw2,height:14,rx:4,
-          fill:f.offen?C.s5:C.s1,'fill-opacity':f.offen?.9:.55});
-        hover(r,`<b>Fall ${f.FALNR}</b> · ${falart(f.FALAR)}<br>${dfmt(f.BEGDT)||'—'} – ${f.offen?'laufend':(dfmt(f.ENDDT)||'—')}`);
+          fill:f.offen?C.s5:C.s1,'fill-opacity':f.offen?.9:.55,cursor:'pointer'});
+        hover(r,`<b>Fall ${f.FALNR}</b> · ${falart(f.FALAR)}<br>${dfmt(f.BEGDT)||'—'} – ${f.offen?'laufend':(dfmt(f.ENDDT)||'—')}<br><i>Klick: Fall-Detail</i>`);
+        r.addEventListener('click',()=>loadFall(f.FALNR));
         svg.appendChild(r);});
     }else{
       evs.filter(e=>e.typ===k&&e.t>=from&&e.t<=to).forEach(e=>{
@@ -602,6 +634,45 @@ function renderTimeline(){
     hidden.has(s.dataset.k)?hidden.delete(s.dataset.k):hidden.add(s.dataset.k);
     renderTimeline();});
 }
+/* ---------- Fall-Drilldown-Drawer (P2.5 v1) ---------- */
+function closeFall(){$('#fdrawer').classList.remove('open');$('#fdBack').style.display='none';}
+$('#fdClose').onclick=closeFall;
+$('#fdBack').onclick=closeFall;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFall();});
+async function loadFall(falnr){
+  const d=await api('/api/fall/'+encodeURIComponent(falnr)).catch(()=>null);
+  if(!d||!d.kopf)return;
+  const k=d.kopf, b=dfmt(k.BEGDT), e=dfmt(k.ENDDT);
+  $('#fdTitle').textContent='Fall '+k.FALNR;
+  $('#fdBadges').innerHTML=(k.offen?'<span class="badge open">offen</span>':'')+
+    `<span class="badge">${falart(k.FALAR)}</span>`;
+  $('#fdMeta').textContent=`${b||'—'} – ${k.offen?'laufend':(e||'—')}`+
+    (k.FACHR&&k.FACHR.trim()?` · Fachrichtung ${k.FACHR}`:'');
+  /* MDM-Verbund: Deep-Link auf die Schwester-App (GESAMTKONZEPT §5) */
+  $('#fdMdm').href='http://127.0.0.1:8492/#fall/'+encodeURIComponent(k.FALNR);
+  $('#fdBew tbody').innerHTML=(d.bewegungen||[]).map(r=>{
+    const von=dfmt(r.BWIDT), bis=dfmt(r.BWEDT);
+    return `<tr><td style="font-variant-numeric:tabular-nums">${von||'—'}</td>
+      <td style="font-variant-numeric:tabular-nums">${bis||(k.offen?'laufend':'—')}</td>
+      <td>${r.typ_text||('Typ '+r.BEWTY)}${r.BWART&&r.BWART.trim()?' ('+r.BWART+')':''}</td>
+      <td>${r.oe_name||r.oe||'—'}</td></tr>`;}).join('')
+    ||'<tr><td colspan="4" style="color:var(--mut)">keine Bewegungen</td></tr>';
+  $('#fdDiaSect').style.display=(d.diagnosen||[]).length?'':'none';
+  $('#fdDia tbody').innerHTML=(d.diagnosen||[]).map(r=>
+    `<tr><td style="font-variant-numeric:tabular-nums">${dfmt(r.DIADT)||'—'}</td>
+     <td style="font-variant-numeric:tabular-nums;font-weight:600">${r.DKEY1||''}</td>
+     <td>${r.DITXT||'—'}</td>
+     <td>${r.KHDIA==='X'?'<span class="badge hd">HD</span>':''}</td></tr>`).join('');
+  $('#fdIcpSect').style.display=(d.prozeduren||[]).length?'':'none';
+  $('#fdIcp tbody').innerHTML=(d.prozeduren||[]).map(r=>
+    `<tr><td style="font-variant-numeric:tabular-nums">${dfmt(r.BGDOP)||'—'}</td>
+     <td style="font-variant-numeric:tabular-nums;font-weight:600">${r.ICPML||''}</td>
+     <td>${r.BTEXT||'—'}</td></tr>`).join('');
+  $('#fdBack').style.display='block';
+  $('#fdrawer').classList.add('open');
+  $('#fdrawer').scrollTop=0;
+}
+
 document.querySelectorAll('.tlrange').forEach(b=>b.onclick=()=>{
   if(!tlState)return;const y=Number(b.dataset.y);
   if(!y){tlState.from=tlState.to=null;}

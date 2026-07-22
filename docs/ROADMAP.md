@@ -56,7 +56,7 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 | P2.2 | ✅ **v1 umgesetzt:** Interaktive Swimlane-Timeline (Fall-Balken + Ereignispunkte je Domäne, Jahres-Ticks, Brush-Zoom per Ziehen, 1/5/10J-Schnellbereiche, klickbare Legende) = Darstellungsstufe **D2**; offen: Klick→Fall-Drilldown, danach D3 (Episodes-of-Care, Chart-Suche, Quick-Filter-Chips) | Zielbild §3.1, Darstellung §6 |
 | P2.3 | `map_appointment` (NAPP; NTMN nach Dreiklang) | [CONCEPT §6, Registry deklariert] |
 | P2.4 | N2OPDIAGNOSEN → Condition (surgical) | [CONCEPT_EXT §4/§8.6] |
-| P2.5 | Fall-Detail: DRG/Erlös-Panel + **MD-Badge → CliniBots-MDM-Deep-Link** | Zielbild §2 Stufe C |
+| P2.5 | Fall-Detail — **v1 umgesetzt:** Drilldown-Drawer per Klick auf Fall-Zeile/Timeline-Balken (`GET /api/fall/{falnr}`: Kopf, NBEW-Bewegungskette mit Typ-Text+OE-Name, Diagnosen, Prozeduren; MDM-Deep-Link ⚖, Esc/Backdrop schließt). Offen: DRG/Erlös-Panel + echtes MD-Badge (braucht NDRG/ZNRKT in der Kohorte) | Zielbild §2 Stufe C |
 
 ## P3 „Medikation & ZNA" (3–4 SE)
 | AP | Inhalt | Herkunft |
