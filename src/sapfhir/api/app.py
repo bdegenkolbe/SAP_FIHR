@@ -259,6 +259,44 @@ if app:
         who = AUTHZ.whoami(x_user) if AUTHZ else {"login": x_user, "scope": "NONE"}
         return JSONResponse({"authz": "enabled", **who})
 
+    @app.get("/api/patients")
+    def patients_list(page: int = 1, page_size: int = 50, q: str = "",
+                      x_user: str | None = Header(default=None)):
+        """Gepagte Patientenliste (Facettensuche v0, ROADMAP P1.2) fuer den
+        Patient-360-Tab — Auswahl statt Blindeingabe der PATNR."""
+        page = max(1, page)
+        page_size = page_size if page_size in (50, 100, 200) else 50
+        where = ["COALESCE(TRIM(p.STORN),'') NOT IN ('X','1')"]
+        params: list = []
+        q = q.strip()
+        if q:
+            where.append('p.PATNR LIKE ?')
+            params.append(f"%{q}%")
+        where_sql = " AND ".join(where)
+        total = (_q(f"SELECT COUNT(*) n FROM mcp.patient p WHERE {where_sql}",
+                    params) or [{}])[0].get("n", 0)
+        rows = _q(
+            f"SELECT p.PATNR, p.GSCHL, p.GBDAT, p.TODKZ, "
+            f"  COUNT(f.FALNR) AS faelle, "
+            f"  SUM(CASE WHEN f.ENDDT IS NULL OR substr(CAST(f.ENDDT AS VARCHAR),1,4) "
+            f"       IN ('0101','9999') THEN 1 ELSE 0 END) AS offene_faelle, "
+            f"  MAX(f.BEGDT) AS letzte_aufnahme "
+            f"FROM mcp.patient p "
+            f"LEFT JOIN mcp.fall f ON f.PATNR = p.PATNR "
+            f"  AND COALESCE(TRIM(f.STORN),'') NOT IN ('X','1') "
+            f"WHERE {where_sql} "
+            f"GROUP BY p.PATNR, p.GSCHL, p.GBDAT, p.TODKZ "
+            f"ORDER BY letzte_aufnahme DESC NULLS LAST, p.PATNR "
+            f"LIMIT ? OFFSET ?",
+            [*params, page_size, (page - 1) * page_size])
+        if AUTHZ_ENABLED and AUTHZ:
+            # Best-effort Zeilenfilter (Phase-1-Stand, docs/BERECHTIGUNGSKONZEPT.md):
+            # kein SQL-Push-down der Berechtigungskette, daher kann die Seite dann
+            # weniger als page_size sichtbare Zeilen enthalten.
+            rows = [r for r in rows if AUTHZ.may_see_patient(x_user, r["PATNR"])]
+        return JSONResponse({"total": total, "page": page, "page_size": page_size,
+                             "rows": rows})
+
     @app.get("/api/patient360/{patnr}")
     def patient360(patnr: str, x_user: str | None = Header(default=None)):
         # Deny-by-default, wenn Berechtigung aktiv (docs/BERECHTIGUNGSKONZEPT.md).

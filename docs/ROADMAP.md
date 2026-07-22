@@ -44,7 +44,7 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 | AP | Inhalt | Herkunft |
 |---|---|---|
 | P1.1 | P360-Sektionen für ALLE gemappten Ressourcen (Prozeduren, Risiken/Allergien, Coverage, Account, ServiceRequest, Org/Practitioner-Links, Geburt) | Zielbild §3 |
-| P1.2 | **Facettensuche** vor der Akte (ICD/OPS/Alter/Labor/OE/Zeitraum, Live-Count, Trefferliste) | [INGOLF P1b / GESAMTREVIEW #12] |
+| P1.2 | **Facettensuche** vor der Akte (ICD/OPS/Alter/Labor/OE/Zeitraum, Live-Count, Trefferliste) — v0 erledigt: gepagte Patientenliste (50/100/200, PATNR-Suche, Klick→Akte, `GET /api/patients`); fehlt noch: ICD/OPS/OE/Zeitraum-Filter | [INGOLF P1b / GESAMTREVIEW #12] |
 | P1.3 | **Drilldown-Kontrakt v1**: alle Analytik-Charts → Fallliste → Akte, URL-State | Zielbild §1 |
 | P1.4 | Aggregatschutz `mask(n<5)` zentral in der API | [INGOLF P1c / GESAMTREVIEW #13] |
 | P1.5 | Mode-Badge (Pseudonym/Klartext) + CDC-Lag-Kachel + VERIFY-Kachel im Monitor | [INGOLF P1a-UI, CONCEPT §15.4/§19.4] |

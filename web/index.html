@@ -129,6 +129,24 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
         <span style="font-size:12px;color:var(--mut)">read-only · maskierte mcp.*-Schicht</span>
       </div>
     </div>
+    <div class="card">
+      <div class="hd">
+        <h2>Patienten</h2>
+        <div style="display:flex;gap:10px;align-items:center;margin-left:auto">
+          <input id="plistQ" class="pin" placeholder="PATNR-Suche" style="flex:0 0 160px">
+          <select id="plistSize">
+            <option value="50">50</option><option value="100">100</option><option value="200">200</option>
+          </select>
+          <span id="plistInfo" style="font-size:12px;color:var(--mut)"></span>
+          <button id="plistPrev" class="tgl">‹</button>
+          <button id="plistNext" class="tgl">›</button>
+        </div>
+      </div>
+      <table id="plist">
+        <thead><tr><th>PATNR</th><th>Geschlecht</th><th>Jg.</th><th class="num">Fälle</th><th class="num">davon offen</th><th>letzte Aufnahme</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
     <div id="p360out" style="display:none">
       <div class="kpis" id="pk3"></div>
       <div class="card"><div class="hd"><h2>Fälle</h2></div><div class="fallgrid" id="pfall"></div></div>
@@ -428,6 +446,37 @@ async function loadP360(){
 $('#p360go').onclick=loadP360;
 $('#p360in').addEventListener('keydown',e=>{if(e.key==='Enter')loadP360();});
 
-loadMonitor();loadAnalytics();
+/* ---------- Patientenliste (gepaged, ROADMAP P1.2) ---------- */
+let plistPage=1;
+async function loadPatientList(){
+  const size=Number($('#plistSize').value)||50;
+  const q=$('#plistQ').value.trim();
+  const d=await api('/api/patients?page='+plistPage+'&page_size='+size+'&q='+encodeURIComponent(q)).catch(()=>null);
+  if(!d){$('#plist tbody').innerHTML='';$('#plistInfo').textContent='Fehler beim Laden';return;}
+  const pages=Math.max(1,Math.ceil(d.total/d.page_size));
+  $('#plistInfo').textContent=`${NF.format(d.total)} Patienten · Seite ${d.page}/${pages}`;
+  $('#plistPrev').disabled=d.page<=1;
+  $('#plistNext').disabled=d.page>=pages;
+  $('#plist tbody').innerHTML=(d.rows||[]).map(r=>{
+    const jahr=String(r.GBDAT||'').slice(0,4);
+    return `<tr class="rowlink" data-patnr="${r.PATNR}" style="cursor:pointer">
+      <td style="font-variant-numeric:tabular-nums">${r.PATNR}</td>
+      <td>${GS[String(r.GSCHL)]||'—'}</td>
+      <td class="num">${/^\d{4}$/.test(jahr)?jahr:'—'}</td>
+      <td class="num">${NF.format(r.faelle||0)}</td>
+      <td class="num">${NF.format(r.offene_faelle||0)}</td>
+      <td>${r.letzte_aufnahme?String(r.letzte_aufnahme).slice(0,10):'—'}</td></tr>`;
+  }).join('');
+  $('#plist tbody').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{
+    $('#p360in').value=tr.dataset.patnr; loadP360();
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+}
+$('#plistSize').onchange=()=>{plistPage=1;loadPatientList();};
+$('#plistQ').addEventListener('keydown',e=>{if(e.key==='Enter'){plistPage=1;loadPatientList();}});
+$('#plistPrev').onclick=()=>{if(plistPage>1){plistPage--;loadPatientList();}};
+$('#plistNext').onclick=()=>{plistPage++;loadPatientList();};
+
+loadMonitor();loadAnalytics();loadPatientList();
 </script>
 </body></html>
