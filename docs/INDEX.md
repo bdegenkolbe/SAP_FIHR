@@ -30,6 +30,7 @@ INDEX.md (hier)
 |---|---|
 | `GESAMTKONZEPT.md` | **Oberstes Leitdokument der Suite** (CPI + CPI MDM): evidenzklassifizierter Use-Case-Katalog ([A] extern verifiziert / [B] hausintern gemessen / [C] Hypothese), Personas, Capability-Map, Produkt-Verzahnung, Nutzenrechnung (inkl. §275c-Regimewechsel 2027), Meilensteine M0–M5, Nachrecherchen N1–N4. |
 | `CONCEPT_P360_VOLLAUSBAU.md` | **Zielbild** Patient Insight 2.0: Drilldown-Kontrakt, 3 Lenses, FHIR-Vollkatalog A–D, P360-Akte/Timeline, MC-Dashboards, Kohorten-Builder. Deep-Research-fundiert (24 verifizierte Quellen). |
+| `CONCEPT_P360_DARSTELLUNG.md` | **UI-/Layout-Blaupause** unterm Zielbild: 6 Leitprinzipien (Sticky-Patient-Header, Master-Detail-Ersetzen, Problemlisten-Aggregation, Timeline führend, Progressive Disclosure, keine leeren Gefäße), Dichte-Regeln (NHS/VA/Fiori), Ziel-Anatomie, Stufen D1–D3. Deep-Research-fundiert (106 Claims; D1 umgesetzt). |
 | `CONCEPT.md` (v0.3) | **Architektur & Betriebskonzept**: Medaillon-Pipeline, No-Admin, Delta-Merge (§14), DQ (§15), FHIR-Ausleitung v2 (§16), MCP-Härtung (§17), Terminologie (§18). §8/§12/§19 sind durch Zielbild+ROADMAP überlagert (dort markiert). |
 | `ROADMAP.md` | **Die einzige Roadmap.** Ersetzt: CONCEPT §12/§19-Ausbau, GESAMTREVIEW §4-Backlog, INGOLF §5, Analyse_Datenbank §8-Backlog (dort jeweils Verweis). |
 | `Analyse_Datenbank.md` | **Verbindliche Methode**: Dreiklang, NPAT-Breitensuche, Verkryptung, DIAS-Abdeckung, Massentabellen-Regel. |

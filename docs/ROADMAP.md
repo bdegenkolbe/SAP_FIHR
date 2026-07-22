@@ -43,7 +43,7 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 ## P1 „Sichtbar machen" (2–3 SE) — größter Hebel, Daten liegen in mcp.*
 | AP | Inhalt | Herkunft |
 |---|---|---|
-| P1.1 | P360-Sektionen für ALLE gemappten Ressourcen (Prozeduren, Risiken/Allergien, Coverage, Account, ServiceRequest, Org/Practitioner-Links, Geburt) | Zielbild §3 |
+| P1.1 | P360-Sektionen für ALLE gemappten Ressourcen (Prozeduren, Risiken/Allergien, Coverage, Account, ServiceRequest, Org/Practitioner-Links, Geburt) — **Layout-Rahmen dafür steht: Darstellung D1 umgesetzt** (Master-Detail-Ersetzen + Deep-Link, Sticky-Patient-Header, ICD-Problemliste aufklappbar, Fälle offen/Jahr gruppiert, keine Sentinel/leeren Panels; `CONCEPT_P360_DARSTELLUNG.md`) | Zielbild §3 + Darstellung §6 |
 | P1.2 | **Facettensuche** vor der Akte (ICD/OPS/Alter/Labor/OE/Zeitraum, Live-Count, Trefferliste) — v0 erledigt: gepagte Patientenliste (50/100/200, PATNR-Suche, Klick→Akte, `GET /api/patients`); fehlt noch: ICD/OPS/OE/Zeitraum-Filter | [INGOLF P1b / GESAMTREVIEW #12] |
 | P1.3 | **Drilldown-Kontrakt v1**: alle Analytik-Charts → Fallliste → Akte, URL-State | Zielbild §1 |
 | P1.4 | Aggregatschutz `mask(n<5)` zentral in der API | [INGOLF P1c / GESAMTREVIEW #13] |
@@ -53,7 +53,7 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 | AP | Inhalt | Herkunft |
 |---|---|---|
 | P2.1 | 3-Ebenen-Encounter-Verlegungskette (MII KDS Fall V2025: Einrichtung→Abteilung→Versorgungsstelle) als Grafik im Fall-Detail | Zielbild §3.2 |
-| P2.2 | Interaktive Swimlane-Timeline (Brush/Zoom, Domänen-Toggle) | Zielbild §3.1 |
+| P2.2 | Interaktive Swimlane-Timeline (Brush/Zoom, Domänen-Toggle) = Darstellungsstufe **D2**; danach D3 (Episodes-of-Care, Chart-Suche, Quick-Filter-Chips) | Zielbild §3.1, Darstellung §6 |
 | P2.3 | `map_appointment` (NAPP; NTMN nach Dreiklang) | [CONCEPT §6, Registry deklariert] |
 | P2.4 | N2OPDIAGNOSEN → Condition (surgical) | [CONCEPT_EXT §4/§8.6] |
 | P2.5 | Fall-Detail: DRG/Erlös-Panel + **MD-Badge → CliniBots-MDM-Deep-Link** | Zielbild §2 Stufe C |

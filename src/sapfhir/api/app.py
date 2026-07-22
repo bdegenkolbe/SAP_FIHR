@@ -319,7 +319,17 @@ if app:
             "SELECT d.DIADT, d.DKEY1, d.DITXT, d.KHDIA, d.FALNR "
             "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
             "WHERE f.PATNR = ? AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
-            "ORDER BY d.DIADT DESC LIMIT 50", [patnr])
+            "ORDER BY d.DIADT DESC LIMIT 200", [patnr])
+        # Problemliste: Diagnosen nach ICD gruppiert (CONCEPT_P360_DARSTELLUNG §2.3 —
+        # POV-Evidenz: -16% Zeit, 3,4% statt 7,7% Fehler vs. flache Encounter-Liste)
+        diagnosen_gruppen = _q(
+            "SELECT d.DKEY1, MAX(NULLIF(TRIM(d.DITXT),'')) AS text, COUNT(*) AS n, "
+            "  MIN(d.DIADT) AS erst, MAX(d.DIADT) AS letzt, "
+            "  MAX(CASE WHEN d.KHDIA='X' THEN 1 ELSE 0 END) AS hd "
+            "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
+            "WHERE f.PATNR = ? AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
+            "  AND COALESCE(TRIM(d.DKEY1),'') <> '' "
+            "GROUP BY d.DKEY1 ORDER BY letzt DESC", [patnr])
         labor = _q(
             "SELECT KATTEXT, BEFDT, WERT, EINH, REFBER, ABNORMAL FROM mcp.labor "
             "WHERE PATNR = ? AND BEFDT IS NOT NULL "
@@ -350,6 +360,7 @@ if app:
         return JSONResponse({"patnr": patnr,
                              "patient": patient[0] if patient else None,
                              "faelle": faelle, "diagnosen": diagnosen,
+                             "diagnosen_gruppen": diagnosen_gruppen,
                              "labor": labor, "timeline": timeline})
 
     web_dir = os.path.join(os.path.dirname(__file__), "..", "..", "..", "web")
