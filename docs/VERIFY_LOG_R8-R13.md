@@ -474,6 +474,25 @@ Historie". Wer schnellere Testlaeufe will, kann zusaetzlich `scope=current` waeh
 
 ---
 
+## R25 — Bugfix: Zeilenklick in der neuen Patientenliste scrollte von der Akte WEG
+
+Nutzer-Meldung nach Einfuehrung der gepagten Patientenliste (P1.2 v0): *"patientendaten
+gehen nicht zu laden."* Die Akte lud tatsaechlich korrekt (API + DOM bestaetigt), aber
+der Klick-Handler scrollte per `window.scrollTo({top:0})` zurueck zum Seitenanfang —
+GENAU WEG von `#p360out`, das im DOM UNTERHALB der (bis zu 200 Zeilen langen)
+Patiententabelle liegt. Aus Nutzersicht: Klick, Sprung nach oben, Tabelle wieder
+sichtbar, keine Akte zu sehen → wirkte wie "laedt nicht".
+
+**Fix:** `window.scrollTo({top:0,...})` ersetzt durch
+`$('#p360out').scrollIntoView({behavior:'smooth',block:'start'})`, zusaetzlich wird
+jetzt korrekt auf `loadP360()` gewartet (`async`+`await`), bevor gescrollt wird —
+vorher lief der Scroll parallel zum noch nicht abgeschlossenen Ladevorgang.
+Live verifiziert (DOM-Check nach Zeilenklick): Akte laedt (KPIs/Fallcards korrekt
+befuellt) UND das Scroll-Ziel zeigt exakt auf `#p360out` (Element-Position bestaetigt;
+Smooth-Animation selbst liess sich in dieser Browser-Test-Session nicht pruefen, da
+sie ohne aktives Frame-Compositing kein `requestAnimationFrame` erhaelt — kein
+Hinweis auf ein echtes Problem in einem normal angezeigten Browser-Tab).
+
 ---
 
 ## Offene Punkte (Stand R17)

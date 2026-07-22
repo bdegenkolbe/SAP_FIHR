@@ -467,9 +467,10 @@ async function loadPatientList(){
       <td class="num">${NF.format(r.offene_faelle||0)}</td>
       <td>${r.letzte_aufnahme?String(r.letzte_aufnahme).slice(0,10):'—'}</td></tr>`;
   }).join('');
-  $('#plist tbody').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{
-    $('#p360in').value=tr.dataset.patnr; loadP360();
-    window.scrollTo({top:0,behavior:'smooth'});
+  $('#plist tbody').querySelectorAll('tr').forEach(tr=>tr.onclick=async()=>{
+    $('#p360in').value=tr.dataset.patnr;
+    await loadP360();
+    $('#p360out').scrollIntoView({behavior:'smooth',block:'start'});
   });
 }
 $('#plistSize').onchange=()=>{plistPage=1;loadPatientList();};
