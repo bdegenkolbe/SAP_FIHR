@@ -1306,6 +1306,7 @@ tables:
   # Ausleitung. Schema 'hrp'. Personendaten (USRID, Namen) verkryptungspflichtig.
   PA0105:
     schema: hrp
+    mandt: "114"          # HR-System hat EIGENEN Mandanten (R28 live: 114, nicht 100!)
     fhir: null
     tier: 3
     pk: [MANDT, PERNR, SUBTY, OBJPS, SPRPS, ENDDA, SEQNR]   # VERIFY (IT0105-Standard-PK)
@@ -1316,6 +1317,7 @@ tables:
             IDENTIFIZIEREND -> nur in Auth-Schicht, verkryptet in Analytik. Auth-Strecke 3.1."
   PA0001:
     schema: hrp
+    mandt: "114"          # HR-System hat EIGENEN Mandanten (R28 live: 114, nicht 100!)
     fhir: null
     tier: 3
     pk: [MANDT, PERNR, SUBTY, OBJPS, SPRPS, ENDDA, SEQNR]   # VERIFY (IT0001-Standard-PK)

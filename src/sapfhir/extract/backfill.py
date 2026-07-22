@@ -54,8 +54,11 @@ def backfill_table(src: Source, st: State, schema: str, table: str, reg: dict,
     cols = _columns_for(table)
     date_col = reg.get("partition_date")
     where = []
-    if scope.get("mandt"):
-        where.append(f"[MANDT] = '{scope['mandt']}'")
+    # Registry kann den Mandanten je Tabelle ueberschreiben (HR-System = '114',
+    # IS-H = '100'; R28 live verifiziert)
+    mandt = reg.get("mandt") or scope.get("mandt")
+    if mandt:
+        where.append(f"[MANDT] = '{mandt}'")
     if scope.get("einri") and "EINRI" in pk:
         where.append(f"[EINRI] = '{scope['einri']}'")
     where_extra = " AND ".join(where) if where else None

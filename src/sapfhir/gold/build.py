@@ -94,6 +94,20 @@ def build(warehouse: str = "data/warehouse.duckdb",
             result["fts"] = False
 
         result["mcp_views"] = _views.build(con, pseudonymize=pseudonymize_view)
+
+        # Auth-Marts (BERECHTIGUNGSKONZEPT §5b, G1): materialisieren, sobald die
+        # Quelltabellen entladen sind — sonst ist authz.enabled ein toter Schalter,
+        # der gegen leere auth-Tabellen ALLES sperrt.
+        if "pa0105" in views and "noek" in views:
+            try:
+                from ..authz import sql as _authz_sql
+                _authz_sql.build(con, src="bronze_current")
+                result["auth"] = True
+            except Exception as e:
+                print(f"Auth-Marts uebersprungen ({e})")
+                result["auth"] = False
+        else:
+            result["auth"] = False
     finally:
         con.close()
 

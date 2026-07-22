@@ -1,0 +1,4 @@
+# HR-Org-Zuordnung: NUR Auth-Strecke (PERNR->KOSTL/ORGEH). KEINE Namensfelder (ENAME!)
+table: PA0001
+schema: hrp
+select: [MANDT, PERNR, SUBTY, OBJPS, SPRPS, ENDDA, SEQNR, BEGDA, KOSTL, ORGEH]

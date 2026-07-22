@@ -1,0 +1,3 @@
+table: NOEK
+schema: sap
+select: [MANDT, ORGFA, ORGPF, ENDDT, BEGDT, KOSTL]

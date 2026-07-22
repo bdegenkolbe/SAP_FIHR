@@ -116,7 +116,7 @@ Verbundpunkte (P2.5, P4.3, AP-M1, AP-M6) stehen hier gespiegelt.
 **Intern (Konzept verspricht, Code fehlt — Top-Prioritäten):**
 | AP | Befund | Schwere |
 |---|---|---|
-| G1 | **Authz real scharfschalten**: `authz.sql.build` läuft NIRGENDS; PA0105/PA0001/SETNODE/SETLEAF/NOEK werden weder von Kohorte noch Backfill geladen; `authz.enabled=true` würde gegen leere auth-Tabellen ALLES sperren (toter Schalter). Kein Login-Fluss. | hoch |
+| G1 | **Authz scharfschalten — Teil 1 ERLEDIGT (R28):** Auth-Quelltabellen im Referenz-Load (PA0105/PA0001 mit HR-MANDT **114**!, SETNODE/SETLEAF/NOEK), `authz.sql.build` im Gold-Build verdrahtet; Marts live: 37.838 Logins, 357.759 PERNR-KOSTL, 124.447 fall_kostl; deny-by-default + Rollen + MC-Vollrolle end-to-end bestätigt. **⚠ OFFEN/KRITISCH: Negativtest schlägt fehl** — DEPT-Rolle sieht auch Patienten OHNE Kostenstellen-Überschneidung (Verdacht Fail-Open im Resolver-DEPT-Pfad, `authz/service.py` prüfen!). authz.enabled bleibt AUS bis geklärt. | **hoch** |
 | G2 | **P1.1-Sektionen**: NRSF (Risiken) + NKSK (Coverage) sind GELADEN, haben aber keine Akten-Sektion; Prozeduren nur im Drawer | hoch |
 | G3 | `mask(n<5)` fehlt in allen Analytik-Endpunkten (P1.4-Zusage) | mittel |
 | G4 | Tote Mapper: `map_organization_einrichtung`/`_das301` nie im PLAN; `map_appointment` deklariert aber nicht existent; `n1meorder`-Mapper läuft auf leerer Tabelle statt COPRA | mittel |

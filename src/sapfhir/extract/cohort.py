@@ -58,6 +58,9 @@ REFERENCE_TABLES = [
     "NORG", "NGPA", "NKTR", "NKDI", "NPER",
     "TN14T", "TN14R", "TN14G", "TN14D", "TN14H", "TN14U",
     "TNK00", "TN26C", "TN01", "TN39A", "TN39T",
+    # Auth-Strecke (BERECHTIGUNGSKONZEPT, G1): AD->PERNR->KOSTL->SETNODE ⇄ NOEK.
+    # Schmale Projektionen OHNE Namensfelder (Verkryptungsregel Mitarbeiterdaten).
+    "PA0105", "PA0001", "SETNODE", "SETLEAF", "NOEK",
 ]
 # Bewusst NICHT in Phase 0: NDOC/N2LABOR*/N2TEXT/N1MEORDER (Volumen/Dokumentwelt),
 # NADR (Adressen) und TN14K (nicht repliziert).
