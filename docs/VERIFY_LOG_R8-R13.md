@@ -495,6 +495,23 @@ Hinweis auf ein echtes Problem in einem normal angezeigten Browser-Tab).
 
 ---
 
+## R26 — D2-Timeline live: fehlende mcp-Tabellen liessen die gesamte Timeline-UNION scheitern
+
+Beim Livegang der Swimlane-Timeline (Darstellung D2) war die Ereignisliste leer, obwohl
+der Testpatient 72 Diagnosen/101 Bewegungen hat. Ursache: die Timeline-Query UNION-te
+fest ueber mcp.labor und mcp.dokument — beide existieren in der Phase-0-Kohorte nicht
+(NDOC/N2LABOR bewusst nicht geladen). EINE fehlende Tabelle laesst die GANZE UNION
+scheitern, und der defensive _q()-Wrapper verschluckte den Fehler zu [] — klassisches
+Fehlerbild "leer statt kaputt". Fix: UNION wird jetzt dynamisch nur aus tatsaechlich
+vorhandenen mcp.*-Tabellen komponiert (information_schema-Check). Ergebnis: 274
+Ereignisse (101 Bewegung, 85 Diagnose, 67 Prozedur, 21 Fall) fuer den Testpatienten;
+Swimlane rendert 4 Lanes/10 Fall-Balken/243 Punkte, Zoom+Legende live verifiziert.
+Merksatz: Bei UNIONs ueber optionale Schichten immer Existenz pruefen — und Fehler-
+Verschlucken (except -> []) macht solche Bugs unsichtbar; DQ-seitig erkennbar nur an
+"leer trotz Daten".
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

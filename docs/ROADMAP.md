@@ -53,7 +53,7 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 | AP | Inhalt | Herkunft |
 |---|---|---|
 | P2.1 | 3-Ebenen-Encounter-Verlegungskette (MII KDS Fall V2025: Einrichtung→Abteilung→Versorgungsstelle) als Grafik im Fall-Detail | Zielbild §3.2 |
-| P2.2 | Interaktive Swimlane-Timeline (Brush/Zoom, Domänen-Toggle) = Darstellungsstufe **D2**; danach D3 (Episodes-of-Care, Chart-Suche, Quick-Filter-Chips) | Zielbild §3.1, Darstellung §6 |
+| P2.2 | ✅ **v1 umgesetzt:** Interaktive Swimlane-Timeline (Fall-Balken + Ereignispunkte je Domäne, Jahres-Ticks, Brush-Zoom per Ziehen, 1/5/10J-Schnellbereiche, klickbare Legende) = Darstellungsstufe **D2**; offen: Klick→Fall-Drilldown, danach D3 (Episodes-of-Care, Chart-Suche, Quick-Filter-Chips) | Zielbild §3.1, Darstellung §6 |
 | P2.3 | `map_appointment` (NAPP; NTMN nach Dreiklang) | [CONCEPT §6, Registry deklariert] |
 | P2.4 | N2OPDIAGNOSEN → Condition (surgical) | [CONCEPT_EXT §4/§8.6] |
 | P2.5 | Fall-Detail: DRG/Erlös-Panel + **MD-Badge → CliniBots-MDM-Deep-Link** | Zielbild §2 Stufe C |

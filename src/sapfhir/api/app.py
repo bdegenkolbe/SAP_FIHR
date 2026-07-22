@@ -334,29 +334,39 @@ if app:
             "SELECT KATTEXT, BEFDT, WERT, EINH, REFBER, ABNORMAL FROM mcp.labor "
             "WHERE PATNR = ? AND BEFDT IS NOT NULL "
             "ORDER BY KATTEXT, BEFDT LIMIT 500", [patnr])
+        # Timeline-UNION nur aus tatsaechlich vorhandenen mcp.*-Tabellen bauen:
+        # in Kohorten-Phase 0 fehlen mcp.labor/mcp.dokument (NDOC/N2LABOR nicht
+        # geladen) — eine fehlende Tabelle liess frueher die GANZE UNION scheitern
+        # und die Timeline blieb leer (R26).
+        vorhandene = {r["table_name"] for r in _q(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema='mcp'")}
+        teile = [
+            ("fall", " SELECT BEGDT AS datum, 'Fall' AS typ, FALNR AS ref,"
+                     "        FALAR AS detail FROM mcp.fall WHERE PATNR = ?"),
+            ("bewegung", " SELECT b.BWIDT, 'Bewegung', b.FALNR,"
+                         "   COALESCE(rb.\"TEXT\", CAST(b.BEWTY AS VARCHAR))"
+                         "   FROM mcp.bewegung b JOIN mcp.fall f USING (FALNR)"
+                         "   LEFT JOIN ref.bewegungstyp rb"
+                         "     ON CAST(b.BEWTY AS VARCHAR) = rb.\"BEWTY\" WHERE f.PATNR = ?"),
+            ("diagnose", " SELECT d.DIADT, 'Diagnose', d.FALNR,"
+                         "   d.DKEY1 || COALESCE(' ' || d.DITXT, '')"
+                         "   FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"),
+            ("prozedur", " SELECT p.BGDOP, 'Prozedur', p.FALNR,"
+                         "   COALESCE(p.BTEXT, CAST(p.ICPML AS VARCHAR))"
+                         "   FROM mcp.prozedur p JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"),
+            ("labor", " SELECT l.BEFDT, 'Labor', l.FALNR,"
+                      "   l.KATTEXT || ': ' || l.WERT || ' ' || COALESCE(l.EINH,'')"
+                      "   FROM mcp.labor l WHERE l.PATNR = ?"),
+            ("dokument", " SELECT dk.DODAT, 'Dokument', dk.FALNR,"
+                         "   'Dokument ' || COALESCE(dk.DOKAR,'') FROM mcp.dokument dk"
+                         "   WHERE dk.PATNR = ? AND COALESCE(TRIM(dk.STORN),'') NOT IN ('X','1')"),
+        ]
+        aktiv = [(t, sql) for t, sql in teile if t in vorhandene]
         timeline = _q(
-            "SELECT * FROM ("
-            " SELECT BEGDT AS datum, 'Fall' AS typ, FALNR AS ref,"
-            "        FALAR AS detail FROM mcp.fall WHERE PATNR = ?"
-            " UNION ALL SELECT b.BWIDT, 'Bewegung', b.FALNR,"
-            "   COALESCE(rb.\"TEXT\", CAST(b.BEWTY AS VARCHAR))"
-            "   FROM mcp.bewegung b JOIN mcp.fall f USING (FALNR)"
-            "   LEFT JOIN ref.bewegungstyp rb"
-            "     ON CAST(b.BEWTY AS VARCHAR) = rb.\"BEWTY\" WHERE f.PATNR = ?"
-            " UNION ALL SELECT d.DIADT, 'Diagnose', d.FALNR,"
-            "   d.DKEY1 || COALESCE(' ' || d.DITXT, '')"
-            "   FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"
-            " UNION ALL SELECT p.BGDOP, 'Prozedur', p.FALNR,"
-            "   COALESCE(p.BTEXT, CAST(p.ICPML AS VARCHAR))"
-            "   FROM mcp.prozedur p JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ?"
-            " UNION ALL SELECT l.BEFDT, 'Labor', l.FALNR,"
-            "   l.KATTEXT || ': ' || l.WERT || ' ' || COALESCE(l.EINH,'')"
-            "   FROM mcp.labor l WHERE l.PATNR = ?"
-            " UNION ALL SELECT dk.DODAT, 'Dokument', dk.FALNR,"
-            "   'Dokument ' || COALESCE(dk.DOKAR,'') FROM mcp.dokument dk"
-            "   WHERE dk.PATNR = ? AND COALESCE(TRIM(dk.STORN),'') NOT IN ('X','1')"
+            "SELECT * FROM (" + " UNION ALL".join(sql for _, sql in aktiv) +
             ") WHERE datum IS NOT NULL ORDER BY datum DESC LIMIT 300",
-            [patnr] * 6)
+            [patnr] * len(aktiv)) if aktiv else []
         return JSONResponse({"patnr": patnr,
                              "patient": patient[0] if patient else None,
                              "faelle": faelle, "diagnosen": diagnosen,

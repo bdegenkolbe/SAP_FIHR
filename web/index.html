@@ -180,7 +180,16 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
         <table id="pfaelle" class="stick"><thead><tr><th>Fall</th><th>Art</th><th>Zeitraum</th><th>Status</th></tr></thead><tbody></tbody></table>
       </div>
       <div class="card" id="plabCard"><div class="hd"><h2>Laborwert-Verläufe</h2><span class="sub">Referenzbereich als Band · <span style="color:var(--crit);font-weight:600">●</span> auffällig</span></div><div class="labgrid" id="plab"></div></div>
-      <div class="card" id="ptlCard"><div class="hd"><h2>Zeitstrahl</h2><span class="legend" id="lgTl"></span></div><table id="pt3" class="stick"><thead><tr><th>Datum</th><th>Typ</th><th>Fall</th><th>Detail</th></tr></thead><tbody></tbody></table></div>
+      <div class="card" id="ptlCard"><div class="hd"><h2>Zeitstrahl</h2>
+        <span class="legend" id="lgTl"></span>
+        <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <button class="tgl tlrange" data-y="1">1 J</button>
+          <button class="tgl tlrange" data-y="5">5 J</button>
+          <button class="tgl tlrange" data-y="10">10 J</button>
+          <button class="tgl tlrange" data-y="0">Alles</button>
+          <span style="font-size:11px;color:var(--mut)">ziehen = zoomen · Doppelklick = zurück</span>
+        </span></div>
+        <div class="plot" id="ptl"></div></div>
     </div>
   </div>
 
@@ -513,15 +522,91 @@ async function loadP360(){
     cell.innerHTML=`<h3>${k}</h3><div class="last">zuletzt ${NF1.format(lastp.v)} ${lastp.einh||''}${lastp.ref?' · Ref. '+lastp.ref:''}</div><div class="plot"></div>`;
     $('#plab').appendChild(cell);
     labLine(cell.querySelector('.plot'),pts,pref(lastp.ref),lastp.einh);});
-  /* Zeitstrahl: nur zeigen, wenn Ereignisse existieren */
-  $('#ptlCard').style.display=d.timeline.length?'':'none';
-  legend($('#lgTl'),Object.keys(TLC).map(k=>({c:TLC[k],t:k})));
-  $('#pt3 tbody').innerHTML=d.timeline.map(r=>{
-    const det=r.typ==='Fall'?falart(r.detail):(r.detail||'—');
-    return `<tr><td style="font-variant-numeric:tabular-nums">${String(r.datum).slice(0,10)}</td>
-      <td><span class="dot" style="background:${TLC[r.typ]||C.mut}"></span>${r.typ}</td>
-      <td style="font-variant-numeric:tabular-nums">${r.ref}</td><td>${det}</td></tr>`;}).join('');
+  /* Zeitstrahl (D2): Swimlanes je Domaene, Fall-Balken, Brush-Zoom */
+  tlState={d,from:null,to:null,hidden:new Set()};
+  $('#ptlCard').style.display=(d.timeline.length||d.faelle.length)?'':'none';
+  renderTimeline();
 }
+
+/* ---------- Swimlane-Timeline (Darstellung §6 D2; LifeLines/Epic-Lifetime-Muster) */
+let tlState=null;
+const ts=v=>{const s=dfmt(v);return s?new Date(s).getTime():null;};
+function renderTimeline(){
+  if(!tlState)return;
+  const {d,hidden}=tlState, plot=$('#ptl');
+  /* Ereignisse je Lane; Fall-Lane als Balken aus faelle statt Punkten */
+  const evs=d.timeline.filter(r=>r.typ!=='Fall'&&ts(r.datum)!=null)
+    .map(r=>({t:ts(r.datum),typ:r.typ,ref:r.ref,det:r.detail||''}));
+  const now=Date.now();
+  const bars=d.faelle.map(f=>{const a=ts(f.BEGDT);if(a==null)return null;
+    const b=f.offen?now:(ts(f.ENDDT)??a);
+    return {a,b:Math.max(b,a),f};}).filter(Boolean);
+  const lanes=['Fall',...Object.keys(TLC).filter(k=>k!=='Fall'&&evs.some(e=>e.typ===k))]
+    .filter(k=>!hidden.has(k));
+  /* Zeitfenster */
+  const allT=[...bars.flatMap(b=>[b.a,b.b]),...evs.map(e=>e.t)];
+  if(!allT.length){plot.innerHTML='<div class="empty">keine datierten Ereignisse</div>';return;}
+  const from=tlState.from??Math.min(...allT), to=tlState.to??Math.max(...allT,now);
+  const W=plot.clientWidth||900, LH=34, T=22, L=76, R=12,
+        H=T+lanes.length*LH+26, pw=W-L-R;
+  const x=t=>L+pw*Math.min(1,Math.max(0,(t-from)/Math.max(to-from,1)));
+  const svg=el('svg',{width:W,height:H,style:'user-select:none;cursor:crosshair'});
+  /* Jahres-Ticks */
+  const y0=new Date(from).getFullYear(), y1=new Date(to).getFullYear();
+  const step=Math.max(1,Math.ceil((y1-y0)/10));
+  for(let y=y0;y<=y1+1;y+=step){const t=new Date(y,0,1).getTime();
+    if(t<from||t>to)continue;const px=x(t);
+    svg.appendChild(el('line',{x1:px,x2:px,y1:T-6,y2:H-20,stroke:C.grid}));
+    svg.appendChild(txt(px+3,T-10,String(y),{size:10}));}
+  /* Lanes */
+  lanes.forEach((k,i)=>{const cy=T+i*LH+LH/2;
+    svg.appendChild(el('line',{x1:L,x2:W-R,y1:T+i*LH+LH,y2:T+i*LH+LH,stroke:C.grid}));
+    svg.appendChild(txt(4,cy+4,k,{size:11,weight:600,fill:TLC[k]||C.mut}));
+    if(k==='Fall'){
+      bars.forEach(({a,b,f})=>{if(b<from||a>to)return;
+        const px=x(Math.max(a,from)),pw2=Math.max(x(Math.min(b,to))-px,3);
+        const r=el('rect',{x:px,y:cy-7,width:pw2,height:14,rx:4,
+          fill:f.offen?C.s5:C.s1,'fill-opacity':f.offen?.9:.55});
+        hover(r,`<b>Fall ${f.FALNR}</b> · ${falart(f.FALAR)}<br>${dfmt(f.BEGDT)||'—'} – ${f.offen?'laufend':(dfmt(f.ENDDT)||'—')}`);
+        svg.appendChild(r);});
+    }else{
+      evs.filter(e=>e.typ===k&&e.t>=from&&e.t<=to).forEach(e=>{
+        const c=el('circle',{cx:x(e.t),cy,r:4,fill:TLC[k],'fill-opacity':.8});
+        hover(c,`<b>${k}</b> ${String(new Date(e.t).toISOString()).slice(0,10)}<br>Fall ${e.ref}<br>${e.det}`);
+        svg.appendChild(c);});
+    }});
+  /* Brush-Zoom: ziehen waehlt Fenster, Doppelklick reset */
+  let sx=null,band=null;
+  svg.addEventListener('mousedown',e=>{sx=e.offsetX;
+    band=el('rect',{x:sx,y:T-6,width:0,height:H-T-14,fill:C.s1,'fill-opacity':.12});
+    svg.appendChild(band);});
+  svg.addEventListener('mousemove',e=>{if(sx==null)return;
+    band.setAttribute('x',Math.min(sx,e.offsetX));
+    band.setAttribute('width',Math.abs(e.offsetX-sx));});
+  const endBrush=e=>{if(sx==null)return;const ex=e.offsetX;band.remove();
+    if(Math.abs(ex-sx)>12){
+      const t1=from+(Math.min(sx,ex)-L)/pw*(to-from),
+            t2=from+(Math.max(sx,ex)-L)/pw*(to-from);
+      tlState.from=Math.max(t1,Math.min(...allT));tlState.to=Math.min(t2,Math.max(...allT,now));
+      renderTimeline();}
+    sx=null;};
+  svg.addEventListener('mouseup',endBrush);
+  svg.addEventListener('mouseleave',e=>{if(sx!=null){band.remove();sx=null;}});
+  svg.addEventListener('dblclick',()=>{tlState.from=tlState.to=null;renderTimeline();});
+  plot.innerHTML='';plot.appendChild(svg);
+  /* Legende klickbar (Lane ein-/ausblenden) */
+  const lg=$('#lgTl');
+  lg.innerHTML=Object.keys(TLC).map(k=>
+    `<span data-k="${k}" style="cursor:pointer;opacity:${hidden.has(k)?.35:1}"><i style="background:${TLC[k]}"></i>${k}</span>`).join('');
+  lg.querySelectorAll('span[data-k]').forEach(s=>s.onclick=()=>{
+    hidden.has(s.dataset.k)?hidden.delete(s.dataset.k):hidden.add(s.dataset.k);
+    renderTimeline();});
+}
+document.querySelectorAll('.tlrange').forEach(b=>b.onclick=()=>{
+  if(!tlState)return;const y=Number(b.dataset.y);
+  if(!y){tlState.from=tlState.to=null;}
+  else{tlState.to=Date.now();tlState.from=Date.now()-y*365.25*864e5;}
+  renderTimeline();});
 $('#p360go').onclick=loadP360;
 $('#p360in').addEventListener('keydown',e=>{if(e.key==='Enter')loadP360();});
 $('#pback').onclick=showListe;
