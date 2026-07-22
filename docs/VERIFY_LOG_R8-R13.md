@@ -436,6 +436,46 @@ unausgesprochene Codeannahme in irgendeine Richtung. Memory-Eintrag
 
 ---
 
+## R24 — Ladezeit-Analyse: FHIR-Ausleitung war der dominante, im Ladeknopf unnoetige Kostenfaktor
+
+Nutzer-Meldung: *"die Ladezeit der Daten ist zu lang."* Zeitprofil des R23-Laufs
+(scope=history) nachgemessen statt geraten:
+Extrakt (Kohorten- + Referenztabellen) ~7 Minuten, danach FHIR-Ausleitung
+**~13–15 Minuten** (dominiert durch den Practitioner-Merge: FULL OUTER JOIN
+NGPA (261.235) × NPER (236.117), Python-seitig gemappt + privacy-geshiftet +
+NDJSON-geschrieben — **komplett unabhaengig vom Kohorten-Scope**, identische
+236.117 Practitioner-Ressourcen bei "current" UND "history"), danach Gold-Marts+DQ
+~2–3 Minuten. Gesamt ~20–25 Minuten.
+
+**Kernbefund:** Das Web-Dashboard (`kpis`/`belegung`/`patient360`/DQ-Monitor) liest
+ausschliesslich `gold.*`/`mcp.*`-Views direkt ueber `bronze_current` (`gold/build.py`
+haengt an keiner Stelle von `data/fhir/*.ndjson.gz` oder `silver.fhir_index` ab —
+verifiziert per Codepruefung). Die FHIR-NDJSON-Ausleitung speist ausschliesslich den
+separaten MCP-Tool-Server (`mcp/server.py` liest `silver.fhir_index`). Der Ladeknopf
+rief sie trotzdem IMMER mit auf — der teuerste Schritt lieferte fuers Dashboard nichts.
+
+**Fix:** `POST /api/cohort/load` bekommt einen zweiten Parameter `fhir` (Default
+**`false`**) — FHIR-Ausleitung wird nur noch auf ausdruecklichen Wunsch mitgelaufen
+(z. B. vor MCP-Nutzung; alternativ CLI `python -m sapfhir.fhir.ndjson --full`).
+UI-Checkbox "FHIR-Export fuer MCP-Server" (Default AUS) mit Begruendung im Hinweistext.
+Extrakt- und Gold-Schritte selbst wurden NICHT veraendert (kein Korrektheitsrisiko).
+
+**Ergebnis (echter Lauf, scope=history, fhir=false):** Gesamtzeit **~10 Minuten**
+statt ~20–25 Minuten (>50 % Ersparnis) fuer 2.771 Patienten / 53.595 Faelle /
+232.188 Bewegungen. Dashboard nach dem Lauf gegengeprueft: KPIs, Belegung, DQ
+(`KOHORTE`-Status je Kohorten-Tabelle) korrekt und vollstaendig — keine Regression,
+da das Dashboard den uebersprungenen Schritt nie gelesen hat.
+
+**Nicht angefasst (bewusst):** Der eigentliche Extrakt-Zeitkosten (Kohorten- +
+Referenztabellen, ~7 Minuten) ist proportional zur Datenmenge und haengt an echten
+Netzwerk-Roundtrips zur MSSQL-Replika — kein Bug, sondern die Kehrseite von "volle
+Historie". Wer schnellere Testlaeufe will, kann zusaetzlich `scope=current` waehlen
+(Checkbox "inkl. Fallhistorie" abwaehlen, siehe R23).
+
+---
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

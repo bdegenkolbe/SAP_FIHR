@@ -97,7 +97,11 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
           <input type="checkbox" id="cohortHistory" checked>
           inkl. Fallhistorie (Patientensicht)
         </label>
-        <span id="cohortHint" style="font-size:12px;color:var(--mut)">Patient 360 braucht Kontext aus früheren Fällen — Umfang wächst mit der Historie der Patienten</span>
+        <label style="font-size:12px;color:var(--ink);display:flex;gap:5px;align-items:center">
+          <input type="checkbox" id="cohortFhir">
+          FHIR-Export für MCP-Server
+        </label>
+        <span id="cohortHint" style="font-size:12px;color:var(--mut)">Dashboard braucht nur Extrakt + Gold-Marts (schnell) — FHIR-Export ist nur für den MCP-Tool-Zugriff nötig und macht den Lauf deutlich länger</span>
       </div>
       <div id="cohortStatus" style="margin-top:8px;font-size:13px"></div>
     </div>
@@ -312,7 +316,8 @@ async function pollCohort(){
 $('#cohortGo').onclick=async()=>{
   $('#cohortGo').disabled=true;
   const scope=$('#cohortHistory').checked?'history':'current';
-  const r=await fetch('/api/cohort/load?scope='+scope,{method:'POST'}).then(r=>r.json()).catch(e=>({error:String(e)}));
+  const fhir=$('#cohortFhir').checked?'true':'false';
+  const r=await fetch('/api/cohort/load?scope='+scope+'&fhir='+fhir,{method:'POST'}).then(r=>r.json()).catch(e=>({error:String(e)}));
   if(r.error && !r.started){ $('#cohortStatus').innerHTML=`<span style="color:var(--crit)">${r.error}</span>`; $('#cohortGo').disabled=false; return; }
   pollCohort();
 };

@@ -70,7 +70,7 @@ def _cohort_progress(msg: str):
     _COHORT_JOB["log"] = _COHORT_JOB["log"][-40:]
 
 
-def _run_cohort_job(load_scope: str):
+def _run_cohort_job(load_scope: str, with_fhir: bool):
     import datetime as _dt
     try:
         if not os.environ.get("SAPFHIR_PRIVACY_SECRET"):
@@ -83,14 +83,24 @@ def _run_cohort_job(load_scope: str):
             except Exception:
                 pass
         from sapfhir.extract import cohort as _cohort
-        from sapfhir.fhir import ndjson as _ndjson
         from sapfhir.gold import build as _gold
         rep = _cohort.run("config/connection.yaml", "current_inpatients",
                           os.path.dirname(WAREHOUSE) or "data",
                           load_scope=load_scope, progress=_cohort_progress)
-        _cohort_progress("FHIR-Ausleitung ...")
-        fhir_res = _ndjson.run(CFG, warehouse=WAREHOUSE, full=True)
-        _cohort_progress(f"FHIR: {fhir_res.get('counts')}")
+        # Das Dashboard (kpis/belegung/patient360/DQ) liest ausschliesslich
+        # gold.*/mcp.*-Views ueber bronze_current — die FHIR-NDJSON-Ausleitung
+        # (silver.fhir_index) speist NUR den separaten MCP-Tool-Server und ist
+        # mit dem grossen NGPA/NPER-Practitioner-Merge (~500k Zeilen) der
+        # dominante Zeitkostenfaktor. Deshalb standardmaessig UEBERSPRUNGEN;
+        # separat erzeugbar (with_fhir=True bzw. CLI `sapfhir.fhir.ndjson --full`).
+        if with_fhir:
+            from sapfhir.fhir import ndjson as _ndjson
+            _cohort_progress("FHIR-Ausleitung (fuer MCP-Server) ...")
+            fhir_res = _ndjson.run(CFG, warehouse=WAREHOUSE, full=True)
+            _cohort_progress(f"FHIR: {fhir_res.get('counts')}")
+        else:
+            _cohort_progress("FHIR-Ausleitung uebersprungen (Dashboard braucht sie nicht; "
+                             "fuer MCP-Zugriff separat erzeugen).")
         _cohort_progress("Gold-Marts + DQ ...")
         _gold.build(warehouse=WAREHOUSE)
         _cohort_progress("fertig.")
@@ -103,7 +113,7 @@ def _run_cohort_job(load_scope: str):
         _COHORT_JOB["finished_at"] = _dt.datetime.now().isoformat(timespec="seconds")
 
 
-def _start_cohort_job(load_scope: str = "history") -> dict:
+def _start_cohort_job(load_scope: str = "history", with_fhir: bool = False) -> dict:
     if load_scope not in ("current", "history"):
         load_scope = "history"
     with _COHORT_LOCK:
@@ -111,7 +121,7 @@ def _start_cohort_job(load_scope: str = "history") -> dict:
             return {"started": False, "error": "Kohorten-Ladung laeuft bereits"}
         _COHORT_JOB.update(state="running", log=[], result=None, error=None,
                            finished_at=None, load_scope=load_scope)
-    t = threading.Thread(target=_run_cohort_job, args=(load_scope,), daemon=True)
+    t = threading.Thread(target=_run_cohort_job, args=(load_scope, with_fhir), daemon=True)
     t.start()
     return {"started": True, "load_scope": load_scope}
 
@@ -131,8 +141,8 @@ def _q(sql: str, params: list | None = None):
 
 if app:
     @app.post("/api/cohort/load")
-    def cohort_load(scope: str = "history"):
-        return JSONResponse(_start_cohort_job(load_scope=scope))
+    def cohort_load(scope: str = "history", fhir: bool = False):
+        return JSONResponse(_start_cohort_job(load_scope=scope, with_fhir=fhir))
 
     @app.get("/api/cohort/status")
     def cohort_status():
