@@ -1064,6 +1064,17 @@ tables:
             Tote Felder in diesem Haus: FATYP (>99,999% leer), NOTI_STATUS (100% leer).
             Datums-Sentinel-Ausreisser TMNDT: Max 3007-03-14 (kein Standard-9999-12-31,
             in normalize.py separat abfangen)."
+
+  Leistungen_DRGs:
+    schema: sap
+    fhir: null             # Referenzkatalog DRG->Bezeichnung/BWR (UKL-Referenzdaten, KEIN SAP-MANDT)
+    tier: 2
+    pk: [DRG, DRG_gueltig_von]
+    cdc: full
+    notes: "DRG-Textkatalog mit Gueltigkeiten (35.295 Zeilen, verifiziert R27). Nicht-SAP-
+            Referenztabelle OHNE MANDT-Spalte -> Kohorten-Loader nutzt Sonderpfad ohne
+            MANDT-Filter. Liefert DRG_Bezeichnung + Bewertungsrelationen fuer Fall-Anzeige."
+
   TNDRG:
     schema: sap
     fhir: null                         # LBFW-Historie, KEIN DRG-Code-Katalog

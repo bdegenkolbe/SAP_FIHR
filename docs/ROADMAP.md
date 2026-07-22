@@ -110,3 +110,23 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 (Datenbasis), dann P2→P3→P4; P5/P6 nach Bedarf priorisierbar. **AP-M1 hat eine externe
 Deadline (1.1.2027).** CliniBots MDM hat eine eigene Roadmap im eigenen Repo;
 Verbundpunkte (P2.5, P4.3, AP-M1, AP-M6) stehen hier gespiegelt.
+
+## G. Lückenanalyse 22.07.2026 (interner Soll-Ist-Abgleich + Wettbewerbs-Research N4)
+
+**Intern (Konzept verspricht, Code fehlt — Top-Prioritäten):**
+| AP | Befund | Schwere |
+|---|---|---|
+| G1 | **Authz real scharfschalten**: `authz.sql.build` läuft NIRGENDS; PA0105/PA0001/SETNODE/SETLEAF/NOEK werden weder von Kohorte noch Backfill geladen; `authz.enabled=true` würde gegen leere auth-Tabellen ALLES sperren (toter Schalter). Kein Login-Fluss. | hoch |
+| G2 | **P1.1-Sektionen**: NRSF (Risiken) + NKSK (Coverage) sind GELADEN, haben aber keine Akten-Sektion; Prozeduren nur im Drawer | hoch |
+| G3 | `mask(n<5)` fehlt in allen Analytik-Endpunkten (P1.4-Zusage) | mittel |
+| G4 | Tote Mapper: `map_organization_einrichtung`/`_das301` nie im PLAN; `map_appointment` deklariert aber nicht existent; `n1meorder`-Mapper läuft auf leerer Tabelle statt COPRA | mittel |
+| G5 | Labor: UI-Sektion + KPI + Timeline-Lane vorhanden, N2LABOR/001 aber nicht in COHORT_KEY → dauerhaft leer | mittel |
+| G6 | MCP-FHIR-Tools (`fhir_get/search/doc_search`) laufen im Default-Ladeweg ins Leere (FHIR-Export übersprungen, N2TEXT nicht geladen) | mittel |
+| G7 | CDC existiert nur als unbenutzte CLI; GESAMTKONZEPT §4 „Datenpumpe ✅ (Backfill+CDC)" ist zu optimistisch — Ladeknopf macht Voll-Backfill | mittel |
+| G8 | `fhir.profile`-Schalter (r4/isik/mii) wird nirgends gelesen; keine FHIR-Validierung (§15.3), kein `meta.profile` | niedrig |
+| G9 | Endpunkte ohne UI: top_prozeduren, verweildauer, monitor/runs, whoami — Berechtigungsmodell im UI unsichtbar | niedrig |
+
+**Markt (verifiziert, N4 — nur TIP HCe + Tiplu überlebten die Prüfung; Rest offen):**
+- **Marktlücke BESTÄTIGT:** FHIR-nativ + on-prem auf IS-H-Replika + operatives §275c-MD-Management + Patient-360 + Self-Service-Kohorten in EINEM Stack bietet keiner. Aber zwei Annäherungen: TIP Medical Data Lake (FHIR/OMOP-Kohorten, nur Dedalus-KIS-Quellen, 5 Ressourcentypen Stand 2021) und **TipluDB** (FHIR-CDR, ISiK/MII-kompatibel lt. Hersteller, longitudinale Patientenbasis).
+- **Was Wettbewerber haben, wir nicht** (Kandidaten für spätere Phasen): KI-Kodiervorschläge (Tiplu MOMO, Uniklinik-Referenzen Würzburg/Leipzig) · betriebswirtschaftliches Controlling: Kostenträger-/Deckungsbeitragsrechnung, Planung/Simulation, Process Mining (TIP HCe) · PpUGV-/AEB-Budgetverhandlungs-Unterstützung (TIP HCe). TIP-HCe-MD ist NUR nachgelagerte Analytik — CliniBots MDM (operativ) bleibt differenzierend.
+- **Offen (Nachrecherche N4b):** BinDoc/Vebeto/LOGEX/KMS/MetaKIS/myMedis/CGM ohne verifizierte Claims; TipluDB-IS-H-Fähigkeit klären.

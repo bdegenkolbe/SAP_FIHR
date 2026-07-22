@@ -45,12 +45,18 @@ def build(warehouse: str = "data/warehouse.duckdb",
             con.execute(f.read())
         # optionale Marts (nur wenn die Quelle entladen wurde)
         if "ndrg" in views:
+            # NDRG hat ENGLISCHE Spalten (R9): DRG_CREAT_DATE/COST_WEIGHT/CANCEL_FLAG
+            # (Altfassung nutzte faelschlich UPDAT — fiel erst beim ersten echten
+            # NDRG-Load auf, R27). COST_WEIGHT = Bewertungsrelation -> echter CMI.
             con.execute("""
                 CREATE OR REPLACE VIEW gold.casemix AS
-                SELECT strftime(TRY_CAST(UPDAT AS DATE), '%Y') AS jahr,
-                       COUNT(*) AS drg_faelle
-                       -- SUM(bewertungsrelation) AS cm  -- VERIFY Spalte fuer CMI
-                FROM bronze_current.ndrg GROUP BY 1""")
+                SELECT strftime(TRY_CAST(DRG_CREAT_DATE AS DATE), '%Y') AS jahr,
+                       COUNT(*)                          AS drg_faelle,
+                       SUM(TRY_CAST(COST_WEIGHT AS DOUBLE)) AS casemix,
+                       AVG(TRY_CAST(COST_WEIGHT AS DOUBLE)) AS cmi
+                FROM bronze_current.ndrg
+                WHERE COALESCE(TRIM(CANCEL_FLAG),'') NOT IN ('X','1')
+                GROUP BY 1 ORDER BY 1""")
         result["marts"] = True
 
         # ref_*-Klartextschicht (CONCEPT_EXT §8): Kataloge materialisieren,

@@ -35,16 +35,21 @@ from .window import Window
 
 
 # --- Kohorten-Schluessel je Tabelle ------------------------------------------
-# Welche Spalte filtert die Kohorte? PATNR = patientenbezogen, FALNR = fallbezogen.
+# (key_col, key_art, mandt_col): key_art PATNR|FALNR; mandt_col weicht bei Tabellen
+# mit ENGLISCHEN Spaltennamen ab (NDRG: CLIENT/PATCASEID, verifiziert R9).
 COHORT_KEY = {
-    "NPAT": "PATNR",
-    "NRSF": "PATNR",
-    "NFAL": "FALNR",
-    "NBEW": "FALNR",
-    "NDIA": "FALNR",
-    "NICP": "FALNR",   # PK LNRIC, aber FALNR-Spalte vorhanden
-    "NKSK": "FALNR",   # PK BELNR,  aber FALNR-Spalte vorhanden
+    "NPAT": ("PATNR", "PATNR", "MANDT"),
+    "NRSF": ("PATNR", "PATNR", "MANDT"),
+    "NFAL": ("FALNR", "FALNR", "MANDT"),
+    "NBEW": ("FALNR", "FALNR", "MANDT"),
+    "NDIA": ("FALNR", "FALNR", "MANDT"),
+    "NICP": ("FALNR", "FALNR", "MANDT"),   # PK LNRIC, aber FALNR-Spalte vorhanden
+    "NKSK": ("FALNR", "FALNR", "MANDT"),   # PK BELNR,  aber FALNR-Spalte vorhanden
+    "NDRG": ("PATCASEID", "FALNR", "CLIENT"),  # DRG je Fall (englische Spalten!)
 }
+
+# Nicht-SAP-Referenztabellen OHNE MANDT (voll laden, eigener Pfad)
+REFERENCE_NOMANDT = ["Leistungen_DRGs"]
 
 # Referenz-/Katalogtabellen: klein, ohne Personenbezug -> VOLL laden.
 # (Tier-1 minus Kohorten-Tabellen minus dokumenten-/laborschwere Tabellen,
@@ -152,8 +157,9 @@ def save_cohort(cohort: dict, out_dir: str) -> str:
 # --- Schritt 3: Kohorten-Tabelle laden ---------------------------------------
 def cohort_backfill_table(src: Source, schema: str, table: str, key_col: str,
                           cohort: dict, reg: dict, out_dir: str,
-                          scope: dict, st: "State | None" = None) -> int:
-    keys = cohort["patnr"] if key_col == "PATNR" else cohort["falnr"]
+                          scope: dict, st: "State | None" = None,
+                          key_art: str = "FALNR", mandt_col: str = "MANDT") -> int:
+    keys = cohort["patnr"] if key_art == "PATNR" else cohort["falnr"]
     cols = _columns_for(table)
     collist = ", ".join(f"[{c}]" for c in cols) if cols else "*"
     date_col = reg.get("partition_date")
@@ -164,7 +170,7 @@ def cohort_backfill_table(src: Source, schema: str, table: str, key_col: str,
     part_no = 0
     for ch in _chunks(keys):
         ph = ",".join(["?"] * len(ch))
-        where = "[MANDT] = ?"
+        where = f"[{mandt_col}] = ?"
         params: list = [scope.get("mandt", "100")]
         if scope.get("einri") and "EINRI" in reg.get("pk", []):
             where += " AND [EINRI] = ?"
@@ -224,15 +230,34 @@ def run(config: str, define: str, out_dir: str, cap: int | None = None,
 
         _p("Kohorten-Tabellen laden (patienten-/fallbezogen) ...")
         rep = {}
-        for table, key_col in COHORT_KEY.items():
+        for table, (key_col, key_art, mandt_col) in COHORT_KEY.items():
             reg = reg_all.get(table)
             if not reg:
                 print(f"  {table}: nicht in Registry — uebersprungen")
                 continue
             rep[table] = cohort_backfill_table(
                 src, reg.get("schema", "sap"), table, key_col, cohort, reg,
-                out_dir, scope, st=st)
+                out_dir, scope, st=st, key_art=key_art, mandt_col=mandt_col)
             _p(f"  {table}: {rep[table]} Zeilen")
+
+        for table in REFERENCE_NOMANDT:
+            # Nicht-SAP-Referenzkataloge ohne MANDT: klein, voll laden
+            reg = reg_all.get(table)
+            if not reg:
+                continue
+            base = os.path.join(out_dir, "bronze", table.lower())
+            os.makedirs(base, exist_ok=True)
+            rows = list(src.iter_query(f"SELECT * FROM {reg.get('schema','sap')}.[{table}]"))
+            if rows:
+                fn = os.path.join(base, "jahr=unknown")
+                os.makedirs(fn, exist_ok=True)
+                pq.write_table(pa.Table.from_pylist(rows),
+                               os.path.join(fn, f"part-{int(time.time()*1000)}-0.parquet"),
+                               compression="zstd", compression_level=3)
+            rep[table] = len(rows)
+            if st is not None:
+                st.update(reg.get("schema", "sap"), table, "cohort", rows_add=len(rows))
+            _p(f"  {table}: {len(rows)} Zeilen (Referenz, voll)")
 
         if not skip_reference:
             _p("Referenztabellen laden (voll, klein) ...")

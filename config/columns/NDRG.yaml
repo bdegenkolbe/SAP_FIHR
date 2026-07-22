@@ -1,0 +1,14 @@
+# Schmale Projektion NDRG (DRG-Gruppierungsergebnis, 36 Spalten -> 9).
+# ACHTUNG: ENGLISCHE Spaltennamen (R9): CLIENT/INSTITUTION/PATCASEID statt MANDT/EINRI/FALNR.
+table: NDRG
+schema: sap
+select:
+  - CLIENT
+  - INSTITUTION
+  - PATCASEID     # == FALNR
+  - DRG_SEQNO
+  - DRG_CODE      # z.B. F62B; Bezeichner via Leistungen_DRGs
+  - MDC_CODE
+  - COST_WEIGHT   # Bewertungsrelation (CMI-Basis)
+  - CANCEL_FLAG   # Storno-Aequivalent
+  - DRG_CREAT_DATE

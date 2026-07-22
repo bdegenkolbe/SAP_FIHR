@@ -150,7 +150,7 @@ NFAL/NBEW. → Profil-Layer `meta.profile`. *(P5.3; Medikation via COPRA P3.1)*
 **UC-Q1 — Zugriff nach Behandlungsbezug [B] 🔶** — Berechtigungskette live verifiziert
 (PA0105/90AD→PERNR→KOSTL→SETNODE ⇄ NOEK→NBEW); `authz`-Modul + P360-Gate umgesetzt;
 fehlt: Login-Fluss + Materialisierung im Nightly. *(ROADMAP Q4)*
-**UC-Q2 — KI-/MCP-Zugang [B] ✅** — 9 gehärtete MCP-Tools (Sandbox, Audit-Kette).
+**UC-Q2 — KI-/MCP-Zugang [B] 🔶** — 9 gehärtete MCP-Tools (Sandbox, Audit-Kette); FHIR-Tools laufen im Default-Ladeweg leer (FHIR-Export übersprungen, G6).
 **UC-Q3 — KHZG-/Interop-Konformität [A] ✅ (per Bauart)** — FHIR-Profile/IHE explizit
 in §19 Abs. 2 KHSFV; Caveat: Antragsfristen vorbei, Argument = Umsetzungspflicht/Sanktion.
 **UC-Q4 — QM / Pflegecontrolling / GF-Reporting [C] ⬜** — plausibel, extern unbelegt
@@ -162,7 +162,7 @@ in §19 Abs. 2 KHSFV; Caveat: Antragsfristen vorbei, Argument = Umsetzungspflich
 
 | Capability | UCs | Modul | Status |
 |---|---|---|---|
-| Datenpumpe read-only (Backfill+CDC, Lastfenster) | alle | Plattform | ✅ (Live-Lauf: Q1) |
+| Datenpumpe read-only (Backfill+CDC, Lastfenster) | alle | Plattform | 🔶 Backfill/Kohorte live; CDC nur als CLI, nicht im Ladeweg (G7) |
 | Privacy/Pseudonymisierung + Verkryptung | alle | Plattform | ✅ |
 | FHIR-NDJSON 16→22 Ressourcentypen | K1,F1–F3 | Plattform | 🔶 |
 | Authz-Kette + Row-Level + Audit | Q1 | Plattform | 🔶 |

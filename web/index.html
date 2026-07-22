@@ -186,8 +186,8 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
         <table id="pprob" class="stick"><thead><tr><th style="width:26px"></th><th>ICD</th><th>Text</th><th class="num">Nennungen</th><th>erstmals</th><th>zuletzt</th><th></th></tr></thead><tbody></tbody></table>
         <div style="text-align:center;margin-top:6px"><button id="pprobMore" class="tgl" style="display:none">Mehr anzeigen</button></div>
       </div>
-      <div class="card"><div class="hd"><h2>Fälle</h2><span class="sub">offene zuerst, dann nach Jahr</span></div>
-        <table id="pfaelle" class="stick"><thead><tr><th>Fall</th><th>Art</th><th>Zeitraum</th><th>Status</th></tr></thead><tbody></tbody></table>
+      <div class="card"><div class="hd"><h2>Fälle</h2><span class="sub">offene zuerst, dann nach Jahr · Jahreszeile klappt auf/zu</span></div>
+        <table id="pfaelle" class="stick"><thead><tr><th>Fall</th><th>Art</th><th>Zeitraum</th><th>Hauptdiagnose</th><th>DRG</th><th>Status</th></tr></thead><tbody></tbody></table>
       </div>
       <div class="card" id="plabCard"><div class="hd"><h2>Laborwert-Verläufe</h2><span class="sub">Referenzbereich als Band · <span style="color:var(--crit);font-weight:600">●</span> auffällig</span></div><div class="labgrid" id="plab"></div></div>
       <div class="card" id="ptlCard"><div class="hd"><h2>Zeitstrahl</h2>
@@ -520,24 +520,43 @@ async function loadP360(){
   };
   renderProb(20);
   $('#pprobMore').onclick=()=>renderProb(grp.length);
-  /* Faelle: offene zuerst, dann nach Jahr gruppiert; nie Sentinel-Rohwerte */
-  const fRow=f=>{const b=dfmt(f.BEGDT), e=dfmt(f.ENDDT);
-    return `<tr class="rowlink" data-falnr="${f.FALNR}" style="cursor:pointer">
+  /* Faelle: offene zuerst, dann nach Jahr KLAPPBAR gruppiert; HD + DRG je Fall */
+  const kurz=(s,n=42)=>{s=String(s||'').trim();return s.length>n?s.slice(0,n-1)+'…':s;};
+  const fRow=(f,grp)=>{const b=dfmt(f.BEGDT), e=dfmt(f.ENDDT);
+    return `<tr class="rowlink" data-falnr="${f.FALNR}" data-grp="${grp}" style="cursor:pointer">
       <td style="font-variant-numeric:tabular-nums">${f.FALNR}</td>
       <td>${falart(f.FALAR)}</td>
       <td style="font-variant-numeric:tabular-nums">${b||'—'} – ${f.offen?'laufend':(e||'—')}</td>
+      <td title="${f.hd_text||''}">${f.hd_icd?`<b style="font-variant-numeric:tabular-nums">${f.hd_icd}</b> ${kurz(f.hd_text,34)}`:'—'}</td>
+      <td title="${f.drg_bez||''}">${f.drg?`<b style="font-variant-numeric:tabular-nums">${f.drg}</b> ${kurz(f.drg_bez,34)}`:'—'}</td>
       <td>${f.offen?'<span class="badge open">offen</span>':'abgeschlossen'}</td></tr>`;};
+  const grpRow=(id,label,n)=>`<tr class="grp expandable" data-grpid="${id}">
+      <td colspan="6"><span class="caret">▶</span> ${label} (${n})</td></tr>`;
   const offene=d.faelle.filter(f=>f.offen)
     .sort((a,b)=>String(b.BEGDT).localeCompare(String(a.BEGDT)));
   const zu=d.faelle.filter(f=>!f.offen)
     .sort((a,b)=>String(b.BEGDT).localeCompare(String(a.BEGDT)));
+  const jahre={};zu.forEach(f=>{const d10=dfmt(f.BEGDT);
+    const y=d10?d10.slice(0,4):'unbekannt';(jahre[y]=jahre[y]||[]).push(f);});
+  /* numerische Jahre absteigend, 'unbekannt' ganz hinten */
+  const jahrKeys=Object.keys(jahre).sort((a,b)=>{
+    if(a==='unbekannt')return 1; if(b==='unbekannt')return -1;
+    return b.localeCompare(a);});
   let html='';
-  if(offene.length)html+=`<tr class="grp"><td colspan="4">offen (${offene.length})</td></tr>`+offene.map(fRow).join('');
-  let curYear=null;
-  zu.forEach(f=>{const y=(dfmt(f.BEGDT)||'unbekannt').slice(0,4);
-    if(y!==curYear){curYear=y;html+=`<tr class="grp"><td colspan="4">${y}</td></tr>`;}
-    html+=fRow(f);});
+  if(offene.length)html+=grpRow('offen','offen',offene.length)+offene.map(f=>fRow(f,'offen')).join('');
+  jahrKeys.forEach(y=>{html+=grpRow(y,y,jahre[y].length)+jahre[y].map(f=>fRow(f,y)).join('');});
   $('#pfaelle tbody').innerHTML=html;
+  /* Default: 'offen' + neuestes echtes Jahr offen, aeltere zugeklappt */
+  const openGrps=new Set(['offen',jahrKeys.find(y=>y!=='unbekannt')].filter(Boolean));
+  const applyGrps=()=>{
+    $('#pfaelle tbody').querySelectorAll('tr[data-grp]').forEach(tr=>
+      tr.style.display=openGrps.has(tr.dataset.grp)?'':'none');
+    $('#pfaelle tbody').querySelectorAll('tr.grp').forEach(tr=>
+      tr.classList.toggle('open',openGrps.has(tr.dataset.grpid)));};
+  applyGrps();
+  $('#pfaelle tbody').querySelectorAll('tr.grp').forEach(tr=>tr.onclick=()=>{
+    const id=tr.dataset.grpid;
+    openGrps.has(id)?openGrps.delete(id):openGrps.add(id);applyGrps();});
   $('#pfaelle tbody').querySelectorAll('tr[data-falnr]').forEach(tr=>
     tr.onclick=()=>loadFall(tr.dataset.falnr));
   /* Labor: Panel NUR zeigen, wenn Daten vorhanden (keine leeren Gefaesse) */

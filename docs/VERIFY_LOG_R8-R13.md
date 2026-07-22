@@ -512,6 +512,29 @@ Verschlucken (except -> []) macht solche Bugs unsichtbar; DQ-seitig erkennbar nu
 
 ---
 
+## R27 — NDRG + DRG-Katalog in der Kohorte; drei Folgebugs gefixt
+
+Nutzeranforderung: Faelle-Sektion mit Hauptdiagnose + DRG inkl. Bezeichner, Jahre klappbar.
+Umsetzung: NDRG in COHORT_KEY (PATCASEID==FALNR, MANDT-Spalte=CLIENT — englische Spalten,
+R9) + neuer Referenzpfad fuer Nicht-SAP-Tabellen ohne MANDT (`Leistungen_DRGs`, 35.295
+Zeilen Katalog). mcp.drg (36.285) + mcp.drg_katalog; API reichert faelle um hd_icd/hd_text
+(arg_max KHDIA='X') und drg/drg_bez/bwr an; UI mit klappbaren Jahresgruppen.
+
+**Drei Live-Befunde:**
+1. `gold.casemix` (build.py) nutzte `UPDAT` — NDRG hat aber englische Spalten; der Mart
+   war seit jeher kaputt und fiel erst beim ERSTEN echten NDRG-Load auf. Fix:
+   DRG_CREAT_DATE/COST_WEIGHT/CANCEL_FLAG; liefert jetzt echten Casemix/CMI je Jahr.
+2. `mcp/views._select_list` verglich Spalten case-sensitiv gegen ein UPPER-Set —
+   gemischtgeschriebene Spalten (DRG_Bezeichnung, DRG_gueltig_von) fielen STUMM aus der
+   mcp-Schicht. Fix: upper()-Vergleich, Original-Case im SELECT.
+3. Katalog-Schluesselformat entschluesselt: `DRG`+<Katalogjahr 2-stellig>+<Kode>
+   (DRG23H41C) — Join via substr(DRG,6), juengstes Jahr per substr(DRG,4,2) gewinnt.
+
+Verifiziert im DOM: "K83.1 Gallengangsverschluss | H41D Andere aufwendige ERCP...",
+Jahresgruppen offen(9)/2026/.../unbekannt klapp- und default-korrekt. 88 Tests gruen.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

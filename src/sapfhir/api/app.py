@@ -355,6 +355,37 @@ if app:
             "       IN ('0101','9999') THEN 1 ELSE 0 END AS offen "
             "FROM mcp.fall WHERE PATNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
             "ORDER BY BEGDT DESC LIMIT 50", [patnr])
+        # Anreicherung je Fall: Hauptdiagnose + DRG (mit Bezeichner aus dem Katalog).
+        # mcp.drg/drg_katalog existieren erst nach einem Kohorten-Lauf mit NDRG —
+        # deshalb defensiv (R26-Muster: Existenz pruefen statt UNION-Blindflug).
+        hd = {r["FALNR"]: r for r in _q(
+            "SELECT d.FALNR, arg_max(d.DKEY1, d.DIADT) AS hd_icd, "
+            "  arg_max(NULLIF(TRIM(d.DITXT),''), d.DIADT) AS hd_text "
+            "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
+            "WHERE f.PATNR = ? AND d.KHDIA = 'X' "
+            "  AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
+            "GROUP BY d.FALNR", [patnr])}
+        drg = {r["FALNR"]: r for r in _q(
+            "SELECT g.PATCASEID AS FALNR, "
+            "  arg_max(g.DRG_CODE, g.DRG_SEQNO) AS drg, "
+            "  arg_max(g.COST_WEIGHT, g.DRG_SEQNO) AS bwr "
+            "FROM mcp.drg g JOIN mcp.fall f ON f.FALNR = g.PATCASEID "
+            "WHERE f.PATNR = ? AND COALESCE(TRIM(g.CANCEL_FLAG),'') NOT IN ('X','1') "
+            "GROUP BY g.PATCASEID", [patnr])}
+        # Katalog-Schluessel = 'DRG'+<Katalogjahr 2-stellig>+<Kode> (z.B. DRG23H41C,
+        # R27 live entschluesselt) -> Kode extrahieren, juengstes Jahr gewinnt.
+        kat = {r["code"]: (r["bez"] or "").strip() for r in _q(
+            "SELECT substr(DRG, 6) AS code, "
+            "  arg_max(DRG_Bezeichnung, substr(DRG, 4, 2)) AS bez "
+            "FROM mcp.drg_katalog WHERE DRG LIKE 'DRG%' GROUP BY 1")} if drg else {}
+        for f in faelle:
+            h = hd.get(f["FALNR"], {})
+            g = drg.get(f["FALNR"], {})
+            f["hd_icd"] = h.get("hd_icd")
+            f["hd_text"] = h.get("hd_text")
+            f["drg"] = g.get("drg")
+            f["drg_bez"] = kat.get(g.get("drg"))
+            f["bwr"] = g.get("bwr")
         diagnosen = _q(
             "SELECT d.DIADT, d.DKEY1, d.DITXT, d.KHDIA, d.FALNR "
             "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "

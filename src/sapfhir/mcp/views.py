@@ -36,6 +36,14 @@ _SPEC = {
     "ndoc": ("dokument",
              ["MANDT", "EINRI", "DOKAR", "DOKNR", "DOKVR", "DOKTL", "LFDDOK",
               "PATNR", "FALNR", "DTID", "MEDOK", "DODAT", "STORN"]),
+    # DRG-Ergebnis je Fall (NDRG: ENGLISCHE Spalten, PATCASEID==FALNR, R9/R27)
+    "ndrg": ("drg",
+             ["CLIENT", "INSTITUTION", "PATCASEID", "DRG_SEQNO", "DRG_CODE",
+              "MDC_CODE", "COST_WEIGHT", "CANCEL_FLAG", "DRG_CREAT_DATE"]),
+    # DRG-Textkatalog (UKL-Referenzdaten, kein Personenbezug)
+    "leistungen_drgs": ("drg_katalog",
+             ["DRG", "DRG_Bezeichnung", "DRG_BWR",
+              "DRG_gueltig_von", "DRG_gueltig_bis"]),
 }
 
 
@@ -44,7 +52,10 @@ def _select_list(avail: set[str], cols: list[str], pseudonymize: bool) -> list[s
     for c in cols:
         masked = c.startswith("~")
         name = c.lstrip("~")
-        if name not in avail:
+        # avail ist UPPER-normalisiert; Spec-Namen koennen gemischtgeschrieben
+        # sein (Nicht-SAP-Referenztabellen wie Leistungen_DRGs.DRG_Bezeichnung,
+        # R27) — sonst fallen genau diese Spalten stumm aus der mcp-Schicht.
+        if name.upper() not in avail:
             continue
         if masked and pseudonymize:
             if name == "GBDAT":   # nur Geburtsjahr
