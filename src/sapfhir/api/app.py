@@ -363,11 +363,19 @@ if app:
         # EINE Zeile je Fall via QUALIFY (Review-Fix: arg_max-Aggregate liefen
         # unabhaengig und konnten hd_icd/hd_text/ist_hd aus VERSCHIEDENEN Zeilen
         # mischen; NULL-KHDIA sortierte in DuckDB-Structs zudem VOR 'X').
+        # Kodetext-Fallback aus ref.icd (NKDI), wenn DITXT leer ist — Rohcode ohne
+        # Text ist unlesbar; der Katalog deckt auch Altkataloge (ICD-9) ab.
+        # ref.icd ist NICHT je DKEY eindeutig (390k Zeilen / 28,7k Kodes, bis 26
+        # Katalogversionen) -> vorher deduplizieren (juengster DKAT gewinnt), sonst
+        # vervielfacht der Join das Zwischenergebnis und der Text ist zufaellig.
         hd = {r["FALNR"]: r for r in _q(
+            "WITH icd AS (SELECT TRIM(DKEY) AS dkey, arg_max(\"TEXT\", DKAT) AS txt "
+            "             FROM ref.icd GROUP BY 1) "
             "SELECT d.FALNR, d.DKEY1 AS hd_icd, "
-            "  NULLIF(TRIM(d.DITXT),'') AS hd_text, "
+            "  COALESCE(NULLIF(TRIM(d.DITXT),''), NULLIF(TRIM(k.txt),'')) AS hd_text, "
             "  (COALESCE(d.KHDIA,'')='X') AS ist_hd "
             "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
+            "LEFT JOIN icd k ON k.dkey = TRIM(d.DKEY1) "
             "WHERE f.PATNR = ? "
             "  AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
             "QUALIFY row_number() OVER (PARTITION BY d.FALNR "

@@ -187,7 +187,7 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
         <div style="text-align:center;margin-top:6px"><button id="pprobMore" class="tgl" style="display:none">Mehr anzeigen</button></div>
       </div>
       <div class="card"><div class="hd"><h2>Fälle</h2><span class="sub">offene zuerst, dann nach Jahr · Jahreszeile klappt auf/zu</span></div>
-        <table id="pfaelle" class="stick"><thead><tr><th>Fall</th><th>Art</th><th>Zeitraum</th><th>Hauptdiagnose</th><th>DRG</th><th>Status</th></tr></thead><tbody></tbody></table>
+        <table id="pfaelle" class="stick"><thead><tr><th>Fall</th><th>Art</th><th>Zeitraum</th><th>Fachbereich / Station</th><th>Diagnose</th><th>DRG</th><th>Status</th></tr></thead><tbody></tbody></table>
       </div>
       <div class="card" id="plabCard"><div class="hd"><h2>Laborwert-Verläufe</h2><span class="sub">Referenzbereich als Band · <span style="color:var(--crit);font-weight:600">●</span> auffällig</span></div><div class="labgrid" id="plab"></div></div>
       <div class="card" id="ptlCard"><div class="hd"><h2>Zeitstrahl</h2>
@@ -523,15 +523,26 @@ async function loadP360(){
   /* Faelle: offene zuerst, dann nach Jahr KLAPPBAR gruppiert; HD + DRG je Fall */
   const kurz=(s,n=42)=>{s=String(s||'').trim();return s.length>n?s.slice(0,n-1)+'…':s;};
   const fRow=(f,grp)=>{const b=dfmt(f.BEGDT), e=dfmt(f.ENDDT);
+    /* Fachbereich/Station aus der juengsten Bewegung; Station nur zeigen, wenn
+       sie sich vom Fachbereich unterscheidet (sonst doppelt derselbe Text) */
+    const fa=f.fach_name||f.fach, st=f.station_name||f.station;
+    const oeTxt = fa && st && st!==fa ? `${kurz(fa,26)}<br><span style="color:var(--mut)">${kurz(st,26)}</span>`
+                : (fa||st ? kurz(fa||st,26) : '—');
+    /* Diagnose: HD hervorgehoben, Fallback-Diagnose (ambulant) dezent markiert */
+    const dTxt = f.hd_icd
+      ? `<b style="font-variant-numeric:tabular-nums">${f.hd_icd}</b> ${kurz(f.hd_text,30)}`
+        + (f.ist_hd?'':' <span style="color:var(--mut);font-size:11px">(keine HD)</span>')
+      : '—';
     return `<tr class="rowlink" data-falnr="${f.FALNR}" data-grp="${grp}" style="cursor:pointer">
       <td style="font-variant-numeric:tabular-nums">${f.FALNR}</td>
       <td>${falart(f.FALAR)}</td>
       <td style="font-variant-numeric:tabular-nums">${b||'—'} – ${f.offen?'laufend':(e||'—')}</td>
-      <td title="${f.hd_text||''}">${f.hd_icd?`<b style="font-variant-numeric:tabular-nums">${f.hd_icd}</b> ${kurz(f.hd_text,34)}`:'—'}</td>
-      <td title="${f.drg_bez||''}">${f.drg?`<b style="font-variant-numeric:tabular-nums">${f.drg}</b> ${kurz(f.drg_bez,34)}`:'—'}</td>
+      <td title="${[fa,st].filter(Boolean).join(' · ')}">${oeTxt}</td>
+      <td title="${f.hd_text||''}">${dTxt}</td>
+      <td title="${f.drg_bez||''}">${f.drg?`<b style="font-variant-numeric:tabular-nums">${f.drg}</b> ${kurz(f.drg_bez,30)}`:'—'}</td>
       <td>${f.offen?'<span class="badge open">offen</span>':'abgeschlossen'}</td></tr>`;};
   const grpRow=(id,label,n)=>`<tr class="grp expandable" data-grpid="${id}">
-      <td colspan="6"><span class="caret">▶</span> ${label} (${n})</td></tr>`;
+      <td colspan="7"><span class="caret">▶</span> ${label} (${n})</td></tr>`;
   const offene=d.faelle.filter(f=>f.offen)
     .sort((a,b)=>String(b.BEGDT).localeCompare(String(a.BEGDT)));
   const zu=d.faelle.filter(f=>!f.offen)
@@ -665,8 +676,11 @@ async function loadFall(falnr){
   $('#fdTitle').textContent='Fall '+k.FALNR;
   $('#fdBadges').innerHTML=(k.offen?'<span class="badge open">offen</span>':'')+
     `<span class="badge">${falart(k.FALAR)}</span>`;
+  /* Fachbereich/Station aus der letzten Bewegung der Kette (NFAL.FACHR ist im Haus
+     tot — Methodik-Regel: Wahrheit steht in NBEW) */
+  const letzte=(d.bewegungen||[]).filter(r=>r.oe_name||r.oe).slice(-1)[0];
   $('#fdMeta').textContent=`${b||'—'} – ${k.offen?'laufend':(e||'—')}`+
-    (k.FACHR&&k.FACHR.trim()?` · Fachrichtung ${k.FACHR}`:'');
+    (letzte?` · ${letzte.oe_name||letzte.oe}`:'');
   /* MDM-Verbund: Deep-Link auf die Schwester-App (GESAMTKONZEPT §5) */
   $('#fdMdm').href='http://127.0.0.1:8492/#fall/'+encodeURIComponent(k.FALNR);
   $('#fdBew tbody').innerHTML=(d.bewegungen||[]).map(r=>{
