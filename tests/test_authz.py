@@ -147,3 +147,37 @@ def test_whoami():
     assert az.whoami("MC")["sieht_alle"] is True
     assert az.whoami("MUELLER")["scope"] == "DEPT"
     assert az.whoami("x")["scope"] == "NONE"
+
+
+# ---------- R31: Zeitscheiben — abgelaufene HR-Zuordnungen duerfen NICHT berechtigen ----------
+
+def test_duckdb_backend_filtert_abgelaufene_zeitscheiben(tmp_path):
+    """PA0105/PA0001 sind historisiert. Ein ausgeschiedener Login bzw. eine alte
+    Kostenstellen-Zuordnung darf keinen Zugriff mehr geben (live gemessen: ohne
+    Filter sah ein Mitarbeiter 20 statt 1 Kostenstelle)."""
+    import duckdb
+    from sapfhir.authz.service import DuckDBBackend
+    db = str(tmp_path / "wh.duckdb")
+    con = duckdb.connect(db)
+    con.execute("CREATE SCHEMA auth")
+    con.execute("CREATE TABLE auth.login_pernr (login VARCHAR, PERNR VARCHAR, "
+                "begda DATE, endda DATE)")
+    con.execute("CREATE TABLE auth.pernr_kostl (PERNR VARCHAR, kostl VARCHAR, "
+                "orgeh VARCHAR, begda DATE, endda DATE)")
+    con.execute("INSERT INTO auth.login_pernr VALUES "
+                "('AKTIV','1',DATE '2020-01-01',DATE '9999-12-31'),"
+                "('RAUS','2',DATE '2015-01-01',DATE '2019-12-31')")   # ausgeschieden
+    con.execute("INSERT INTO auth.pernr_kostl VALUES "
+                "('1','K_HEUTE','O1',DATE '2024-01-01',DATE '9999-12-31'),"
+                "('1','K_ALT','O9',DATE '2010-01-01',DATE '2012-12-31'),"   # abgelaufen
+                "('2','K_EGAL','O2',DATE '2015-01-01',DATE '9999-12-31')")
+    con.close()
+
+    be = DuckDBBackend(db)
+    assert be.employee_kostl("AKTIV") == {"K_HEUTE"}, "alte Zuordnung darf nicht zaehlen"
+    assert be.employee_kostl("RAUS") == set(), "ausgeschiedener Login darf nichts sehen"
+
+    # Und ueber den vollen Service: kein Zugriff fuer den Ausgeschiedenen
+    az = Authz(be, roles={"AKTIV": "abteilung", "RAUS": "abteilung"}, expand=False)
+    assert az.visible_kostl("AKTIV") == {"K_HEUTE"}
+    assert az.visible_kostl("RAUS") == set()

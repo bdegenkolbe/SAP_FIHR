@@ -57,9 +57,20 @@ class DuckDBBackend:
             con.close()
 
     def employee_kostl(self, login: str) -> set[str]:
+        """Kostenstellen des Mitarbeiters — NUR heute gueltige Zeitscheiben.
+
+        R31-Befund: PA0105/PA0001 sind historisiert (37.838 Login-Zeilen fuer 25.701
+        Kennungen; 292.133 ABGELAUFENE Kostenstellen-Zuordnungen). Ohne
+        Gueltigkeitsfilter berechtigen ausgeschiedene Mitarbeitende und
+        Alt-Zuordnungen von vor Jahren weiter (gemessen: 20 statt 1 Kostenstelle) —
+        das Konzept fordert ausdruecklich zeitscheibenbasierte Joins.
+        """
         rows = self._q(
             "SELECT DISTINCT k.kostl FROM auth.login_pernr l "
-            "JOIN auth.pernr_kostl k USING (PERNR) WHERE l.login = ?",
+            "JOIN auth.pernr_kostl k USING (PERNR) "
+            "WHERE l.login = ? "
+            "  AND l.begda <= CURRENT_DATE AND l.endda >= CURRENT_DATE "
+            "  AND k.begda <= CURRENT_DATE AND k.endda >= CURRENT_DATE",
             [str(login).upper()])
         return {r[0] for r in rows if r[0]}
 

@@ -626,6 +626,38 @@ HTML-escaped — ein `"` oder `<` in einem OE-Namen zerlegte vorher Attribut und
 
 ---
 
+## R31 — Zeitscheiben-Filter fehlte: abgelaufene HR-Zuordnungen berechtigten weiter
+
+Anlass war eine Nutzerfrage zur Zahl „37.838 Logins" in den Auth-Marts. Die Zahl selbst
+ist unkritisch (PA0105 ist historisiert: 37.838 Zeitscheiben fuer **25.701** verschiedene
+AD-Kennungen, 18.216 davon mit genau einer Scheibe). **Bei der Pruefung fiel aber ein
+echter Sicherheitsfehler auf:** `DuckDBBackend.employee_kostl` jointe login_pernr ×
+pernr_kostl OHNE Gueltigkeitsfilter — obwohl `authz/sql.py` die Zeitscheiben
+(BEGDA/ENDDA) ausdruecklich mitfuehrt und das Konzept „alle Joins zeitscheibenbasiert"
+fordert.
+
+**Ausmass live gemessen:** 3.486 abgelaufene Login-Zeilen und **292.133 abgelaufene
+Kostenstellen-Zuordnungen** flossen in die Berechtigung. Folge: ausgeschiedene
+Mitarbeitende behielten ihre Sicht, und Alt-Zuordnungen von vor Jahren zaehlten mit —
+ein Beispiel-Login sah **20 statt 1** Kostenstelle.
+
+**Fix:** `employee_kostl` filtert jetzt beide Seiten auf
+`begda <= CURRENT_DATE <= endda`. Verifiziert: derselbe Login sieht **1 statt 20**
+Kostenstellen; Regressionstest mit echter DuckDB-Datei (aktiver vs. ausgeschiedener
+Login, gueltige vs. abgelaufene Zuordnung) — 94 Tests gruen.
+
+**Bewusst NICHT geaendert:** `auth.fall_kostl` (Patientenseite) joint NBEW-Bewegung ×
+NOEK ohne Stichtagsbezug. Dort ist die historische Zuordnung teils korrekt (der Fall lag
+damals in dieser OE); eine sauber zeitpunktbezogene Aufloesung (OE→KOSTL zum
+Bewegungsdatum) ist ein eigenes Arbeitspaket — als G11 in der ROADMAP vermerkt.
+
+**Lehre:** Grosse Zahlen in HR-/Stammdatenmarts sind fast immer Historisierung, kein
+Fehler — aber sie sind ein Anlass, den Gueltigkeitsfilter zu pruefen. Hier hat die
+Rueckfrage des Nutzers einen Fehler aufgedeckt, den kein Test und kein Review gefunden
+hatte.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;
