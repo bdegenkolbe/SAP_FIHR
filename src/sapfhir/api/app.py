@@ -30,8 +30,13 @@ _AZCFG = CFG.get("authz", {}) if isinstance(CFG, dict) else {}
 AUTHZ_ENABLED = bool(_AZCFG.get("enabled", False))
 try:
     from sapfhir.authz.service import Authz, DuckDBBackend
+    from sapfhir.authz import resolver as _azres
     AUTHZ = Authz(DuckDBBackend(WAREHOUSE), roles=_AZCFG.get("roles", {}),
-                  expand=bool(_AZCFG.get("expand", True)))
+                  expand=bool(_AZCFG.get("expand", True)),
+                  max_set_leaves=int(_AZCFG.get("max_set_leaves",
+                                                _azres.MAX_DEPT_SET_LEAVES)),
+                  max_union_leaves=int(_AZCFG.get("max_union_leaves",
+                                                  _azres.MAX_UNION_LEAVES)))
 except Exception:
     AUTHZ = None
 
@@ -363,19 +368,22 @@ if app:
         # EINE Zeile je Fall via QUALIFY (Review-Fix: arg_max-Aggregate liefen
         # unabhaengig und konnten hd_icd/hd_text/ist_hd aus VERSCHIEDENEN Zeilen
         # mischen; NULL-KHDIA sortierte in DuckDB-Structs zudem VOR 'X').
-        # Kodetext-Fallback aus ref.icd (NKDI), wenn DITXT leer ist — Rohcode ohne
-        # Text ist unlesbar; der Katalog deckt auch Altkataloge (ICD-9) ab.
-        # ref.icd ist NICHT je DKEY eindeutig (390k Zeilen / 28,7k Kodes, bis 26
-        # Katalogversionen) -> vorher deduplizieren (juengster DKAT gewinnt), sonst
-        # vervielfacht der Join das Zwischenergebnis und der Text ist zufaellig.
+        # Kodetext-Fallback aus ref.icd (NKDI), wenn DITXT leer ist. Join ueber
+        # (DKAT1, DKEY1) — NDIA fuehrt den Katalog je Diagnose selbst; ein Join nur
+        # ueber den Kode traf sonst z.B. bei C-Kodes den ICD-O-Katalog '90'
+        # (Topographie) statt ICD-10-GM (R30). ref.icd optional -> Existenzcheck,
+        # sonst reisst ein fehlender NKDI-Load die ganze Diagnose-Spalte mit.
+        hat_icd = bool(_q("SELECT 1 FROM information_schema.tables "
+                          "WHERE table_schema='ref' AND table_name='icd'"))
+        txt_expr = ("COALESCE(NULLIF(TRIM(d.DITXT),''), NULLIF(TRIM(k.\"TEXT\"),''))"
+                    if hat_icd else "NULLIF(TRIM(d.DITXT),'')")
+        icd_join = ("LEFT JOIN ref.icd k ON TRIM(k.DKAT) = TRIM(d.DKAT1) "
+                    "  AND TRIM(k.DKEY) = TRIM(d.DKEY1) " if hat_icd else "")
         hd = {r["FALNR"]: r for r in _q(
-            "WITH icd AS (SELECT TRIM(DKEY) AS dkey, arg_max(\"TEXT\", DKAT) AS txt "
-            "             FROM ref.icd GROUP BY 1) "
-            "SELECT d.FALNR, d.DKEY1 AS hd_icd, "
-            "  COALESCE(NULLIF(TRIM(d.DITXT),''), NULLIF(TRIM(k.txt),'')) AS hd_text, "
+            f"SELECT d.FALNR, d.DKEY1 AS hd_icd, {txt_expr} AS hd_text, "
             "  (COALESCE(d.KHDIA,'')='X') AS ist_hd "
             "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
-            "LEFT JOIN icd k ON k.dkey = TRIM(d.DKEY1) "
+            f"{icd_join}"
             "WHERE f.PATNR = ? "
             "  AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
             "QUALIFY row_number() OVER (PARTITION BY d.FALNR "

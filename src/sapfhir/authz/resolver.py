@@ -54,10 +54,14 @@ def leaves_of(setleaf: Iterable[tuple[str, str]], sets: Iterable[str]) -> set[st
 # und Testgruppen (z.B. TEST_PFL mit 1.964 Kostenstellen, persoenliche Berichtssets).
 # Wer in so einem Set steckt, ist NICHT fuer alle darin enthaltenen OEs zustaendig.
 MAX_DEPT_SET_LEAVES = 60
+# Harte Obergrenze auf die GESAMTE Sichtmenge (Review-Fund: viele kleine Kindsets
+# summieren sich sonst wieder zum halben Haus).
+MAX_UNION_LEAVES = 250
 
 
 def department_kostl(setnode_edges, setleaf, employee_kostl, *, expand: bool = True,
-                     max_set_leaves: int = MAX_DEPT_SET_LEAVES) -> set[str]:
+                     max_set_leaves: int = MAX_DEPT_SET_LEAVES,
+                     max_union_leaves: int = MAX_UNION_LEAVES) -> set[str]:
     """Kostenstellenmenge, die ein Mitarbeiter sehen darf (fail-closed).
 
     1. Je Mitarbeiter-Kostenstelle die **spezifischste** Gruppe waehlen: das kleinste
@@ -93,15 +97,29 @@ def department_kostl(setnode_edges, setleaf, employee_kostl, *, expand: bool = T
     if not groups:
         return set(emp)  # keine geeignete Gruppe -> nur eigene Kostenstellen
 
-    # (2) Rollup nach unten, Groessengrenze bleibt wirksam
+    # (2) Rollup nach unten — aber NICHT durch uebergrosse Knoten hindurch: ein
+    # kleines Set mit vielen kleinen Kindsets wuerde sonst wieder das halbe Haus
+    # freigeben (Review-Fund zu R29). Deshalb eigene Traversierung, die an einem
+    # zu grossen Knoten abbricht, plus harte Obergrenze auf die VEREINIGUNG.
     if expand:
         adj = build_adjacency(setnode_edges)
-        groups = {s for s in descendant_sets(adj, groups) if _ok(s)}
+        seen: set[str] = set()
+        stack = list(groups)
+        while stack:
+            s = stack.pop()
+            if s in seen or not _ok(s):
+                continue
+            seen.add(s)
+            stack.extend(adj.get(s, ()))
+        groups = seen
 
-    # (3) Blaetter der zugelassenen Sets
+    # (3) Blaetter der zugelassenen Sets; Vereinigung ebenfalls begrenzt
     out: set[str] = set(emp)
-    for s in groups:
-        out |= leaves_by_set.get(s, set())
+    for s in sorted(groups, key=lambda s: len(leaves_by_set.get(s, ()))):
+        kandidat = out | leaves_by_set.get(s, set())
+        if len(kandidat) > max_union_leaves:
+            continue          # Set wuerde die Gesamtsicht sprengen -> auslassen
+        out = kandidat
     return out
 
 

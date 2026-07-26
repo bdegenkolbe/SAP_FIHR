@@ -594,6 +594,38 @@ war von Anfang an gruen.
 
 ---
 
+## R30 — Review-Nachlauf: ICD-Katalogtreue, Rest-Fail-Open, Escaping
+
+**ICD-Textauflösung war katalogblind (eigene Regression aus R29-Nachlauf):** Der
+Fallback nahm `arg_max(TEXT, DKAT)` und jointe nur ueber den Kode. NKDI fuehrt aber
+Kataloge '01'..'56' (ICD-10-GM-Jahrgaenge), **'90' = ICD-O-Topographie** und 'S1'..'SK';
+fuer 307 Kodes weichen '56' und '90' im Text ab. Folge: C-Kodes zeigten die
+Topographie-Bezeichnung ("Brust (mehrere Teilregionen ueberlappend)") statt der
+ICD-10-Diagnose. **Fix:** NDIA fuehrt mit `DKAT1` den Katalog je Diagnose selbst —
+Join jetzt ueber (DKAT1, DKEY1); `DKAT1/DKAT2` dafuer in die `mcp.diagnose`-Spec
+aufgenommen. Live: C50.8 -> "Boesartige Neubildung: Brustdruese..." (korrekt).
+Zusaetzlich Existenzcheck auf `ref.icd` (R26-Muster) — ohne NKDI-Load riss der
+ungeschuetzte Join sonst die GESAMTE Diagnose-Spalte auf "—".
+
+**Rest-Fail-Open im Rollup geschlossen:** Die R29-Groessengrenze wirkte nur je Set;
+`descendant_sets` lief durch uebergrosse Knoten hindurch (nachgestellt: 2-Blatt-Set mit
+100 kleinen Kindsets -> 5.002 Kostenstellen; live gab `GK_VORKST` 52 KOSTL frei).
+**Fix:** eigene Traversierung, die an einem uebergrossen Knoten ABBRICHT, plus harte
+Obergrenze auf die VEREINIGUNG (`MAX_UNION_LEAVES=250`). Beide Grenzen jetzt ueber
+`authz.max_set_leaves` / `authz.max_union_leaves` konfigurierbar (Haeuser mit legitim
+grossen Abteilungsgruppen fallen nicht mehr still auf "nur eigene Kostenstelle").
+
+**Regressionstests verschaerft:** Die drei R29-Tests blieben mit `max_set_leaves=10**9`
+gruen (die Spezifitaetsregel entschied vorher) — sie haetten eine Rueckkehr des
+Fail-Open NICHT bemerkt. Jetzt: Grenze nachweisbar wirksam (gleiche Struktur, nur die
+Grenze unterscheidet sich), Rollup-Abbruch am uebergrossen Knoten, Vereinigungsgrenze.
+93 Tests gruen.
+
+**Escaping:** Katalogtexte (ref.oe/ref.icd/Freitexte) werden im Frontend jetzt
+HTML-escaped — ein `"` oder `<` in einem OE-Namen zerlegte vorher Attribut und Zeile.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

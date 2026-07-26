@@ -499,7 +499,7 @@ async function loadP360(){
       <tr class="expandable" data-icd="${g.DKEY1}" data-i="${i}">
         <td><span class="caret">▶</span></td>
         <td style="font-variant-numeric:tabular-nums;font-weight:600">${g.DKEY1}</td>
-        <td>${g.text||'—'}</td>
+        <td>${esc(g.text||'—')}</td>
         <td class="num">${g.n}</td>
         <td style="font-variant-numeric:tabular-nums">${dfmt(g.erst)||'—'}</td>
         <td style="font-variant-numeric:tabular-nums">${dfmt(g.letzt)||'—'}</td>
@@ -521,7 +521,12 @@ async function loadP360(){
   renderProb(20);
   $('#pprobMore').onclick=()=>renderProb(grp.length);
   /* Faelle: offene zuerst, dann nach Jahr KLAPPBAR gruppiert; HD + DRG je Fall */
-  const kurz=(s,n=42)=>{s=String(s||'').trim();return s.length>n?s.slice(0,n-1)+'…':s;};
+  /* HTML-Escape fuer Katalogtexte (ref.oe/ref.icd): ein " oder < im Namen wuerde
+     sonst Attribute/Zellen zerlegen (Review-Fund) */
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>(
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const kurz=(s,n=42)=>{s=String(s||'').trim();
+    return esc(s.length>n?s.slice(0,n-1)+'…':s);};
   const fRow=(f,grp)=>{const b=dfmt(f.BEGDT), e=dfmt(f.ENDDT);
     /* Fachbereich/Station aus der juengsten Bewegung; Station nur zeigen, wenn
        sie sich vom Fachbereich unterscheidet (sonst doppelt derselbe Text) */
@@ -537,9 +542,9 @@ async function loadP360(){
       <td style="font-variant-numeric:tabular-nums">${f.FALNR}</td>
       <td>${falart(f.FALAR)}</td>
       <td style="font-variant-numeric:tabular-nums">${b||'—'} – ${f.offen?'laufend':(e||'—')}</td>
-      <td title="${[fa,st].filter(Boolean).join(' · ')}">${oeTxt}</td>
-      <td title="${f.hd_text||''}">${dTxt}</td>
-      <td title="${f.drg_bez||''}">${f.drg?`<b style="font-variant-numeric:tabular-nums">${f.drg}</b> ${kurz(f.drg_bez,30)}`:'—'}</td>
+      <td title="${esc([fa,st].filter(Boolean).join(' · '))}">${oeTxt}</td>
+      <td title="${esc(f.hd_text||'')}">${dTxt}</td>
+      <td title="${esc(f.drg_bez||'')}">${f.drg?`<b style="font-variant-numeric:tabular-nums">${f.drg}</b> ${kurz(f.drg_bez,30)}`:'—'}</td>
       <td>${f.offen?'<span class="badge open">offen</span>':'abgeschlossen'}</td></tr>`;};
   const grpRow=(id,label,n)=>`<tr class="grp expandable" data-grpid="${id}">
       <td colspan="7"><span class="caret">▶</span> ${label} (${n})</td></tr>`;
@@ -687,20 +692,20 @@ async function loadFall(falnr){
     const von=dfmt(r.BWIDT), bis=dfmt(r.BWEDT);
     return `<tr><td style="font-variant-numeric:tabular-nums">${von||'—'}</td>
       <td style="font-variant-numeric:tabular-nums">${bis||(k.offen?'laufend':'—')}</td>
-      <td>${r.typ_text||('Typ '+r.BEWTY)}${r.BWART&&r.BWART.trim()?' ('+r.BWART+')':''}</td>
-      <td>${r.oe_name||r.oe||'—'}</td></tr>`;}).join('')
+      <td>${esc(r.typ_text||('Typ '+r.BEWTY))}${r.BWART&&r.BWART.trim()?' ('+esc(r.BWART)+')':''}</td>
+      <td>${esc(r.oe_name||r.oe||'—')}</td></tr>`;}).join('')
     ||'<tr><td colspan="4" style="color:var(--mut)">keine Bewegungen</td></tr>';
   $('#fdDiaSect').style.display=(d.diagnosen||[]).length?'':'none';
   $('#fdDia tbody').innerHTML=(d.diagnosen||[]).map(r=>
     `<tr><td style="font-variant-numeric:tabular-nums">${dfmt(r.DIADT)||'—'}</td>
      <td style="font-variant-numeric:tabular-nums;font-weight:600">${r.DKEY1||''}</td>
-     <td>${r.DITXT||'—'}</td>
+     <td>${esc(r.DITXT||'—')}</td>
      <td>${r.KHDIA==='X'?'<span class="badge hd">HD</span>':''}</td></tr>`).join('');
   $('#fdIcpSect').style.display=(d.prozeduren||[]).length?'':'none';
   $('#fdIcp tbody').innerHTML=(d.prozeduren||[]).map(r=>
     `<tr><td style="font-variant-numeric:tabular-nums">${dfmt(r.BGDOP)||'—'}</td>
      <td style="font-variant-numeric:tabular-nums;font-weight:600">${r.ICPML||''}</td>
-     <td>${r.BTEXT||'—'}</td></tr>`).join('');
+     <td>${esc(r.BTEXT||'—')}</td></tr>`).join('');
   $('#fdBack').style.display='block';
   $('#fdrawer').classList.add('open');
   $('#fdrawer').scrollTop=0;
