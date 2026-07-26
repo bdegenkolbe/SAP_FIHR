@@ -174,7 +174,7 @@ def cohort_backfill_table(src: Source, schema: str, table: str, key_col: str,
     for ch in _chunks(keys):
         ph = ",".join(["?"] * len(ch))
         where = f"[{mandt_col}] = ?"
-        params: list = [scope.get("mandt", "100")]
+        params: list = [reg.get("mandt") or scope.get("mandt", "100")]
         if scope.get("einri") and "EINRI" in reg.get("pk", []):
             where += " AND [EINRI] = ?"
             params.append(scope["einri"])

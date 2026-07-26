@@ -98,7 +98,7 @@ def build(warehouse: str = "data/warehouse.duckdb",
         # Auth-Marts (BERECHTIGUNGSKONZEPT §5b, G1): materialisieren, sobald die
         # Quelltabellen entladen sind — sonst ist authz.enabled ein toter Schalter,
         # der gegen leere auth-Tabellen ALLES sperrt.
-        if "pa0105" in views and "noek" in views:
+        if {"pa0105", "pa0001", "setnode", "setleaf", "noek"} <= set(views):
             try:
                 from ..authz import sql as _authz_sql
                 _authz_sql.build(con, src="bronze_current")

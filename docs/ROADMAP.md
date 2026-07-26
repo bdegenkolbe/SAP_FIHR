@@ -124,6 +124,7 @@ Verbundpunkte (P2.5, P4.3, AP-M1, AP-M6) stehen hier gespiegelt.
 | G6 | MCP-FHIR-Tools (`fhir_get/search/doc_search`) laufen im Default-Ladeweg ins Leere (FHIR-Export übersprungen, N2TEXT nicht geladen) | mittel |
 | G7 | CDC existiert nur als unbenutzte CLI; GESAMTKONZEPT §4 „Datenpumpe ✅ (Backfill+CDC)" ist zu optimistisch — Ladeknopf macht Voll-Backfill | mittel |
 | G8 | `fhir.profile`-Schalter (r4/isik/mii) wird nirgends gelesen; keine FHIR-Validierung (§15.3), kein `meta.profile` | niedrig |
+| G10 | HD-/Diagnose-Definition zentralisieren (5 divergierende SQL-Varianten in app.py/mcp/marts/build) in EINEN Gold-View | mittel |
 | G9 | Endpunkte ohne UI: top_prozeduren, verweildauer, monitor/runs, whoami — Berechtigungsmodell im UI unsichtbar | niedrig |
 
 **Markt (verifiziert, N4 — nur TIP HCe + Tiplu überlebten die Prüfung; Rest offen):**

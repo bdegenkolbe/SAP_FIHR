@@ -17,13 +17,14 @@ DDL = {
                TRY_CAST(BEGDA AS DATE) AS begda, TRY_CAST(ENDDA AS DATE) AS endda
         FROM {src}.PA0105
         WHERE SUBTY = '90AD' AND COALESCE(TRIM(USRID),'') <> ''
+          AND MANDT = '114'  -- HR-Mandant (R28); Schutz vor Cross-Client-Zeilen aus CDC
     """,
     # PERNR -> Kostenstelle  (PA0001 Organisatorische Zuordnung)
     "auth.pernr_kostl": """
         CREATE OR REPLACE TABLE auth.pernr_kostl AS
         SELECT PERNR, TRIM(KOSTL) AS kostl, TRIM(ORGEH) AS orgeh,
                TRY_CAST(BEGDA AS DATE) AS begda, TRY_CAST(ENDDA AS DATE) AS endda
-        FROM {src}.PA0001 WHERE COALESCE(TRIM(KOSTL),'') <> ''
+        FROM {src}.PA0001 WHERE COALESCE(TRIM(KOSTL),'') <> '' AND MANDT = '114'
     """,
     # SETNODE-Kanten (Kostenstellen-Gruppen-Hierarchie). Knoten-ID = Klasse|Subkl|Setname.
     "auth.setnode": """
@@ -32,6 +33,7 @@ DDL = {
                SUBSETCLS||'|'||SUBSETSCLS||'|'||SUBSETNAME AS child_set
         FROM {src}.SETNODE
         WHERE SETCLASS IN ('0101','0102','0103') AND COALESCE(SUBSETNAME,'') <> ''
+          AND MANDT = '100'
     """,
     # SETLEAF-Blaetter: Kostenstellen je Set (nur Einzelwerte EQ; Bereiche BT s. Hinweis).
     "auth.setleaf": """
@@ -39,14 +41,14 @@ DDL = {
         SELECT SETCLASS||'|'||SUBCLASS||'|'||SETNAME AS set_id, TRIM(VALFROM) AS kostl
         FROM {src}.SETLEAF
         WHERE SETCLASS IN ('0101','0102','0103') AND VALSIGN='I' AND VALOPTION='EQ'
-          AND COALESCE(TRIM(VALFROM),'') <> ''
+          AND COALESCE(TRIM(VALFROM),'') <> '' AND MANDT = '100'
     """,
     # IS-H-OE -> Kostenstelle (NOEK), zeitscheibenbasiert.
     "auth.oe_kostl": """
         CREATE OR REPLACE TABLE auth.oe_kostl AS
         SELECT TRIM(ORGFA) AS orgfa, TRIM(ORGPF) AS orgpf, TRIM(KOSTL) AS kostl,
                TRY_CAST(BEGDT AS DATE) AS begdt, TRY_CAST(ENDDT AS DATE) AS enddt
-        FROM {src}.NOEK WHERE COALESCE(TRIM(KOSTL),'') <> ''
+        FROM {src}.NOEK WHERE COALESCE(TRIM(KOSTL),'') <> '' AND MANDT = '100'
     """,
 }
 

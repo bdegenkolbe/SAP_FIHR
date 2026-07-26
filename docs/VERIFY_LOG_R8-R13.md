@@ -535,6 +535,31 @@ Jahresgruppen offen(9)/2026/.../unbekannt klapp- und default-korrekt. 88 Tests g
 
 ---
 
+## R28 — Auth-Strecke live: HR-Mandant 114, Resolver-Fail-Open, Review-Fixes
+
+**HR-MANDANT-BEFUND:** hrp.PA0105/PA0001 tragen ausschliesslich `MANDT='114'` — NICHT
+die IS-H-Konstante '100'! Erster Ladelauf lieferte deshalb still 0 Zeilen. Fix:
+Registry-Feld `mandt:` je Tabelle (Override), respektiert in backfill_table, CDC-Pfad
+(Review-Fund: importierte sonst ALLE Mandanten) und cohort_backfill_table; zusaetzlich
+Mandanten-Filter direkt in den auth-Mart-DDLs (Defense-in-Depth).
+
+**Auth-Marts live (Kohorte):** login_pernr 37.838 · pernr_kostl 357.759 · setnode
+16.068 · setleaf 165.345 · oe_kostl 2.597 · fall_kostl 124.447. Resolver-Tests:
+deny-by-default OK, Abteilungsrolle eigener Patient OK, MC-Vollrolle OK.
+**⚠ KRITISCH OFFEN:** Negativtest scheitert — DEPT-Rolle sieht auch Patienten OHNE
+Kostenstellen-Ueberschneidung (Fail-Open-Verdacht `authz/service.py` DEPT-Pfad;
+expand=False aendert nichts). `authz.enabled` bleibt AUS bis geklaert.
+
+**Code-Review-Fixes (7 Findings, alle behoben):** (1+4) HD-Query auf QUALIFY
+row_number umgestellt — vorher konnten unabhaengige arg_max hd_icd/hd_text/ist_hd aus
+VERSCHIEDENEN Zeilen mischen und NULL-KHDIA sortierte in DuckDB-Structs VOR 'X'.
+(2) MANDT in CDC + auth-DDL (s.o.). (3) Auth-Guard in gold/build prueft jetzt alle 5
+Quell-Views. (5) ref.oe als LEFT JOIN statt Voll-Katalog-Fetch je Request.
+(6) dieser Log-Eintrag. (7) OFFEN als G10: HD-Definition existiert in 5 Varianten
+(app/mcp/marts/build) — zentralisieren in einen Gold-View.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

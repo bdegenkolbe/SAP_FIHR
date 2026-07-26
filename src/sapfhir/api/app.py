@@ -360,25 +360,32 @@ if app:
         # deshalb defensiv (R26-Muster: Existenz pruefen statt UNION-Blindflug).
         # Diagnose je Fall: Hauptdiagnose (KHDIA='X') bevorzugt; ambulante Faelle
         # haben meist keine formale HD -> Fallback = juengste dokumentierte Diagnose.
+        # EINE Zeile je Fall via QUALIFY (Review-Fix: arg_max-Aggregate liefen
+        # unabhaengig und konnten hd_icd/hd_text/ist_hd aus VERSCHIEDENEN Zeilen
+        # mischen; NULL-KHDIA sortierte in DuckDB-Structs zudem VOR 'X').
         hd = {r["FALNR"]: r for r in _q(
-            "SELECT d.FALNR, "
-            "  arg_max(d.DKEY1, (d.KHDIA='X', d.DIADT)) AS hd_icd, "
-            "  arg_max(NULLIF(TRIM(d.DITXT),''), (d.KHDIA='X', d.DIADT)) AS hd_text, "
-            "  MAX(CASE WHEN d.KHDIA='X' THEN 1 ELSE 0 END) AS ist_hd "
+            "SELECT d.FALNR, d.DKEY1 AS hd_icd, "
+            "  NULLIF(TRIM(d.DITXT),'') AS hd_text, "
+            "  (COALESCE(d.KHDIA,'')='X') AS ist_hd "
             "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
             "WHERE f.PATNR = ? "
             "  AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
-            "GROUP BY d.FALNR", [patnr])}
-        # Fachabteilung + Station je Fall: juengste Bewegung (arg_max BWIDT), Namen via ref.oe
+            "QUALIFY row_number() OVER (PARTITION BY d.FALNR "
+            "  ORDER BY (COALESCE(d.KHDIA,'')='X') DESC, d.DIADT DESC, d.DKEY1) = 1",
+            [patnr])}
+        # Fachabteilung + Station je Fall: juengste Bewegung; Namen per LEFT JOIN
+        # ref.oe (kein Voll-Katalog-Fetch je Request; fehlt ref.oe -> Namen NULL)
         oe = {r["FALNR"]: r for r in _q(
-            "SELECT b.FALNR, "
-            "  arg_max(NULLIF(TRIM(b.ORGFA),''), b.BWIDT) AS orgfa, "
-            "  arg_max(NULLIF(TRIM(b.ORGPF),''), b.BWIDT) AS orgpf "
-            "FROM mcp.bewegung b JOIN mcp.fall f USING (FALNR) "
-            "WHERE f.PATNR = ? AND COALESCE(TRIM(b.STORN),'') NOT IN ('X','1') "
-            "GROUP BY b.FALNR", [patnr])}
-        oe_name = {r["ORGID"]: r["TEXT"] for r in _q(
-            'SELECT ORGID, "TEXT" FROM ref.oe')}
+            "SELECT x.FALNR, x.orgfa, x.orgpf, ra.\"TEXT\" AS fach_name, "
+            "  rp.\"TEXT\" AS station_name FROM ("
+            "  SELECT b.FALNR, "
+            "    arg_max(NULLIF(TRIM(b.ORGFA),''), b.BWIDT) AS orgfa, "
+            "    arg_max(NULLIF(TRIM(b.ORGPF),''), b.BWIDT) AS orgpf "
+            "  FROM mcp.bewegung b JOIN mcp.fall f USING (FALNR) "
+            "  WHERE f.PATNR = ? AND COALESCE(TRIM(b.STORN),'') NOT IN ('X','1') "
+            "  GROUP BY b.FALNR) x "
+            "LEFT JOIN ref.oe ra ON x.orgfa = ra.ORGID "
+            "LEFT JOIN ref.oe rp ON x.orgpf = rp.ORGID", [patnr])}
         drg = {r["FALNR"]: r for r in _q(
             "SELECT g.PATCASEID AS FALNR, "
             "  arg_max(g.DRG_CODE, g.DRG_SEQNO) AS drg, "
@@ -403,9 +410,9 @@ if app:
             f["drg_bez"] = kat.get(g.get("drg"))
             f["bwr"] = g.get("bwr")
             f["fach"] = o.get("orgfa")
-            f["fach_name"] = oe_name.get(o.get("orgfa"))
+            f["fach_name"] = o.get("fach_name")
             f["station"] = o.get("orgpf")
-            f["station_name"] = oe_name.get(o.get("orgpf"))
+            f["station_name"] = o.get("station_name")
         diagnosen = _q(
             "SELECT d.DIADT, d.DKEY1, d.DITXT, d.KHDIA, d.FALNR "
             "FROM mcp.diagnose d JOIN mcp.fall f USING (FALNR) "
