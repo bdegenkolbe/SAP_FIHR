@@ -116,7 +116,7 @@ Verbundpunkte (P2.5, P4.3, AP-M1, AP-M6) stehen hier gespiegelt.
 **Intern (Konzept verspricht, Code fehlt — Top-Prioritäten):**
 | AP | Befund | Schwere |
 |---|---|---|
-| G1 | **Authz scharfschalten — Teil 1 ERLEDIGT (R28):** Auth-Quelltabellen im Referenz-Load (PA0105/PA0001 mit HR-MANDT **114**!, SETNODE/SETLEAF/NOEK), `authz.sql.build` im Gold-Build verdrahtet; Marts live: 37.838 Logins, 357.759 PERNR-KOSTL, 124.447 fall_kostl; deny-by-default + Rollen + MC-Vollrolle end-to-end bestätigt. **⚠ OFFEN/KRITISCH: Negativtest schlägt fehl** — DEPT-Rolle sieht auch Patienten OHNE Kostenstellen-Überschneidung (Verdacht Fail-Open im Resolver-DEPT-Pfad, `authz/service.py` prüfen!). authz.enabled bleibt AUS bis geklärt. | **hoch** |
+| G1 | ✅ **ERLEDIGT (R28+R29):** Auth-Quelltabellen im Load (PA0105/PA0001 mit HR-MANDT **114**, SETNODE/SETLEAF/NOEK), `authz.sql.build` im Gold-Build, Marts live (37.838 Logins, 124.447 fall_kostl). **Fail-Open behoben:** Sammel-/Auswertungsgruppen (TEST_PFL 1.964 KOSTL!) berechtigten das halbe Haus → Spezifitaets- + Groessenheuristik (kleinstes Set, `MAX_DEPT_SET_LEAVES=60`); 2.003→12 sichtbare KOSTL, Negativtest gruen, 3 Regressionstests. Offen bleibt nur der Login-Fluss (AD-Header/lokale Logins, P6.1) | — |
 | G2 | **P1.1-Sektionen**: NRSF (Risiken) + NKSK (Coverage) sind GELADEN, haben aber keine Akten-Sektion; Prozeduren nur im Drawer | hoch |
 | G3 | `mask(n<5)` fehlt in allen Analytik-Endpunkten (P1.4-Zusage) | mittel |
 | G4 | Tote Mapper: `map_organization_einrichtung`/`_das301` nie im PLAN; `map_appointment` deklariert aber nicht existent; `n1meorder`-Mapper läuft auf leerer Tabelle statt COPRA | mittel |

@@ -560,6 +560,40 @@ Quell-Views. (5) ref.oe als LEFT JOIN statt Voll-Katalog-Fetch je Request.
 
 ---
 
+## R29 — Fail-Open GELOEST: Sammel-/Auswertungsgruppen berechtigten unbeabsichtigt
+
+Der in R28 gemeldete kritische Befund (DEPT-Rolle sah Patienten ohne Kostenstellen-
+Ueberschneidung) ist aufgeklaert: **kein Coding-Bug, ein Konzeptfehler im Rollup.**
+
+`resolver.department_kostl` nahm in Schritt 1 ALLE Sets, die eine Mitarbeiter-Kostenstelle
+enthalten. SETLEAF enthaelt aber neben echten Organisationsgruppen auch **Auswertungs-,
+Berichts- und Testgruppen**. Live gemessen fuer einen realen Login mit 3 eigenen
+Kostenstellen: 18 treffende Sets, darunter `TEST_PFL` (**1.964** Kostenstellen),
+`BW_ENZMANN` (286), `GK_4_1` (280) — Ergebnis **2.003 sichtbare Kostenstellen** statt
+einer Abteilung. Der Rollup (`expand`) war dabei unschuldig: expand=False ergab
+denselben Wert, weil die Aufblaehung schon in Schritt 1 entstand.
+
+**Fix (fail-closed):**
+1. Je eigener Kostenstelle nur die **spezifischste** Gruppe = das kleinste Set, das sie
+   enthaelt (statt Vereinigung aller treffenden Sets).
+2. Harte Groessengrenze `MAX_DEPT_SET_LEAVES = 60`: Sets mit mehr Blaettern gelten als
+   Sammel-/Auswertungsgruppe und berechtigen NICHT (auch nicht im Rollup nach unten).
+3. Ohne geeignete Gruppe: nur die eigenen Kostenstellen (wie bisher).
+
+**Verifiziert live:** derselbe Login sieht jetzt **12 statt 2.003** Kostenstellen; der
+zuvor fehlgeschlagene Negativtest ist grün (fremder Patient → False), eigener Patient →
+True, deny-by-default ohne Rolle → False, MC-Vollrolle → True. Drei Regressionstests
+in `tests/test_authz.py` (grosse Sammelgruppe, spezifischste Gruppe gewinnt,
+Groessengrenze konfigurierbar); 91 Tests gruen.
+
+**Lehre:** SAP-Set-Hierarchien sind KEIN reines Organigramm — sie mischen Aufbau-
+organisation mit Reporting-Sichten. Berechtigungen daraus abzuleiten erfordert eine
+Spezifitaets- und Groessenheuristik, sonst berechtigt eine Berichtsgruppe das halbe Haus.
+Und: ein Berechtigungssystem gehoert IMMER mit Negativtest geprueft — der Positivtest
+war von Anfang an gruen.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

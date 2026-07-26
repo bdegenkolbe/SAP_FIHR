@@ -49,26 +49,60 @@ def leaves_of(setleaf: Iterable[tuple[str, str]], sets: Iterable[str]) -> set[st
     return {str(k) for sn, k in setleaf if str(sn) in want}
 
 
-def department_kostl(setnode_edges, setleaf, employee_kostl, *, expand: bool = True) -> set[str]:
-    """Kostenstellenmenge, die ein Mitarbeiter sehen darf.
+# Obergrenze fuer die Blattzahl eines Sets, das noch als "Abteilung" zaehlt.
+# R29-Befund: SETLEAF enthaelt neben Organisationsgruppen auch Auswertungs-/Sammel-
+# und Testgruppen (z.B. TEST_PFL mit 1.964 Kostenstellen, persoenliche Berichtssets).
+# Wer in so einem Set steckt, ist NICHT fuer alle darin enthaltenen OEs zustaendig.
+MAX_DEPT_SET_LEAVES = 60
 
-    1. Sets bestimmen, die die Mitarbeiter-Kostenstelle(n) direkt enthalten (= sein
-       Department/seine Gruppe(n)).
-    2. Wenn expand: alle Unter-Sets dazunehmen (Leitung erbt Unter-OEs), sonst nur die
-       direkten Gruppen.
-    3. Alle Kostenstellen-Blaetter dieser Sets zurueckgeben (immer inkl. der eigenen).
+
+def department_kostl(setnode_edges, setleaf, employee_kostl, *, expand: bool = True,
+                     max_set_leaves: int = MAX_DEPT_SET_LEAVES) -> set[str]:
+    """Kostenstellenmenge, die ein Mitarbeiter sehen darf (fail-closed).
+
+    1. Je Mitarbeiter-Kostenstelle die **spezifischste** Gruppe waehlen: das kleinste
+       Set, das sie enthaelt. Grosse Sammel-/Auswertungsgruppen (> max_set_leaves
+       Blaetter) werden verworfen — sie sind keine Organisationseinheit (R29).
+    2. Wenn expand: Unter-Sets dazunehmen (Leitung erbt Unter-OEs) — aber nur unterhalb
+       der spezifischen Gruppe, und Unter-Sets ueber der Groessengrenze bleiben aussen.
+    3. Blaetter dieser Sets zurueckgeben, immer inkl. der eigenen Kostenstellen.
     """
     setleaf = list(setleaf)
     emp = {str(k) for k in employee_kostl if k}
     if not emp:
         return set()
-    groups = sets_containing(setleaf, emp)
+
+    # Blaetter je Set einmal aufbauen (statt je Kandidat neu zu filtern)
+    leaves_by_set: dict[str, set[str]] = {}
+    for sn, k in setleaf:
+        if sn is None or k is None:
+            continue
+        leaves_by_set.setdefault(str(sn), set()).add(str(k))
+
+    def _ok(s: str) -> bool:
+        return len(leaves_by_set.get(s, ())) <= max_set_leaves
+
+    # (1) spezifischste Gruppe je eigener Kostenstelle
+    groups: set[str] = set()
+    for k in emp:
+        cand = [s for s, lv in leaves_by_set.items() if k in lv and _ok(s)]
+        if not cand:
+            continue
+        kleinste = min(len(leaves_by_set[s]) for s in cand)
+        groups.update(s for s in cand if len(leaves_by_set[s]) == kleinste)
     if not groups:
-        return set(emp)  # Kostenstelle ohne Set -> nur sie selbst (fail-closed eng)
+        return set(emp)  # keine geeignete Gruppe -> nur eigene Kostenstellen
+
+    # (2) Rollup nach unten, Groessengrenze bleibt wirksam
     if expand:
         adj = build_adjacency(setnode_edges)
-        groups = descendant_sets(adj, groups)
-    return leaves_of(setleaf, groups) | emp
+        groups = {s for s in descendant_sets(adj, groups) if _ok(s)}
+
+    # (3) Blaetter der zugelassenen Sets
+    out: set[str] = set(emp)
+    for s in groups:
+        out |= leaves_by_set.get(s, set())
+    return out
 
 
 def role_scope(role: str | None) -> str:

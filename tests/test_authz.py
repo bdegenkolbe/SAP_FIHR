@@ -44,6 +44,37 @@ def test_role_scope():
     assert resolver.role_scope(None) == "NONE"
 
 
+# ---------- R29: Sammel-/Auswertungsgruppen duerfen NICHT berechtigen ----------
+
+def test_grosse_sammelgruppe_erweitert_nicht(sammel=None):
+    """Live-Befund R29: SETLEAF enthaelt Auswertungs-/Testgruppen (z.B. TEST_PFL mit
+    1.964 Kostenstellen). Wer darin vorkommt, darf NICHT alle darin enthaltenen OEs
+    sehen — sonst Fail-Open (real gemessen: 2.003 statt 12 Kostenstellen)."""
+    sammel = [("SAMMEL_REPORT", f"F{i}") for i in range(80)] + [("SAMMEL_REPORT", "K1")]
+    got = resolver.department_kostl(SETNODE, SETLEAF + sammel, ["K1"], expand=True)
+    assert got == {"K1"}, "grosse Sammelgruppe darf die Sicht nicht aufblaehen"
+    assert "F0" not in got
+
+
+def test_spezifischste_gruppe_gewinnt():
+    """Steckt eine Kostenstelle in mehreren zulaessigen Gruppen, gilt die kleinste
+    (= die tatsaechliche Organisationseinheit), nicht die Vereinigung."""
+    weiter = [("BEREICH", "K1"), ("BEREICH", "KX"), ("BEREICH", "KY")]
+    got = resolver.department_kostl(SETNODE, SETLEAF + weiter, ["K1"], expand=True)
+    assert got == {"K1"}
+    assert "KX" not in got and "KY" not in got
+
+
+def test_groessengrenze_konfigurierbar():
+    gruppe = [("TEAM", "K1"), ("TEAM", "KA"), ("TEAM", "KB")]
+    eng = resolver.department_kostl(SETNODE, SETLEAF + gruppe, ["K1"],
+                                   expand=True, max_set_leaves=2)
+    assert eng == {"K1"}                      # TEAM (3 Blaetter) verworfen
+    weit = resolver.department_kostl(SETNODE, SETLEAF + gruppe, ["K1"],
+                                    expand=True, max_set_leaves=10)
+    assert weit == {"K1"}                     # STA-A (1 Blatt) bleibt spezifischer
+
+
 # ---------- Service / Sichtbarkeit ----------
 
 def test_station_sieht_nur_eigene_patienten():
