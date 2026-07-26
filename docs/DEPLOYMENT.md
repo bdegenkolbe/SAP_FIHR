@@ -8,6 +8,19 @@ mit Netzzugang zur MSSQL-Replika (`replicate`). Alles läuft im Benutzerkontext.
 > Policy gesperrt), Verwaltung `C:\ai\_ops\ops.ps1`, Logs `C:\ai\_ops\logs\` — Details
 > in `C:\ai\_ops\README.md`. Achtung: korrektes Python ist `pythoncore-3.14`
 > (Kurzpfad `BJRNDE~2`), NICHT das Store-Python 3.13.
+>
+> **⚠ DIE Instanz ist `C:\ai\SAP_FIHR` (verbindlich, R31).** Dort liegen der
+> Datenbestand (`data\warehouse.duckdb` mit der geladenen Kohorte) und der Code, auf den
+> Autostart und `ops.ps1` zeigen (`start-patient-insight.ps1`: `Set-Location
+> 'C:\ai\SAP_FIHR'`). **Deployen = in diesem Verzeichnis aktualisieren + `ops.ps1
+> restart`** — NICHT irgendwohin kopieren.
+>
+> Der Installer (`installer\Setup.bat`, Abschnitt 1) legt eine EIGENSTÄNDIGE Kopie unter
+> `%LOCALAPPDATA%\greenbay\sapfhir` an — das ist der Weg für eine Erstinstallation auf
+> einem FREMDEN Rechner, nicht für diese Maschine. Existiert dort eine Alt-Kopie, ist sie
+> nicht in Betrieb (kein Autostart-Eintrag) und trägt nur eine veraltete eigene
+> `data\warehouse.duckdb`. Da darin pseudonymisierte Echtdaten liegen, sollte sie
+> aufgeräumt werden (Löschkonzept: Verzeichnis-Wipe, CONCEPT §10).
 
 ## 1. Installation
 
