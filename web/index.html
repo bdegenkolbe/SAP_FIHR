@@ -470,6 +470,15 @@ function showAkte(){
   $('#p360out').style.display='block';
   window.scrollTo({top:0});
 }
+/* HTML-Escape fuer Katalogtexte (ref.oe/ref.icd): ein " oder < im Namen wuerde
+   sonst Attribute/Zellen zerlegen (Review-Fund). MUSS auf Modulebene stehen —
+   als const INNERHALB von loadP360 lag es in der Temporal Dead Zone und die
+   Problemliste (frueherer Aufruf) brach mit ReferenceError ab: Header gefuellt,
+   alle Tabellen leer (R33). */
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>(
+  {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const kurz=(s,n=42)=>{s=String(s||'').trim();
+  return esc(s.length>n?s.slice(0,n-1)+'…':s);};
 const dfmt=v=>{const s=String(v||'').slice(0,10);
   return (!s||s.startsWith('0101')||s.startsWith('9999'))?null:s;};
 
@@ -521,12 +530,6 @@ async function loadP360(){
   renderProb(20);
   $('#pprobMore').onclick=()=>renderProb(grp.length);
   /* Faelle: offene zuerst, dann nach Jahr KLAPPBAR gruppiert; HD + DRG je Fall */
-  /* HTML-Escape fuer Katalogtexte (ref.oe/ref.icd): ein " oder < im Namen wuerde
-     sonst Attribute/Zellen zerlegen (Review-Fund) */
-  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>(
-    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const kurz=(s,n=42)=>{s=String(s||'').trim();
-    return esc(s.length>n?s.slice(0,n-1)+'…':s);};
   const fRow=(f,grp)=>{const b=dfmt(f.BEGDT), e=dfmt(f.ENDDT);
     /* Fachbereich/Station aus der juengsten Bewegung; Station nur zeigen, wenn
        sie sich vom Fachbereich unterscheidet (sonst doppelt derselbe Text) */
