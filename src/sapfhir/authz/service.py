@@ -77,10 +77,18 @@ class DuckDBBackend:
 class Authz:
     """Zentrale Zugriffsentscheidung. `roles` bildet Login (UPPER) -> Rolle ab."""
 
-    def __init__(self, backend, roles: dict[str, str] | None = None, *, expand: bool = True):
+    def __init__(self, backend, roles: dict[str, str] | None = None, *,
+                 expand: bool = True,
+                 max_set_leaves: int = resolver.MAX_DEPT_SET_LEAVES,
+                 max_union_leaves: int = resolver.MAX_UNION_LEAVES):
         self.backend = backend
         self.roles = {str(k).upper(): str(v) for k, v in (roles or {}).items()}
         self.expand = expand
+        # Groessengrenzen konfigurierbar (authz.max_set_leaves/max_union_leaves):
+        # Haeuser mit legitim grossen Abteilungsgruppen sollen nicht still auf
+        # "nur eigene Kostenstelle" zurueckfallen.
+        self.max_set_leaves = int(max_set_leaves)
+        self.max_union_leaves = int(max_union_leaves)
 
     def role_of(self, login: str | None) -> str | None:
         if not login:
@@ -94,7 +102,9 @@ class Authz:
         """Kostenstellenmenge des Nutzers (nur fuer DEPT relevant)."""
         emp = self.backend.employee_kostl(login)
         return resolver.department_kostl(self.backend.setnode_edges(), self.backend.setleaf(),
-                                         emp, expand=self.expand)
+                                         emp, expand=self.expand,
+                                         max_set_leaves=self.max_set_leaves,
+                                         max_union_leaves=self.max_union_leaves)
 
     def may_see_patient(self, login: str | None, patnr: str) -> bool:
         sc = self.scope(login)

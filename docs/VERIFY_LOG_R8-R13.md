@@ -560,6 +560,72 @@ Quell-Views. (5) ref.oe als LEFT JOIN statt Voll-Katalog-Fetch je Request.
 
 ---
 
+## R29 — Fail-Open GELOEST: Sammel-/Auswertungsgruppen berechtigten unbeabsichtigt
+
+Der in R28 gemeldete kritische Befund (DEPT-Rolle sah Patienten ohne Kostenstellen-
+Ueberschneidung) ist aufgeklaert: **kein Coding-Bug, ein Konzeptfehler im Rollup.**
+
+`resolver.department_kostl` nahm in Schritt 1 ALLE Sets, die eine Mitarbeiter-Kostenstelle
+enthalten. SETLEAF enthaelt aber neben echten Organisationsgruppen auch **Auswertungs-,
+Berichts- und Testgruppen**. Live gemessen fuer einen realen Login mit 3 eigenen
+Kostenstellen: 18 treffende Sets, darunter `TEST_PFL` (**1.964** Kostenstellen),
+`BW_ENZMANN` (286), `GK_4_1` (280) — Ergebnis **2.003 sichtbare Kostenstellen** statt
+einer Abteilung. Der Rollup (`expand`) war dabei unschuldig: expand=False ergab
+denselben Wert, weil die Aufblaehung schon in Schritt 1 entstand.
+
+**Fix (fail-closed):**
+1. Je eigener Kostenstelle nur die **spezifischste** Gruppe = das kleinste Set, das sie
+   enthaelt (statt Vereinigung aller treffenden Sets).
+2. Harte Groessengrenze `MAX_DEPT_SET_LEAVES = 60`: Sets mit mehr Blaettern gelten als
+   Sammel-/Auswertungsgruppe und berechtigen NICHT (auch nicht im Rollup nach unten).
+3. Ohne geeignete Gruppe: nur die eigenen Kostenstellen (wie bisher).
+
+**Verifiziert live:** derselbe Login sieht jetzt **12 statt 2.003** Kostenstellen; der
+zuvor fehlgeschlagene Negativtest ist grün (fremder Patient → False), eigener Patient →
+True, deny-by-default ohne Rolle → False, MC-Vollrolle → True. Drei Regressionstests
+in `tests/test_authz.py` (grosse Sammelgruppe, spezifischste Gruppe gewinnt,
+Groessengrenze konfigurierbar); 91 Tests gruen.
+
+**Lehre:** SAP-Set-Hierarchien sind KEIN reines Organigramm — sie mischen Aufbau-
+organisation mit Reporting-Sichten. Berechtigungen daraus abzuleiten erfordert eine
+Spezifitaets- und Groessenheuristik, sonst berechtigt eine Berichtsgruppe das halbe Haus.
+Und: ein Berechtigungssystem gehoert IMMER mit Negativtest geprueft — der Positivtest
+war von Anfang an gruen.
+
+---
+
+## R30 — Review-Nachlauf: ICD-Katalogtreue, Rest-Fail-Open, Escaping
+
+**ICD-Textauflösung war katalogblind (eigene Regression aus R29-Nachlauf):** Der
+Fallback nahm `arg_max(TEXT, DKAT)` und jointe nur ueber den Kode. NKDI fuehrt aber
+Kataloge '01'..'56' (ICD-10-GM-Jahrgaenge), **'90' = ICD-O-Topographie** und 'S1'..'SK';
+fuer 307 Kodes weichen '56' und '90' im Text ab. Folge: C-Kodes zeigten die
+Topographie-Bezeichnung ("Brust (mehrere Teilregionen ueberlappend)") statt der
+ICD-10-Diagnose. **Fix:** NDIA fuehrt mit `DKAT1` den Katalog je Diagnose selbst —
+Join jetzt ueber (DKAT1, DKEY1); `DKAT1/DKAT2` dafuer in die `mcp.diagnose`-Spec
+aufgenommen. Live: C50.8 -> "Boesartige Neubildung: Brustdruese..." (korrekt).
+Zusaetzlich Existenzcheck auf `ref.icd` (R26-Muster) — ohne NKDI-Load riss der
+ungeschuetzte Join sonst die GESAMTE Diagnose-Spalte auf "—".
+
+**Rest-Fail-Open im Rollup geschlossen:** Die R29-Groessengrenze wirkte nur je Set;
+`descendant_sets` lief durch uebergrosse Knoten hindurch (nachgestellt: 2-Blatt-Set mit
+100 kleinen Kindsets -> 5.002 Kostenstellen; live gab `GK_VORKST` 52 KOSTL frei).
+**Fix:** eigene Traversierung, die an einem uebergrossen Knoten ABBRICHT, plus harte
+Obergrenze auf die VEREINIGUNG (`MAX_UNION_LEAVES=250`). Beide Grenzen jetzt ueber
+`authz.max_set_leaves` / `authz.max_union_leaves` konfigurierbar (Haeuser mit legitim
+grossen Abteilungsgruppen fallen nicht mehr still auf "nur eigene Kostenstelle").
+
+**Regressionstests verschaerft:** Die drei R29-Tests blieben mit `max_set_leaves=10**9`
+gruen (die Spezifitaetsregel entschied vorher) — sie haetten eine Rueckkehr des
+Fail-Open NICHT bemerkt. Jetzt: Grenze nachweisbar wirksam (gleiche Struktur, nur die
+Grenze unterscheidet sich), Rollup-Abbruch am uebergrossen Knoten, Vereinigungsgrenze.
+93 Tests gruen.
+
+**Escaping:** Katalogtexte (ref.oe/ref.icd/Freitexte) werden im Frontend jetzt
+HTML-escaped — ein `"` oder `<` in einem OE-Namen zerlegte vorher Attribut und Zeile.
+
+---
+
 ## Offene Punkte (Stand R17)
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift in ndjson.py einhängen;

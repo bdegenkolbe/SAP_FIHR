@@ -27,7 +27,9 @@ _SPEC = {
              ["MANDT", "EINRI", "FALNR", "LFDNR", "BEWTY", "BWART", "BWGR1",
               "BWIDT", "BWEDT", "ORGFA", "ORGPF", "STORN"]),
     "ndia": ("diagnose",
-             ["MANDT", "EINRI", "FALNR", "LFDNR", "DKEY1", "DKEY2", "DITXT",
+             # DKAT1/DKAT2 = Diagnosekatalog je Kode (ICD-10-GM-Version, '90'=ICD-O
+             # Topographie u.a.) — ohne ihn ist eine Textauflösung nicht eindeutig (R30)
+             ["MANDT", "EINRI", "FALNR", "LFDNR", "DKAT1", "DKAT2", "DKEY1", "DKEY2", "DITXT",
               "DIAGW", "DIADT", "KHDIA", "FHDIA", "AFDIA", "ENDIA", "BHDIA",
               "OPDIA", "STORN"]),
     "nicp": ("prozedur",

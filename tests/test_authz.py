@@ -44,6 +44,62 @@ def test_role_scope():
     assert resolver.role_scope(None) == "NONE"
 
 
+# ---------- R29: Sammel-/Auswertungsgruppen duerfen NICHT berechtigen ----------
+
+def test_grosse_sammelgruppe_erweitert_nicht(sammel=None):
+    """Live-Befund R29: SETLEAF enthaelt Auswertungs-/Testgruppen (z.B. TEST_PFL mit
+    1.964 Kostenstellen). Wer darin vorkommt, darf NICHT alle darin enthaltenen OEs
+    sehen — sonst Fail-Open (real gemessen: 2.003 statt 12 Kostenstellen)."""
+    sammel = [("SAMMEL_REPORT", f"F{i}") for i in range(80)] + [("SAMMEL_REPORT", "K1")]
+    got = resolver.department_kostl(SETNODE, SETLEAF + sammel, ["K1"], expand=True)
+    assert got == {"K1"}, "grosse Sammelgruppe darf die Sicht nicht aufblaehen"
+    assert "F0" not in got
+
+
+def test_spezifischste_gruppe_gewinnt():
+    """Steckt eine Kostenstelle in mehreren zulaessigen Gruppen, gilt die kleinste
+    (= die tatsaechliche Organisationseinheit), nicht die Vereinigung."""
+    weiter = [("BEREICH", "K1"), ("BEREICH", "KX"), ("BEREICH", "KY")]
+    got = resolver.department_kostl(SETNODE, SETLEAF + weiter, ["K1"], expand=True)
+    assert got == {"K1"}
+    assert "KX" not in got and "KY" not in got
+
+
+def test_groessengrenze_greift_nachweisbar():
+    """Die Grenze muss WIRKEN: dieselbe Struktur, nur die Grenze unterscheidet sich.
+    Ohne eigenes STA-A-Blatt ist TEAM die spezifischste Gruppe — sie zaehlt nur,
+    wenn sie unter der Grenze liegt."""
+    leaf = [("TEAM", "T1"), ("TEAM", "TA"), ("TEAM", "TB")]
+    eng = resolver.department_kostl([], leaf, ["T1"], expand=True, max_set_leaves=2)
+    assert eng == {"T1"}, "TEAM (3 Blaetter) muss bei Grenze 2 verworfen werden"
+    weit = resolver.department_kostl([], leaf, ["T1"], expand=True, max_set_leaves=10)
+    assert weit == {"T1", "TA", "TB"}, "bei Grenze 10 ist TEAM die Abteilung"
+
+
+def test_rollup_bricht_an_uebergrossem_knoten_ab():
+    """Review-Fund: ein kleines Set mit vielen kleinen Kindsets darf das Haus nicht
+    freigeben — der Rollup laeuft NICHT durch einen uebergrossen Knoten hindurch."""
+    leaf = [("WURZEL", "W1"), ("WURZEL", "W2")]
+    leaf += [("SAMMEL", f"S{i}") for i in range(100)]          # uebergross
+    leaf += [(f"KIND{i}", f"C{i}") for i in range(100)]        # je 1 Blatt
+    node = [("WURZEL", "SAMMEL")] + [("SAMMEL", f"KIND{i}") for i in range(100)]
+    got = resolver.department_kostl(node, leaf, ["W1"], expand=True, max_set_leaves=60)
+    assert got == {"W1", "W2"}, f"Rollup lief durch SAMMEL hindurch: {len(got)} KOSTL"
+    assert "C0" not in got and "S0" not in got
+
+
+def test_vereinigungsgrenze_begrenzt_gesamtsicht():
+    """Viele kleine, je zulaessige Kindsets duerfen sich nicht zur Haussicht summieren."""
+    leaf = [("WURZEL", "W1")]
+    node = []
+    for i in range(60):
+        leaf += [(f"G{i}", f"K{i}_{j}") for j in range(10)]   # je 10 Blaetter (zulaessig)
+        node.append(("WURZEL", f"G{i}"))
+    got = resolver.department_kostl(node, leaf, ["W1"], expand=True,
+                                   max_set_leaves=60, max_union_leaves=100)
+    assert len(got) <= 100, f"Vereinigung nicht begrenzt: {len(got)}"
+
+
 # ---------- Service / Sichtbarkeit ----------
 
 def test_station_sieht_nur_eigene_patienten():
