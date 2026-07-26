@@ -62,6 +62,14 @@ mcp:
 authz:                                 # Berechtigung (docs/BERECHTIGUNGSKONZEPT.md)
   enabled: false                       # true = deny-by-default erzwingen (Patient-360-Gate)
   expand: true                         # Leitung erbt Unter-OEs (SETNODE-Rollup)
+  # Groessengrenzen gegen Fail-Open (VERIFY_LOG R29/R30): SETLEAF mischt Aufbau-
+  # organisation mit Auswertungs-/Berichtsgruppen (z.B. TEST_PFL mit 1.964 Kosten-
+  # stellen). Sets ueber max_set_leaves berechtigen NICHT und der Rollup bricht an
+  # ihnen ab; max_union_leaves begrenzt zusaetzlich die Gesamtsicht je Nutzer.
+  # Haeuser mit legitim grossen Abteilungsgruppen hier hochsetzen (statt still auf
+  # "nur eigene Kostenstelle" zurueckzufallen).
+  max_set_leaves: 60
+  max_union_leaves: 250
   # Rollen je Login (UPPER). Vollrollen sehen ALLE: medizincontrolling|it|admin.
   # Alles andere (z.B. 'abteilung') = Abteilungsregel ueber Kostenstelle. Ohne Eintrag: kein Zugriff.
   roles:
