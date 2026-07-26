@@ -52,6 +52,9 @@ graph:
 api:
   host: 127.0.0.1
   port: 8471
+  tls: true                            # HTTPS via selbstsigniertem Zertifikat
+                                       # (config/certs; No-Admin). false = HTTP.
+                                       # Bei Netz-Bind: Reverse-Proxy mit Haus-Zertifikat!
 
 mcp:
   audit_log: data/audit/mcp.jsonl

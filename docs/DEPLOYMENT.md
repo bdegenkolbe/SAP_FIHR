@@ -22,6 +22,27 @@ mit Netzzugang zur MSSQL-Replika (`replicate`). Alles läuft im Benutzerkontext.
 > `data\warehouse.duckdb`. Da darin pseudonymisierte Echtdaten liegen, sollte sie
 > aufgeräumt werden (Löschkonzept: Verzeichnis-Wipe, CONCEPT §10).
 
+## 0b. HTTPS (R32)
+
+Beide Apps sprechen **HTTPS mit einem selbstsignierten Zertifikat** (TLS 1.3):
+
+| App | Adresse |
+|---|---|
+| CliniBots Patient Insight | `https://127.0.0.1:8471` |
+| CliniBots MDM | `https://127.0.0.1:8492` |
+
+- Zertifikat/Key: `config/certs/local.crt` / `local.key` (gitignored, Key mit 0600),
+  erzeugt und bei Ablauf erneuert von `python -m sapfhir.api.tlscert`
+  (SAN: `localhost`, Hostname, `127.0.0.1`, `::1`; 2 Jahre Laufzeit).
+- Schalter: `api.tls: true` (Default) in `connection.yaml`; `false` = HTTP.
+  MDM nutzt dasselbe Zertifikat via `api.ssl_certfile/ssl_keyfile`.
+- **Browser zeigt beim ersten Aufruf eine Zertifikatswarnung** — erwartbar bei
+  selbstsigniert; einmal „Erweitert -> fortfahren" bzw. Zertifikat lokal vertrauen.
+- **Grenze:** Selbstsigniert genuegt NUR fuer den Loopback-Betrieb. Wird der Bind auf
+  `0.0.0.0` geoeffnet (mehrere Arbeitsplaetze), gehoert ein Reverse-Proxy mit
+  Haus-Zertifikat davor — plus der AD-Header-Login (ROADMAP P6.1) und
+  `authz.enabled: true`, sonst waeren Patientendaten unauthentisiert im Netz.
+
 ## 1. Installation
 
 ```bat

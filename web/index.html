@@ -687,7 +687,8 @@ async function loadFall(falnr){
   $('#fdMeta').textContent=`${b||'—'} – ${k.offen?'laufend':(e||'—')}`+
     (letzte?` · ${letzte.oe_name||letzte.oe}`:'');
   /* MDM-Verbund: Deep-Link auf die Schwester-App (GESAMTKONZEPT §5) */
-  $('#fdMdm').href='http://127.0.0.1:8492/#fall/'+encodeURIComponent(k.FALNR);
+  /* Schema der eigenen Seite uebernehmen: laeuft CPI unter https, tut MDM es auch */
+  $('#fdMdm').href=location.protocol+'//127.0.0.1:8492/#fall/'+encodeURIComponent(k.FALNR);
   $('#fdBew tbody').innerHTML=(d.bewegungen||[]).map(r=>{
     const von=dfmt(r.BWIDT), bis=dfmt(r.BWEDT);
     return `<tr><td style="font-variant-numeric:tabular-nums">${von||'—'}</td>

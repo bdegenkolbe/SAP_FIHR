@@ -496,7 +496,21 @@ def main():
     if not app:
         raise SystemExit("fastapi/uvicorn nicht installiert")
     a = CFG.get("api", {})
-    uvicorn.run(app, host=a.get("host", "127.0.0.1"), port=int(a.get("port", 8471)))
+    kw = {}
+    # HTTPS: api.tls: true (Default) erzeugt/nutzt ein selbstsigniertes Zertifikat
+    # unter config/certs (No-Admin). Nur sinnvoll fuer den Loopback-Betrieb; bei
+    # Netz-Bind gehoert ein Reverse-Proxy mit Haus-Zertifikat davor (DEPLOYMENT.md).
+    if a.get("tls", True):
+        from . import tlscert
+        res = tlscert.ensure_cert()
+        if res:
+            kw["ssl_certfile"], kw["ssl_keyfile"] = res
+        else:
+            print("HTTPS uebersprungen (cryptography fehlt) — Start als HTTP")
+    host, port = a.get("host", "127.0.0.1"), int(a.get("port", 8471))
+    print(f"CliniBots Patient Insight: "
+          f"{'https' if kw else 'http'}://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, **kw)
 
 
 if __name__ == "__main__":

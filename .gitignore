@@ -14,3 +14,4 @@ src/*.egg-info/
 .mcp.json
 data_*/
 data_*.log
+config/certs/
