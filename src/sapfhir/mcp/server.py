@@ -158,7 +158,7 @@ def patient_360(patnr: str) -> dict:
         try:
             faelle = _fetch(con,
                 "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR FROM mcp.fall "
-                "WHERE PATNR = ? AND COALESCE(STORN,'') IN ('','0') "
+                "WHERE PATNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
                 "ORDER BY BEGDT DESC LIMIT 50", [patnr])
             dx = _fetch(con,
                 "SELECT d.FALNR, d.DKEY1 AS icd, d.DITXT AS text, d.DIADT, "
@@ -168,7 +168,7 @@ def patient_360(patnr: str) -> dict:
                 "     ELSE 'Nebendiagnose' END AS typ "
                 "FROM mcp.diagnose d "
                 "JOIN mcp.fall f USING (FALNR) WHERE f.PATNR = ? "
-                "AND COALESCE(d.STORN,'') IN ('','0') "
+                "AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
                 "ORDER BY d.DIADT DESC LIMIT 200", [patnr])
             ops = _fetch(con,
                 "SELECT p.FALNR, CAST(p.ICPML AS VARCHAR) AS ops, "

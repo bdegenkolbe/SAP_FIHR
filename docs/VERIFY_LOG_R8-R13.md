@@ -1,4 +1,7 @@
-# Verifikationslog Runden 8–13 — IS-H/i.s.h.med → FHIR R4
+# Verifikationslog ab Runde 8 (fortlaufend) — CliniBots Patient Insight
+
+> **STATUS: FORTLAUFENDES PROTOKOLL** (siehe `INDEX.md`) — aktuell R8–R19; neue Runden
+> werden hier angehängt. Dateiname „R8-R13" ist historisch und bleibt wegen Verweisen.
 
 Stand: 16.07.2026 · Methode je Tabelle: **erst Schlüsselpfad über sapdatasheet.org, dann
 Gegenprüfung gegen die Live-Replicate-DB** (`10.50.8.250 → Replicate.sap`, Spalten-Existenz,
@@ -281,6 +284,279 @@ alle 16 der Familie jetzt schema+PK-bestaetigt. Gemeinsame Fallklammer-Wurzel
 
 Alle Registry-VERIFY-Marker der RKT-Familie durch verifizierte PKs ersetzt
 (`config/tables.yaml`, RKT-Block). Personenident. Felder je Tabelle vermerkt.
+
+---
+
+## R20 — Live-Anbindung der Datenpumpe (Credentials, treiberlos via pytds)
+
+- **Credentials angelegt:** Login `bdegenkolbe`, Passwort NUR im Windows Credential
+  Manager (`sapfhir:higl-main` + `mdmgmt:higl-main`); `connection.yaml` traegt nur den
+  Usernamen. `dbsource` um Keyring-Aufloesung erweitert (env `SAPFHIR_DB_PW` > Keyring).
+- **Bug gefunden+gefixt:** pytds nutzt `pyformat` (`%s`), der Code `qmark` (`?`) —
+  parametrisierte Queries schlugen im treiberlosen Pfad fehl. Fix: `_adapt()`-Shim je
+  Paramstyle (query/iter_query/scalar).
+- **Verbindungs-Check (live):** connected=True, DB=Replicate, SQL Server 2017;
+  Kern-Tabellen NPAT/NFAL/NBEW/NDIA/NICP sichtbar.
+- **⚠ SICHERHEITSBEFUND:** `IS_ROLEMEMBER('db_datawriter') = TRUE` — der persoenliche
+  Login hat SCHREIBRECHTE auf der Replika. Unsere Werkzeuge senden ausschliesslich
+  SELECT, aber die Defense-in-Depth-Schicht „Login KANN nicht schreiben" fehlt.
+  → Empfehlung: dedizierter Service-Login nur mit `db_datareader` fuer den Dauerbetrieb;
+  persoenlichen Login nur uebergangsweise verwenden.
+- **Registry-Live-Abgleich (107 Eintraege):** 5 nicht gefunden = exakt die bekannten
+  nicht replizierten Kataloge (TN14K/TN14O/N2DT/TN26B/TN26D — erwartet, CLAUDE.md).
+  12 Eintraege mit PK-Constraint-Abweichung (u. a. NLEI, NFFZ, N1LSTEAM, TN14U):
+  physischer DB-PRIMARY-KEY breiter/anders als unser logisch verifizierter PK (z. B.
+  SPRAS in TN14U). Kein Blocker (unsere Uniqueness-Tests bleiben gueltig), aber je
+  Tabelle bei naechster Gelegenheit DB-PK in die Registry-notes aufnehmen.
+- **Offen:** MDM-Live-ETL nutzt bisher nur pyodbc → pytds-Fallback (inkl. Paramstyle)
+  als kleines AP nachziehen.
+
+---
+
+## R21 — Erste Live-Kohorte „aktuelle Stationspatienten" durch die volle Pipeline
+
+**Kohorte:** offene stationaere Aufnahme-Bewegung (NBEW `BEWTY='1'`, `BWEDT`=9999-Sentinel,
+nicht storniert) → **2.611 Patienten** → volle Fall-Historie via NFAL → **53.157 Faelle**.
+Neues Modul `extract/cohort.py` (s. R20-Commit) laed gezielt: Kohorten-Tabellen
+(NPAT/NFAL/NBEW/NDIA/NICP/NKSK/NRSF) IN-Liste-gechunkt, Referenztabellen
+(NORG/NGPA/NKTR/NKDI/NPER/TN14*/TN26C/TN01/TN39*/TNK00) voll. Ergebnis: 217.572 NBEW,
+164.009 NDIA, 73.390 NICP, 50.569 NKSK — Extrakt komplett read-only, keine Fehler.
+
+**3 Projektionsbugs live gefunden + gefixt** (waren mit Demo-Daten unsichtbar):
+- `NBEW` haelt **kein PATNR** — Bewegungen haengen nur an FALNR; Patient nur ueber
+  NFAL erreichbar. Kohorten-Aufloesung entsprechend zweistufig (FALNR→PATNR via NFAL).
+- `NICP`-Projektion enthielt `ERDAT` — Spalte existiert dort nicht (nur UPDAT/STDAT/
+  TIMESTAMP). Aus `config/columns/NICP.yaml` entfernt.
+- `NORG`-Projektion enthielt `ORGKT` (Kurzbezeichnung) — reale Spalte heisst **`ORGKB`**.
+  Fehler war fatal (kompletter SELECT schlaegt fehl, nicht nur die eine Spalte).
+
+**Privacy-Fix:** `privacy.shift()` warf `OverflowError`, weil SAP-Sentinel-Daten
+(0101-01-01 Leerdatum, 9999-12-31 offener Fall) beim Datums-Shift den `datetime`-Bereich
+sprengen konnten. Fix: Sentinels (Jahr ≤1 oder ≥9999) werden nie geshiftet — sie steuern
+ohnehin den Offen-Fall-Status downstream und duerfen laut Methode unveraendert bleiben.
+
+**⚠ Datenbefund — STORN-Default ist Leerzeichen, nicht Leerstring:** Alle bisherigen
+„nicht storniert"-Filter der Form `COALESCE(STORN,'') IN ('','0')` griffen mit echten
+Daten **nicht**, weil das SAP-Feld bei gueltigen Zeilen ein **Leerzeichen `' '`** enthaelt
+(kein Leerstring). Folge: `gold.belegung_oe` (Stationsbelegung) blieb mit echten Daten
+leer, obwohl `bronze_current.nbew` 2.663 gueltige offene Bewegungen enthielt. Betroffen
+waren 14 Stellen (`gold/marts.sql` ×5, `api/app.py` ×9→ jetzt ersetzt, `gold/build.py` ×2,
+`mcp/server.py` ×2, `fhir/ndjson.py` ×1) — durchgaengig auf
+`COALESCE(TRIM(STORN),'') NOT IN ('X','1')` (positive Nicht-Storno-Logik statt
+Allowlist) umgestellt. Mit Demo-Seed-Daten (STORN korrekt `''`) blieb der Bug unsichtbar
+— **klassischer Fall, in dem nur echte Produktionsdaten den Fehler zeigen.**
+
+**Verifiziert nach Fix:** `gold.belegung_oe` zeigt 2.663 offene Bewegungen ueber reale
+Stationen (Top: Tagesklinik Adipositas 339, F02-1 171, G03-2 169, B02-2 146, ...) —
+deckt sich mit der unabhaengig gegen die Live-DB gemessenen Kontrollzahl (2.650/2.663,
+Differenz durch Snapshot-Zeitpunkt). FHIR-Ausleitung auf der Kohorte: 2.611 Patient,
+270.729 Encounter, 164.009 Condition, 73.390 Procedure, 50.569 Coverage, 236.117
+Practitioner, 19.756 Organization — alle 88 Tests weiterhin gruen (Demo-Seed hat
+korrekten STORN-Leerstring, TRIM-NOT-IN-Logik bleibt aequivalent).
+
+**Offen:** Gold-Build auf der echten Kohorte (~500k Zeilen inkl. FTS-Index ueber 164k
+Diagnosen) lief in der Praxis mehrere Minuten — deutlich laenger als mit Demo-Daten.
+Performance-Beobachtung, kein Fehler; bei Vollausbau (Tier 1 komplett, 85 Mio Zeilen)
+vorab Lastprofil pruefen (ROADMAP Q3-Nachbarschaft).
+
+---
+
+## R22 — Korrektur: Kohorten-Scope faelschlich auf Lebenshistorie ausgeweitet + Ladeknopf
+
+**Fehlklassifikation in R21:** Der Auftrag „aktuelle Patienten auf Station" wurde von
+mir eigenmaechtig als „diese Patienten + ihre KOMPLETTE Fallhistorie" interpretiert
+(Schritt 2 in `resolve_current_inpatients`: NFAL-Expansion ueber ALLE PATNR). Ergebnis:
+aus 2.611 aktuell offenen Faellen wurden 53.157 historische Faelle / 217.572 Bewegungen —
+das ist NICHT "aktuelle Patienten auf Station", sondern eine 360-Grad-Akte, die niemand
+in diesem Schritt angefordert hatte. Zusaetzlich zeigte das Monitor-Dashboard fuer genau
+diese kohorten-geladenen Tabellen nur "—"/`UNKNOWN` (kein Vergleichswert vorhanden), was
+wie ein defekter Abgleich aussah statt als bewusste Teilladung erkennbar zu sein. Nutzer-
+Feedback (woertlich): *"Wenn ich nur die aktuell auf Station liegenden Patienten ziehen
+möchte kann ich nicht 217T Bewegungen ziehen. Da funktioniert der Filter nicht."*
+
+**Fix 1 — Scope-Parameter statt impliziter Annahme** (`extract/cohort.py`):
+`resolve_current_inpatients(..., load_scope="current"|"history")`, **Default = `current`**:
+Ladeumfang = GENAU die aktuell offenen Faelle (kein NFAL-Expansionsschritt mehr). Die
+360-Grad-Variante bleibt als `load_scope="history"` erhalten, ist aber jetzt explizites
+Opt-in und nirgendwo mehr Default. Ergebnis nach Korrektur (echter Lauf):
+**2.609 Patienten, 2.649 Faelle, 9.293 Bewegungen** (statt 53.157/217.572) — Faktor ~23
+kleiner, deckt sich mit der unabhaengig gemessenen Live-Zahl offener Bewegungen (~2.650).
+Nebeneffekt (erwartet, kein Bug): `vwd_mittel/median` sind mit `load_scope=current` jetzt
+`null` — offene Faelle haben per Definition kein `ENDDT`, Verweildauer braucht die
+(optionale) Historie oder abgeschlossene Faelle.
+
+**Fix 2 — DQ-Dashboard kennzeichnet Teilladungen** (`gold/quality.py`): Kohorten-geladene
+Tabellen werden jetzt in `_meta.extract_state` mit `phase='cohort'` protokolliert;
+`reconcile()` zeigt dafuer den eigenen Status **`KOHORTE`** statt `UNKNOWN` — sichtbar
+als bewusste Teilmenge, nicht als Abgleichsfehler. Frontend (`web/index.html`) faerbt
+`KOHORTE` neutral-blau statt grau.
+
+**Fix 3 — „Ladeknopf" (Nutzeranforderung):** Kohorten-Backfill + FHIR + Gold liefen bisher
+nur ueber von mir manuell gestartete Shell-Skripte — nicht wiederholbar durch den Nutzer
+selbst. Neu: `POST /api/cohort/load` (startet den kompletten Lauf in einem Hintergrund-
+Thread des laufenden API-Prozesses, liefert sofort `{"started":true}`) + `GET
+/api/cohort/status` (Zustand `idle|running|done|error`, Fortschritts-Log, Endergebnis).
+Button **„Aktuelle Stationspatienten laden"** im Entlade-Monitor (`web/index.html`)
+mit Live-Status-Polling (2s-Intervall) und automatischem Reload von Monitor/Analytik
+nach Abschluss. End-to-end ueber den echten Button-Endpunkt verifiziert (nicht nur CLI).
+
+**Lehre fuer kuenftige Sessions:** Bei Lade-/Scope-Entscheidungen den woertlichen Umfang
+der Nutzeranfrage als Default nehmen; Ausweitungen (z. B. "volle Historie fuer echten
+360-Grad-Kontext") sind eine separate, explizit zu benennende Erweiterung — nicht die
+Grundannahme. Wiederkehrende, nutzergetriggerte Ladevorgaenge gehoeren als API+UI-Aktion
+in die Anwendung, nicht in Ad-hoc-Shell-Skripte einer Session.
+
+---
+
+## R23 — Klarstellung nach R22: Fallhistorie ist gewuenscht (Patientensicht), Scope muss nur SICHTBAR sein
+
+Nutzer-Feedback nach R22: *"es ist gut, dass wir die historie der liegenden Patienten
+einbeziehen. wir haben ja die patientensicht."* Praezisierung: Die Kritik in R21/R22 galt
+NICHT der Fallhistorie an sich (die ist fuer Patient 360 / GESAMTKONZEPT UC-K1 ausdruecklich
+gewuenscht), sondern (a) dass die Ausweitung unangekuendigt/implizit geschah und (b) dass
+das DQ-Dashboard die Teilladung wie einen Fehler aussehen liess. Beides ist mit R22 bereits
+behoben (KOHORTE-Status, Ladeknopf). Fehlender Baustein: der Scope selbst war im Ladeknopf
+hart auf `"current"` verdrahtet, ohne Rueckfrage/Sichtbarkeit.
+
+**Fix:** `POST /api/cohort/load?scope=history|current` — **Default jetzt `history`**
+(fuettert die Patientensicht mit echtem Kontext). Neuer Umschalter im Monitor-UI
+(„inkl. Fallhistorie (Patientensicht)", Checkbox, standardmaessig aktiv) macht die
+Entscheidung bei jedem Lauf sichtbar und aenderbar — statt einer stillen Codeannahme in
+beide Richtungen. `_COHORT_JOB` fuehrt `load_scope` mit, UI zeigt es im Fertig-Status an.
+
+**Ergebnis (echter Lauf, scope=history):** 2.625 Patienten, 54.009 Faelle, 220.815
+Bewegungen, 274.824 Encounter (FHIR) — bewusst gewaehlt, nicht mehr zufaellig. VWD
+wieder berechenbar (16 Tage Ø/Median, dank abgeschlossener historischer Faelle).
+Patient-360-Endpunkt liefert wieder die volle Fallgeschichte je Patient.
+
+**Praezisierte Lehre:** Nicht "Scope immer eng", sondern "Scope immer EXPLIZIT, SICHTBAR
+und AENDERBAR" — als Parameter im Code, als Umschalter/Rueckmeldung in der UI, nie als
+unausgesprochene Codeannahme in irgendeine Richtung. Memory-Eintrag
+`feedback_scope_default_narrow.md` entsprechend nachgeschaerft.
+
+---
+
+## R24 — Ladezeit-Analyse: FHIR-Ausleitung war der dominante, im Ladeknopf unnoetige Kostenfaktor
+
+Nutzer-Meldung: *"die Ladezeit der Daten ist zu lang."* Zeitprofil des R23-Laufs
+(scope=history) nachgemessen statt geraten:
+Extrakt (Kohorten- + Referenztabellen) ~7 Minuten, danach FHIR-Ausleitung
+**~13–15 Minuten** (dominiert durch den Practitioner-Merge: FULL OUTER JOIN
+NGPA (261.235) × NPER (236.117), Python-seitig gemappt + privacy-geshiftet +
+NDJSON-geschrieben — **komplett unabhaengig vom Kohorten-Scope**, identische
+236.117 Practitioner-Ressourcen bei "current" UND "history"), danach Gold-Marts+DQ
+~2–3 Minuten. Gesamt ~20–25 Minuten.
+
+**Kernbefund:** Das Web-Dashboard (`kpis`/`belegung`/`patient360`/DQ-Monitor) liest
+ausschliesslich `gold.*`/`mcp.*`-Views direkt ueber `bronze_current` (`gold/build.py`
+haengt an keiner Stelle von `data/fhir/*.ndjson.gz` oder `silver.fhir_index` ab —
+verifiziert per Codepruefung). Die FHIR-NDJSON-Ausleitung speist ausschliesslich den
+separaten MCP-Tool-Server (`mcp/server.py` liest `silver.fhir_index`). Der Ladeknopf
+rief sie trotzdem IMMER mit auf — der teuerste Schritt lieferte fuers Dashboard nichts.
+
+**Fix:** `POST /api/cohort/load` bekommt einen zweiten Parameter `fhir` (Default
+**`false`**) — FHIR-Ausleitung wird nur noch auf ausdruecklichen Wunsch mitgelaufen
+(z. B. vor MCP-Nutzung; alternativ CLI `python -m sapfhir.fhir.ndjson --full`).
+UI-Checkbox "FHIR-Export fuer MCP-Server" (Default AUS) mit Begruendung im Hinweistext.
+Extrakt- und Gold-Schritte selbst wurden NICHT veraendert (kein Korrektheitsrisiko).
+
+**Ergebnis (echter Lauf, scope=history, fhir=false):** Gesamtzeit **~10 Minuten**
+statt ~20–25 Minuten (>50 % Ersparnis) fuer 2.771 Patienten / 53.595 Faelle /
+232.188 Bewegungen. Dashboard nach dem Lauf gegengeprueft: KPIs, Belegung, DQ
+(`KOHORTE`-Status je Kohorten-Tabelle) korrekt und vollstaendig — keine Regression,
+da das Dashboard den uebersprungenen Schritt nie gelesen hat.
+
+**Nicht angefasst (bewusst):** Der eigentliche Extrakt-Zeitkosten (Kohorten- +
+Referenztabellen, ~7 Minuten) ist proportional zur Datenmenge und haengt an echten
+Netzwerk-Roundtrips zur MSSQL-Replika — kein Bug, sondern die Kehrseite von "volle
+Historie". Wer schnellere Testlaeufe will, kann zusaetzlich `scope=current` waehlen
+(Checkbox "inkl. Fallhistorie" abwaehlen, siehe R23).
+
+---
+
+## R25 — Bugfix: Zeilenklick in der neuen Patientenliste scrollte von der Akte WEG
+
+Nutzer-Meldung nach Einfuehrung der gepagten Patientenliste (P1.2 v0): *"patientendaten
+gehen nicht zu laden."* Die Akte lud tatsaechlich korrekt (API + DOM bestaetigt), aber
+der Klick-Handler scrollte per `window.scrollTo({top:0})` zurueck zum Seitenanfang —
+GENAU WEG von `#p360out`, das im DOM UNTERHALB der (bis zu 200 Zeilen langen)
+Patiententabelle liegt. Aus Nutzersicht: Klick, Sprung nach oben, Tabelle wieder
+sichtbar, keine Akte zu sehen → wirkte wie "laedt nicht".
+
+**Fix:** `window.scrollTo({top:0,...})` ersetzt durch
+`$('#p360out').scrollIntoView({behavior:'smooth',block:'start'})`, zusaetzlich wird
+jetzt korrekt auf `loadP360()` gewartet (`async`+`await`), bevor gescrollt wird —
+vorher lief der Scroll parallel zum noch nicht abgeschlossenen Ladevorgang.
+Live verifiziert (DOM-Check nach Zeilenklick): Akte laedt (KPIs/Fallcards korrekt
+befuellt) UND das Scroll-Ziel zeigt exakt auf `#p360out` (Element-Position bestaetigt;
+Smooth-Animation selbst liess sich in dieser Browser-Test-Session nicht pruefen, da
+sie ohne aktives Frame-Compositing kein `requestAnimationFrame` erhaelt — kein
+Hinweis auf ein echtes Problem in einem normal angezeigten Browser-Tab).
+
+---
+
+## R26 — D2-Timeline live: fehlende mcp-Tabellen liessen die gesamte Timeline-UNION scheitern
+
+Beim Livegang der Swimlane-Timeline (Darstellung D2) war die Ereignisliste leer, obwohl
+der Testpatient 72 Diagnosen/101 Bewegungen hat. Ursache: die Timeline-Query UNION-te
+fest ueber mcp.labor und mcp.dokument — beide existieren in der Phase-0-Kohorte nicht
+(NDOC/N2LABOR bewusst nicht geladen). EINE fehlende Tabelle laesst die GANZE UNION
+scheitern, und der defensive _q()-Wrapper verschluckte den Fehler zu [] — klassisches
+Fehlerbild "leer statt kaputt". Fix: UNION wird jetzt dynamisch nur aus tatsaechlich
+vorhandenen mcp.*-Tabellen komponiert (information_schema-Check). Ergebnis: 274
+Ereignisse (101 Bewegung, 85 Diagnose, 67 Prozedur, 21 Fall) fuer den Testpatienten;
+Swimlane rendert 4 Lanes/10 Fall-Balken/243 Punkte, Zoom+Legende live verifiziert.
+Merksatz: Bei UNIONs ueber optionale Schichten immer Existenz pruefen — und Fehler-
+Verschlucken (except -> []) macht solche Bugs unsichtbar; DQ-seitig erkennbar nur an
+"leer trotz Daten".
+
+---
+
+## R27 — NDRG + DRG-Katalog in der Kohorte; drei Folgebugs gefixt
+
+Nutzeranforderung: Faelle-Sektion mit Hauptdiagnose + DRG inkl. Bezeichner, Jahre klappbar.
+Umsetzung: NDRG in COHORT_KEY (PATCASEID==FALNR, MANDT-Spalte=CLIENT — englische Spalten,
+R9) + neuer Referenzpfad fuer Nicht-SAP-Tabellen ohne MANDT (`Leistungen_DRGs`, 35.295
+Zeilen Katalog). mcp.drg (36.285) + mcp.drg_katalog; API reichert faelle um hd_icd/hd_text
+(arg_max KHDIA='X') und drg/drg_bez/bwr an; UI mit klappbaren Jahresgruppen.
+
+**Drei Live-Befunde:**
+1. `gold.casemix` (build.py) nutzte `UPDAT` — NDRG hat aber englische Spalten; der Mart
+   war seit jeher kaputt und fiel erst beim ERSTEN echten NDRG-Load auf. Fix:
+   DRG_CREAT_DATE/COST_WEIGHT/CANCEL_FLAG; liefert jetzt echten Casemix/CMI je Jahr.
+2. `mcp/views._select_list` verglich Spalten case-sensitiv gegen ein UPPER-Set —
+   gemischtgeschriebene Spalten (DRG_Bezeichnung, DRG_gueltig_von) fielen STUMM aus der
+   mcp-Schicht. Fix: upper()-Vergleich, Original-Case im SELECT.
+3. Katalog-Schluesselformat entschluesselt: `DRG`+<Katalogjahr 2-stellig>+<Kode>
+   (DRG23H41C) — Join via substr(DRG,6), juengstes Jahr per substr(DRG,4,2) gewinnt.
+
+Verifiziert im DOM: "K83.1 Gallengangsverschluss | H41D Andere aufwendige ERCP...",
+Jahresgruppen offen(9)/2026/.../unbekannt klapp- und default-korrekt. 88 Tests gruen.
+
+---
+
+## R28 — Auth-Strecke live: HR-Mandant 114, Resolver-Fail-Open, Review-Fixes
+
+**HR-MANDANT-BEFUND:** hrp.PA0105/PA0001 tragen ausschliesslich `MANDT='114'` — NICHT
+die IS-H-Konstante '100'! Erster Ladelauf lieferte deshalb still 0 Zeilen. Fix:
+Registry-Feld `mandt:` je Tabelle (Override), respektiert in backfill_table, CDC-Pfad
+(Review-Fund: importierte sonst ALLE Mandanten) und cohort_backfill_table; zusaetzlich
+Mandanten-Filter direkt in den auth-Mart-DDLs (Defense-in-Depth).
+
+**Auth-Marts live (Kohorte):** login_pernr 37.838 · pernr_kostl 357.759 · setnode
+16.068 · setleaf 165.345 · oe_kostl 2.597 · fall_kostl 124.447. Resolver-Tests:
+deny-by-default OK, Abteilungsrolle eigener Patient OK, MC-Vollrolle OK.
+**⚠ KRITISCH OFFEN:** Negativtest scheitert — DEPT-Rolle sieht auch Patienten OHNE
+Kostenstellen-Ueberschneidung (Fail-Open-Verdacht `authz/service.py` DEPT-Pfad;
+expand=False aendert nichts). `authz.enabled` bleibt AUS bis geklaert.
+
+**Code-Review-Fixes (7 Findings, alle behoben):** (1+4) HD-Query auf QUALIFY
+row_number umgestellt — vorher konnten unabhaengige arg_max hd_icd/hd_text/ist_hd aus
+VERSCHIEDENEN Zeilen mischen und NULL-KHDIA sortierte in DuckDB-Structs VOR 'X'.
+(2) MANDT in CDC + auth-DDL (s.o.). (3) Auth-Guard in gold/build prueft jetzt alle 5
+Quell-Views. (5) ref.oe als LEFT JOIN statt Voll-Katalog-Fetch je Request.
+(6) dieser Log-Eintrag. (7) OFFEN als G10: HD-Definition existiert in 5 Varianten
+(app/mcp/marts/build) — zentralisieren in einen Gold-View.
 
 ---
 

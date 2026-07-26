@@ -1,5 +1,8 @@
 # Analyse des Altbestands: BaseTable-Ladeprozesse + DIAS-Objektbaum
 
+> **STATUS: ARCHIV** (siehe `INDEX.md`). Erkenntnisse in Registry (`tables.yaml`),
+> CONCEPT §14 und `Analyse_Datenbank.md` §6 übernommen. Nicht mehr fortschreiben.
+
 Stand 15.07.2026 · Quellen: `legacy/base-table/Stored Procedures/` (16 T-SQL-Prozeduren,
 ~12.600 Zeilen, DB `Analysen` auf dem MSSQL-Server) und `legacy/dias/` (DIAS-ANALYTICS-
 Objektbaum, 4.220 Objekte, Index in `legacy/dias/OBJEKTBAUM_INDEX.md`).

@@ -23,5 +23,4 @@ select:
   - DRG_CATEGORY
   - CCL
   - STORN
-  - ERDAT
-  - UPDAT
+  - UPDAT      # NICP hat KEIN ERDAT (R20 live verifiziert)

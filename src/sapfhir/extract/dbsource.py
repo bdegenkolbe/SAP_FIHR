@@ -53,6 +53,17 @@ class Source:
             env = os.environ.get("SAPFHIR_DB_PW")
             if env:
                 self.cfg = {**cfg, "password": env}
+        if not self.cfg.get("password"):
+            # Windows Credential Manager (BERECHTIGUNGSKONZEPT/DEPLOYMENT):
+            # Dienst 'sapfhir:<environment>', Konto = username. Kein Klartext auf Platte.
+            try:
+                import keyring  # optional
+                svc = f"sapfhir:{cfg.get('environment', 'higl-main')}"
+                v = keyring.get_password(svc, cfg.get("username", ""))
+                if v:
+                    self.cfg = {**self.cfg, "password": v}
+            except Exception:
+                pass
 
     # -- Verbindung ---------------------------------------------------------
     def connect(self) -> "Source":
@@ -70,6 +81,7 @@ class Source:
                   f"DATABASE={c['database']};{auth}"
                   f"Encrypt={enc};TrustServerCertificate={tsc};ApplicationIntent={intent}")
             self._conn = pyodbc.connect(cs, readonly=True)
+            self._paramstyle = "qmark"
         elif _HAVE_PYTDS:
             kw = dict(
                 server=c["host"], port=int(c.get("port", 1433)),
@@ -83,10 +95,18 @@ class Source:
             else:
                 kw.update(user=c["username"], password=c.get("password", ""))
             self._conn = pytds.connect(**kw)
+            self._paramstyle = "pyformat"  # pytds erwartet %s statt ?
         else:
             raise RuntimeError("Weder pyodbc noch pytds verfuegbar. "
                                "pip install python-tds")
         return self
+
+    def _adapt(self, sql: str) -> str:
+        """Platzhalter an den Treiber anpassen (qmark '?' -> pyformat '%s' bei pytds).
+        Interne SQL enthaelt keine literalen Fragezeichen."""
+        if getattr(self, "_paramstyle", "qmark") == "pyformat":
+            return sql.replace("?", "%s")
+        return sql
 
     def close(self) -> None:
         if self._conn:
@@ -99,7 +119,7 @@ class Source:
     # -- Abfragen -----------------------------------------------------------
     def query(self, sql: str, params: Iterable[Any] = ()) -> list[dict]:
         cur = self._conn.cursor()
-        cur.execute(sql, tuple(params))
+        cur.execute(self._adapt(sql), tuple(params))
         cols = [d[0] for d in cur.description]
         out = [{c: to_iso(v) for c, v in zip(cols, row)} for row in cur.fetchall()]
         cur.close()
@@ -110,7 +130,7 @@ class Source:
         """Streamt grosse Resultsets ohne alles in den Speicher zu ziehen."""
         cur = self._conn.cursor()
         cur.arraysize = arraysize
-        cur.execute(sql, tuple(params))
+        cur.execute(self._adapt(sql), tuple(params))
         cols = [d[0] for d in cur.description]
         while True:
             rows = cur.fetchmany(arraysize)
@@ -122,7 +142,7 @@ class Source:
 
     def scalar(self, sql: str, params: Iterable[Any] = ()):
         cur = self._conn.cursor()
-        cur.execute(sql, tuple(params))
+        cur.execute(self._adapt(sql), tuple(params))
         r = cur.fetchone()
         cur.close()
         return r[0] if r else None

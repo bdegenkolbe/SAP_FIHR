@@ -118,6 +118,11 @@ def cdc_table(src: Source, st: State, schema: str, table: str, reg: dict,
         col_sql = ", ".join(f"[{c}]" for c in columns) if columns else "*"
         params: list = []
         where = "1=1"
+        # Mandanten-Filter wie im Backfill (Review-Fix R28: sonst importiert der
+        # Watermark-Pfad ALLE Mandanten — Cross-Client-Zeilen in bronze_current/auth)
+        mandt = reg.get("mandt") or (scope or {}).get("mandt")
+        if mandt:
+            where += f" AND [MANDT] = '{mandt}'"
         if since:
             # 1 Tag Ueberlappung (Datum ohne Zeit in manchen Tabellen)
             d = (_dt.date.fromisoformat(since[:10]) - _dt.timedelta(days=1)).isoformat()

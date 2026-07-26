@@ -56,6 +56,37 @@ svg text{font-family:inherit}
 .badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:9px;border:1px solid var(--grid);color:var(--ink2)}
 .badge.open{border-color:var(--good);color:var(--good)}
 .badge.hd{border-color:var(--s1);color:var(--s1)}
+/* Sticky-Patient-Header + Akte (CONCEPT_P360_DARSTELLUNG §4) */
+#phead{position:sticky;top:0;z-index:30;display:flex;gap:16px;align-items:center;
+  background:var(--card,#fff);border:1px solid var(--grid);border-radius:10px;
+  padding:10px 16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+#pheadId{font-weight:700;font-size:17px;font-variant-numeric:tabular-nums}
+#pheadId .sub2{font-weight:400;font-size:12px;color:var(--ink2);margin-left:10px}
+#pheadStats{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.badge{font-size:11px;border:1px solid var(--grid);border-radius:999px;padding:2px 10px;
+  color:var(--ink2);white-space:nowrap}
+.badge.open{border-color:#1baf7a;color:#0d7a54;font-weight:600}
+.badge.hd{border-color:#e87ba4;color:#b4416f;font-weight:600}
+.badge.dead{border-color:var(--crit);color:var(--crit);font-weight:600}
+/* Tabellenregeln: sticky Header unter dem Patient-Header, dezente Gruppzeilen */
+table.stick thead th{position:sticky;top:58px;background:var(--card,#fff);z-index:5}
+#plist.stick thead th{top:0}
+tr.grp td{background:none;border-bottom:2px solid var(--grid);font-weight:650;
+  color:var(--ink2);font-size:12px;letter-spacing:.4px;text-transform:uppercase;padding-top:14px}
+tr.sub td{color:var(--ink2);font-size:12px;background:rgba(0,0,0,.015)}
+tr.expandable{cursor:pointer}
+.caret{display:inline-block;transition:transform .12s;color:var(--mut)}
+tr.open .caret{transform:rotate(90deg)}
+/* Fall-Drilldown-Drawer (P2.5 v1) */
+#fdBack{position:fixed;inset:0;background:rgba(0,0,0,.28);z-index:60;display:none}
+#fdrawer{position:fixed;top:0;right:-720px;width:min(700px,94vw);height:100vh;z-index:61;
+  background:var(--card,#fff);box-shadow:-6px 0 24px rgba(0,0,0,.18);
+  transition:right .18s ease;overflow-y:auto;padding:18px 22px}
+#fdrawer.open{right:0}
+#fdrawer h2{margin:0;font-size:16px}
+#fdrawer .sect{margin-top:18px}
+#fdrawer .sect h3{font-size:12px;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--ink2);margin:0 0 6px}
 .fallgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .fallcard{border:1px solid var(--grid);border-radius:9px;padding:12px 14px}
 .fallcard .fn{font-weight:650;font-variant-numeric:tabular-nums}
@@ -89,6 +120,22 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
 
   <div id="monitor" class="page act">
     <div class="kpis" id="mk"></div>
+    <div class="card">
+      <div class="hd"><h2>Kohorte laden</h2></div>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <button id="cohortGo" class="go">Aktuelle Stationspatienten laden</button>
+        <label style="font-size:12px;color:var(--ink);display:flex;gap:5px;align-items:center">
+          <input type="checkbox" id="cohortHistory" checked>
+          inkl. Fallhistorie (Patientensicht)
+        </label>
+        <label style="font-size:12px;color:var(--ink);display:flex;gap:5px;align-items:center">
+          <input type="checkbox" id="cohortFhir">
+          FHIR-Export für MCP-Server
+        </label>
+        <span id="cohortHint" style="font-size:12px;color:var(--mut)">Dashboard braucht nur Extrakt + Gold-Marts (schnell) — FHIR-Export ist nur für den MCP-Tool-Zugriff nötig und macht den Lauf deutlich länger</span>
+      </div>
+      <div id="cohortStatus" style="margin-top:8px;font-size:13px"></div>
+    </div>
     <div class="card"><div class="hd"><h2>Tabellenstatus</h2></div><table id="mt"><thead><tr><th>Tabelle</th><th>Phase</th><th class="num">Zeilen</th><th>Watermark</th></tr></thead><tbody></tbody></table></div>
     <div class="card"><div class="hd"><h2>Datenqualität — Reconciliation</h2></div><table id="dq"><thead><tr><th>Tabelle</th><th class="num">Quelle</th><th class="num">Lokal</th><th class="num">Δ</th><th>Status</th></tr></thead><tbody></tbody></table></div>
   </div>
@@ -106,25 +153,75 @@ button.go{padding:9px 18px;border:0;border-radius:8px;background:var(--cy);color
   </div>
 
   <div id="p360" class="page">
-    <div class="card">
-      <div style="display:flex;gap:10px;align-items:center">
-        <input id="p360in" class="pin" placeholder="PATNR, z.B. 0007700024" style="flex:0 0 260px">
-        <button id="p360go" class="go">Laden</button>
-        <span style="font-size:12px;color:var(--mut)">read-only · maskierte mcp.*-Schicht</span>
+    <!-- ZUSTAND A: Arbeitsliste (CONCEPT_P360_DARSTELLUNG §4) -->
+    <div id="plistCard" class="card">
+      <div class="hd">
+        <h2>Patienten</h2>
+        <div style="display:flex;gap:10px;align-items:center;margin-left:auto;flex-wrap:wrap">
+          <input id="p360in" class="pin" placeholder="PATNR direkt laden" style="flex:0 0 170px">
+          <button id="p360go" class="go">Laden</button>
+          <input id="plistQ" class="pin" placeholder="PATNR-Suche" style="flex:0 0 150px">
+          <select id="plistSize">
+            <option value="50">50</option><option value="100">100</option><option value="200">200</option>
+          </select>
+          <span id="plistInfo" style="font-size:12px;color:var(--mut)"></span>
+          <button id="plistPrev" class="tgl">‹</button>
+          <button id="plistNext" class="tgl">›</button>
+        </div>
       </div>
+      <table id="plist" class="stick">
+        <thead><tr><th>PATNR</th><th>Geschlecht</th><th class="num">Jg.</th><th class="num">Fälle</th><th class="num">davon offen</th><th>letzte Aufnahme</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
+    <!-- ZUSTAND B: Akte (ERSETZT die Liste; Rücksprung + Sticky-Header) -->
     <div id="p360out" style="display:none">
-      <div class="kpis" id="pk3"></div>
-      <div class="card"><div class="hd"><h2>Fälle</h2></div><div class="fallgrid" id="pfall"></div></div>
-      <div class="grid2">
-        <div class="card"><div class="hd"><h2>Laborwert-Verläufe</h2><span class="sub">Referenzbereich als Band · <span style="color:var(--crit);font-weight:600">●</span> auffällig</span></div><div class="labgrid" id="plab"></div></div>
-        <div class="card"><div class="hd"><h2>Diagnosen</h2></div><table id="pdia"><thead><tr><th>Datum</th><th>ICD</th><th>Text</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div id="phead">
+        <button id="pback" class="tgl">◀ Patientenliste</button>
+        <div id="pheadId"></div>
+        <div id="pheadStats"></div>
       </div>
-      <div class="card"><div class="hd"><h2>Zeitstrahl</h2><span class="legend" id="lgTl"></span></div><table id="pt3"><thead><tr><th>Datum</th><th>Typ</th><th>Fall</th><th>Detail</th></tr></thead><tbody></tbody></table></div>
+      <div class="card"><div class="hd"><h2>Problemliste</h2>
+        <span class="sub">Diagnosen nach ICD gebündelt · Zeile aufklappen für Einzelnennungen</span></div>
+        <table id="pprob" class="stick"><thead><tr><th style="width:26px"></th><th>ICD</th><th>Text</th><th class="num">Nennungen</th><th>erstmals</th><th>zuletzt</th><th></th></tr></thead><tbody></tbody></table>
+        <div style="text-align:center;margin-top:6px"><button id="pprobMore" class="tgl" style="display:none">Mehr anzeigen</button></div>
+      </div>
+      <div class="card"><div class="hd"><h2>Fälle</h2><span class="sub">offene zuerst, dann nach Jahr · Jahreszeile klappt auf/zu</span></div>
+        <table id="pfaelle" class="stick"><thead><tr><th>Fall</th><th>Art</th><th>Zeitraum</th><th>Hauptdiagnose</th><th>DRG</th><th>Status</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div class="card" id="plabCard"><div class="hd"><h2>Laborwert-Verläufe</h2><span class="sub">Referenzbereich als Band · <span style="color:var(--crit);font-weight:600">●</span> auffällig</span></div><div class="labgrid" id="plab"></div></div>
+      <div class="card" id="ptlCard"><div class="hd"><h2>Zeitstrahl</h2>
+        <span class="legend" id="lgTl"></span>
+        <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+          <button class="tgl tlrange" data-y="1">1 J</button>
+          <button class="tgl tlrange" data-y="5">5 J</button>
+          <button class="tgl tlrange" data-y="10">10 J</button>
+          <button class="tgl tlrange" data-y="0">Alles</button>
+          <span style="font-size:11px;color:var(--mut)">ziehen = zoomen · Doppelklick = zurück</span>
+        </span></div>
+        <div class="plot" id="ptl"></div></div>
     </div>
   </div>
 
 </main>
+<!-- Fall-Drilldown-Drawer (P2.5 v1): Klick auf Fall-Zeile/-Balken -->
+<div id="fdBack"></div>
+<aside id="fdrawer" aria-label="Fall-Detail">
+  <div style="display:flex;gap:10px;align-items:center">
+    <h2 id="fdTitle">Fall</h2>
+    <span id="fdBadges" style="display:flex;gap:6px"></span>
+    <a id="fdMdm" class="tgl" target="_blank" rel="noopener"
+       style="margin-left:auto;text-decoration:none">⚖ CliniBots MDM</a>
+    <button id="fdClose" class="tgl">✕ schließen</button>
+  </div>
+  <div id="fdMeta" style="font-size:12px;color:var(--ink2);margin-top:4px"></div>
+  <div class="sect"><h3>Bewegungskette</h3>
+    <table id="fdBew"><thead><tr><th>von</th><th>bis</th><th>Typ</th><th>OE</th></tr></thead><tbody></tbody></table></div>
+  <div class="sect" id="fdDiaSect"><h3>Diagnosen</h3>
+    <table id="fdDia"><thead><tr><th>Datum</th><th>ICD</th><th>Text</th><th></th></tr></thead><tbody></tbody></table></div>
+  <div class="sect" id="fdIcpSect"><h3>Prozeduren</h3>
+    <table id="fdIcp"><thead><tr><th>Datum</th><th>OPS</th><th>Text</th></tr></thead><tbody></tbody></table></div>
+</aside>
 <div class="cbbar"></div>
 <footer><b style="color:var(--ink);font-style:normal">CliniBots Patient Insight</b> · Klinik. Daten. Management. — read-only · on-prem · GREENBAY healthcare GmbH</footer>
 <div id="tip"></div>
@@ -271,8 +368,41 @@ async function loadMonitor(){
   const di=await api('/api/monitor/dias').catch(()=>[]);
   if(di.length)$('#mk').innerHTML+=`<div class="kpi"><div class="l">DIAS-Abdeckung</div><div class="v">${di[0].in_registry}/${di[0].dias_genutzt}</div></div>`;
   const dq=await api('/api/monitor/reconciliation').catch(()=>[]);
-  $('#dq tbody').innerHTML=dq.map(r=>`<tr><td>${r.table_name}</td><td class="num">${r.source_rows==null?'—':NF.format(Number(r.source_rows))}</td><td class="num">${NF.format(Number(r.local_rows||0))}</td><td class="num">${r.delta==null?'—':r.delta}</td><td style="color:${r.status==='ALARM'?'var(--crit)':r.status==='OK'?'var(--good)':'var(--mut)'};font-weight:600">${r.status}</td></tr>`).join('');
+  $('#dq tbody').innerHTML=dq.map(r=>`<tr><td>${r.table_name}</td><td class="num">${r.source_rows==null?(r.status==='KOHORTE'?'Teilmenge':'—'):NF.format(Number(r.source_rows))}</td><td class="num">${NF.format(Number(r.local_rows||0))}</td><td class="num">${r.delta==null?'—':r.delta}</td><td style="color:${r.status==='ALARM'?'var(--crit)':r.status==='OK'?'var(--good)':r.status==='KOHORTE'?'#2a78d6':'var(--mut)'};font-weight:600">${r.status}</td></tr>`).join('');
 }
+
+/* ---------- Kohorte laden (Ladeknopf, R21) ---------- */
+let cohortPoll=null;
+function renderCohortStatus(s){
+  const box=$('#cohortStatus');
+  if(!s||s.state==='idle'){box.innerHTML='<span style="color:var(--mut)">noch nicht geladen</span>';return;}
+  const rows=(s.log||[]).slice(-6).map(l=>`<div style="color:var(--mut)">${l}</div>`).join('');
+  if(s.state==='running'){
+    box.innerHTML=`<div style="color:#2a78d6;font-weight:600">läuft …</div>${rows}`;
+  }else if(s.state==='done'){
+    const c=s.result&&s.result.cohort||{};
+    const sc=s.load_scope==='current'?'nur aktuelle Faelle':'inkl. Fallhistorie';
+    box.innerHTML=`<div style="color:var(--good);font-weight:600">fertig (${sc}) — ${NF.format(c.patienten||0)} Patienten, ${NF.format(c.faelle||0)} Faelle (${s.finished_at||''})</div>${rows}`;
+  }else if(s.state==='error'){
+    box.innerHTML=`<div style="color:var(--crit);font-weight:600">Fehler: ${s.error||''}</div>${rows}`;
+  }
+}
+async function pollCohort(){
+  const s=await api('/api/cohort/status').catch(()=>null);
+  renderCohortStatus(s);
+  if(s&&s.state==='running'){ cohortPoll=setTimeout(pollCohort,2000); }
+  else{ clearTimeout(cohortPoll); $('#cohortGo').disabled=false;
+    if(s&&s.state==='done'){ loadMonitor(); loadAnalytics(); } }
+}
+$('#cohortGo').onclick=async()=>{
+  $('#cohortGo').disabled=true;
+  const scope=$('#cohortHistory').checked?'history':'current';
+  const fhir=$('#cohortFhir').checked?'true':'false';
+  const r=await fetch('/api/cohort/load?scope='+scope+'&fhir='+fhir,{method:'POST'}).then(r=>r.json()).catch(e=>({error:String(e)}));
+  if(r.error && !r.started){ $('#cohortStatus').innerHTML=`<span style="color:var(--crit)">${r.error}</span>`; $('#cohortGo').disabled=false; return; }
+  pollCohort();
+};
+pollCohort();
 
 /* ---------- Analytik ---------- */
 async function loadAnalytics(){
@@ -329,56 +459,290 @@ async function loadAnalytics(){
 const pnum=s=>{const v=parseFloat(String(s).replace(',','.'));return isNaN(v)?null:v;};
 const pref=s=>{const m=/^\s*(\d+[.,]?\d*)\s*-\s*(\d+[.,]?\d*)\s*$/.exec(s||'');
   return m?[pnum(m[1]),pnum(m[2])]:null;};
+/* Zustandswechsel Liste <-> Akte (Master-Detail mit ERSETZEN, Darstellung §5) */
+function showListe(){
+  $('#p360out').style.display='none';
+  $('#plistCard').style.display='';
+  if(location.hash.startsWith('#p360/'))history.replaceState('','','#');
+}
+function showAkte(){
+  $('#plistCard').style.display='none';
+  $('#p360out').style.display='block';
+  window.scrollTo({top:0});
+}
+const dfmt=v=>{const s=String(v||'').slice(0,10);
+  return (!s||s.startsWith('0101')||s.startsWith('9999'))?null:s;};
+
 async function loadP360(){
   const p=$('#p360in').value.trim(); if(!p)return;
   const d=await api('/api/patient360/'+encodeURIComponent(p)).catch(()=>null);
-  $('#p360out').style.display='block';
   if(!d||(!d.faelle.length&&!d.patient)){
-    $('#pk3').innerHTML='<div class="kpi"><div class="l">PATNR '+p+'</div><div class="v" style="font-size:18px">nicht gefunden</div></div>';
-    $('#pfall').innerHTML='';$('#plab').innerHTML='';
-    $('#pdia tbody').innerHTML='';$('#pt3 tbody').innerHTML='';return;}
+    $('#plistInfo').textContent='PATNR '+p+' nicht gefunden';return;}
+  showAkte();
+  history.replaceState('','','#p360/'+encodeURIComponent(p));
+  /* Sticky-Header: Identitaet + Kernzahlen (Storyboard-Prinzip) */
   const pat=d.patient||{}, jahr=String(pat.GBDAT||'').slice(0,4);
   const alter=/^\d{4}$/.test(jahr)?new Date().getFullYear()-Number(jahr):null;
-  const last=d.timeline.length?String(d.timeline[0].datum).slice(0,10):'—';
-  $('#pk3').innerHTML=`
-    <div class="kpi"><div class="l">Patient</div><div class="v" style="font-size:20px">${p}</div>
-      <div class="s">${GS[String(pat.GSCHL)]||'—'}${alter!=null?' · Jg. '+jahr+' ('+alter+' J.)':''}${pat.TODKZ==='X'?' · verstorben':''}</div></div>
-    <div class="kpi"><div class="l">Fälle</div><div class="v">${d.faelle.length}</div>
-      <div class="s">${d.faelle.filter(f=>f.offen).length} offen</div></div>
-    <div class="kpi"><div class="l">Diagnosen</div><div class="v">${d.diagnosen.length}</div></div>
-    <div class="kpi"><div class="l">Laborwerte</div><div class="v">${d.labor.length}</div></div>
-    <div class="kpi"><div class="l">Letzter Kontakt</div><div class="v" style="font-size:20px">${last}</div></div>`;
-  $('#pfall').innerHTML=d.faelle.map(f=>`
-    <div class="fallcard"><div style="display:flex;gap:8px;align-items:center">
-      <span class="fn">${f.FALNR}</span>
-      ${f.offen?'<span class="badge open">offen</span>':''}</div>
-      <div class="meta">${falart(f.FALAR)} · ${f.FACHR||'—'}<br>
-      ${String(f.BEGDT).slice(0,10)} – ${f.offen?'…':String(f.ENDDT).slice(0,10)}</div></div>`).join('');
-  /* Labor: je Kategorie ein Verlauf (nach Anzahl absteigend, max 6) */
+  const offen=d.faelle.filter(f=>f.offen).length;
+  const last=d.timeline.length?String(d.timeline[0].datum).slice(0,10):null;
+  $('#pheadId').innerHTML=`${p}<span class="sub2">${GS[String(pat.GSCHL)]||'—'}${alter!=null?' · Jg. '+jahr+' ('+alter+' J.)':''}</span>`;
+  $('#pheadStats').innerHTML=
+    (pat.TODKZ==='X'?'<span class="badge dead">verstorben</span>':'')+
+    `<span class="badge${offen?' open':''}">${offen} offen</span>`+
+    `<span class="badge">${d.faelle.length} Fälle</span>`+
+    `<span class="badge">${(d.diagnosen_gruppen||[]).length} Probleme</span>`+
+    (last?`<span class="badge">zuletzt ${last}</span>`:'');
+  /* Problemliste: ICD-gruppiert, aufklappbar zu Einzelnennungen */
+  const flat=d.diagnosen||[], grp=d.diagnosen_gruppen||[];
+  const renderProb=(limit)=>{
+    $('#pprob tbody').innerHTML=grp.slice(0,limit).map((g,i)=>`
+      <tr class="expandable" data-icd="${g.DKEY1}" data-i="${i}">
+        <td><span class="caret">▶</span></td>
+        <td style="font-variant-numeric:tabular-nums;font-weight:600">${g.DKEY1}</td>
+        <td>${g.text||'—'}</td>
+        <td class="num">${g.n}</td>
+        <td style="font-variant-numeric:tabular-nums">${dfmt(g.erst)||'—'}</td>
+        <td style="font-variant-numeric:tabular-nums">${dfmt(g.letzt)||'—'}</td>
+        <td>${g.hd?'<span class="badge hd">Hauptdiagnose</span>':''}</td></tr>`).join('');
+    $('#pprobMore').style.display=grp.length>limit?'':'none';
+    $('#pprob tbody').querySelectorAll('tr.expandable').forEach(tr=>tr.onclick=()=>{
+      const open=tr.classList.toggle('open');
+      document.querySelectorAll(`tr.sub[data-p="${tr.dataset.i}"]`).forEach(x=>x.remove());
+      if(!open)return;
+      const items=flat.filter(x=>x.DKEY1===tr.dataset.icd);
+      tr.insertAdjacentHTML('afterend',items.map(x=>`
+        <tr class="sub" data-p="${tr.dataset.i}"><td></td>
+          <td style="font-variant-numeric:tabular-nums">${dfmt(x.DIADT)||'—'}</td>
+          <td colspan="2">Fall ${x.FALNR}</td><td></td><td></td>
+          <td>${x.KHDIA==='X'?'<span class="badge hd">HD</span>':''}</td></tr>`).join('')
+        ||`<tr class="sub" data-p="${tr.dataset.i}"><td></td><td colspan="6">Einzelnennungen älter als die letzten 200 Eintraege</td></tr>`);
+    });
+  };
+  renderProb(20);
+  $('#pprobMore').onclick=()=>renderProb(grp.length);
+  /* Faelle: offene zuerst, dann nach Jahr KLAPPBAR gruppiert; HD + DRG je Fall */
+  const kurz=(s,n=42)=>{s=String(s||'').trim();return s.length>n?s.slice(0,n-1)+'…':s;};
+  const fRow=(f,grp)=>{const b=dfmt(f.BEGDT), e=dfmt(f.ENDDT);
+    return `<tr class="rowlink" data-falnr="${f.FALNR}" data-grp="${grp}" style="cursor:pointer">
+      <td style="font-variant-numeric:tabular-nums">${f.FALNR}</td>
+      <td>${falart(f.FALAR)}</td>
+      <td style="font-variant-numeric:tabular-nums">${b||'—'} – ${f.offen?'laufend':(e||'—')}</td>
+      <td title="${f.hd_text||''}">${f.hd_icd?`<b style="font-variant-numeric:tabular-nums">${f.hd_icd}</b> ${kurz(f.hd_text,34)}`:'—'}</td>
+      <td title="${f.drg_bez||''}">${f.drg?`<b style="font-variant-numeric:tabular-nums">${f.drg}</b> ${kurz(f.drg_bez,34)}`:'—'}</td>
+      <td>${f.offen?'<span class="badge open">offen</span>':'abgeschlossen'}</td></tr>`;};
+  const grpRow=(id,label,n)=>`<tr class="grp expandable" data-grpid="${id}">
+      <td colspan="6"><span class="caret">▶</span> ${label} (${n})</td></tr>`;
+  const offene=d.faelle.filter(f=>f.offen)
+    .sort((a,b)=>String(b.BEGDT).localeCompare(String(a.BEGDT)));
+  const zu=d.faelle.filter(f=>!f.offen)
+    .sort((a,b)=>String(b.BEGDT).localeCompare(String(a.BEGDT)));
+  const jahre={};zu.forEach(f=>{const d10=dfmt(f.BEGDT);
+    const y=d10?d10.slice(0,4):'unbekannt';(jahre[y]=jahre[y]||[]).push(f);});
+  /* numerische Jahre absteigend, 'unbekannt' ganz hinten */
+  const jahrKeys=Object.keys(jahre).sort((a,b)=>{
+    if(a==='unbekannt')return 1; if(b==='unbekannt')return -1;
+    return b.localeCompare(a);});
+  let html='';
+  if(offene.length)html+=grpRow('offen','offen',offene.length)+offene.map(f=>fRow(f,'offen')).join('');
+  jahrKeys.forEach(y=>{html+=grpRow(y,y,jahre[y].length)+jahre[y].map(f=>fRow(f,y)).join('');});
+  $('#pfaelle tbody').innerHTML=html;
+  /* Default: 'offen' + neuestes echtes Jahr offen, aeltere zugeklappt */
+  const openGrps=new Set(['offen',jahrKeys.find(y=>y!=='unbekannt')].filter(Boolean));
+  const applyGrps=()=>{
+    $('#pfaelle tbody').querySelectorAll('tr[data-grp]').forEach(tr=>
+      tr.style.display=openGrps.has(tr.dataset.grp)?'':'none');
+    $('#pfaelle tbody').querySelectorAll('tr.grp').forEach(tr=>
+      tr.classList.toggle('open',openGrps.has(tr.dataset.grpid)));};
+  applyGrps();
+  $('#pfaelle tbody').querySelectorAll('tr.grp').forEach(tr=>tr.onclick=()=>{
+    const id=tr.dataset.grpid;
+    openGrps.has(id)?openGrps.delete(id):openGrps.add(id);applyGrps();});
+  $('#pfaelle tbody').querySelectorAll('tr[data-falnr]').forEach(tr=>
+    tr.onclick=()=>loadFall(tr.dataset.falnr));
+  /* Labor: Panel NUR zeigen, wenn Daten vorhanden (keine leeren Gefaesse) */
   const groups={};d.labor.forEach(r=>{const v=pnum(r.WERT);if(v==null||!r.BEFDT)return;
     (groups[r.KATTEXT]=groups[r.KATTEXT]||[]).push({t:new Date(String(r.BEFDT).slice(0,10)).getTime(),
       d:String(r.BEFDT).slice(0,10),v,ab:(r.ABNORMAL&&String(r.ABNORMAL).trim())||null,einh:r.EINH,ref:r.REFBER});});
   const cats=Object.keys(groups).sort((a,b)=>groups[b].length-groups[a].length).slice(0,6);
-  $('#plab').innerHTML=cats.length?'':'<div class="empty">keine numerischen Laborwerte</div>';
+  $('#plabCard').style.display=cats.length?'':'none';
+  $('#plab').innerHTML='';
   cats.forEach(k=>{const pts=groups[k].sort((a,b)=>a.t-b.t);
     const cell=document.createElement('div');cell.className='labcell';
     const lastp=pts[pts.length-1];
     cell.innerHTML=`<h3>${k}</h3><div class="last">zuletzt ${NF1.format(lastp.v)} ${lastp.einh||''}${lastp.ref?' · Ref. '+lastp.ref:''}</div><div class="plot"></div>`;
     $('#plab').appendChild(cell);
     labLine(cell.querySelector('.plot'),pts,pref(lastp.ref),lastp.einh);});
-  $('#pdia tbody').innerHTML=d.diagnosen.map(r=>`<tr><td class="num" style="text-align:left">${String(r.DIADT||'').slice(0,10)}</td>
-    <td style="font-variant-numeric:tabular-nums">${r.DKEY1||''}</td><td>${r.DITXT||'—'}</td>
-    <td>${r.KHDIA==='X'?'<span class="badge hd">Hauptdiagnose</span>':''}</td></tr>`).join('');
-  legend($('#lgTl'),Object.keys(TLC).map(k=>({c:TLC[k],t:k})));
-  $('#pt3 tbody').innerHTML=d.timeline.map(r=>{
-    const det=r.typ==='Fall'?falart(r.detail):(r.detail||'—');
-    return `<tr><td style="font-variant-numeric:tabular-nums">${String(r.datum).slice(0,10)}</td>
-      <td><span class="dot" style="background:${TLC[r.typ]||C.mut}"></span>${r.typ}</td>
-      <td style="font-variant-numeric:tabular-nums">${r.ref}</td><td>${det}</td></tr>`;}).join('');
+  /* Zeitstrahl (D2): Swimlanes je Domaene, Fall-Balken, Brush-Zoom */
+  tlState={d,from:null,to:null,hidden:new Set()};
+  $('#ptlCard').style.display=(d.timeline.length||d.faelle.length)?'':'none';
+  renderTimeline();
 }
+
+/* ---------- Swimlane-Timeline (Darstellung §6 D2; LifeLines/Epic-Lifetime-Muster) */
+let tlState=null;
+const ts=v=>{const s=dfmt(v);return s?new Date(s).getTime():null;};
+function renderTimeline(){
+  if(!tlState)return;
+  const {d,hidden}=tlState, plot=$('#ptl');
+  /* Ereignisse je Lane; Fall-Lane als Balken aus faelle statt Punkten */
+  const evs=d.timeline.filter(r=>r.typ!=='Fall'&&ts(r.datum)!=null)
+    .map(r=>({t:ts(r.datum),typ:r.typ,ref:r.ref,det:r.detail||''}));
+  const now=Date.now();
+  const bars=d.faelle.map(f=>{const a=ts(f.BEGDT);if(a==null)return null;
+    const b=f.offen?now:(ts(f.ENDDT)??a);
+    return {a,b:Math.max(b,a),f};}).filter(Boolean);
+  const lanes=['Fall',...Object.keys(TLC).filter(k=>k!=='Fall'&&evs.some(e=>e.typ===k))]
+    .filter(k=>!hidden.has(k));
+  /* Zeitfenster */
+  const allT=[...bars.flatMap(b=>[b.a,b.b]),...evs.map(e=>e.t)];
+  if(!allT.length){plot.innerHTML='<div class="empty">keine datierten Ereignisse</div>';return;}
+  const from=tlState.from??Math.min(...allT), to=tlState.to??Math.max(...allT,now);
+  const W=plot.clientWidth||900, LH=34, T=22, L=76, R=12,
+        H=T+lanes.length*LH+26, pw=W-L-R;
+  const x=t=>L+pw*Math.min(1,Math.max(0,(t-from)/Math.max(to-from,1)));
+  const svg=el('svg',{width:W,height:H,style:'user-select:none;cursor:crosshair'});
+  /* Jahres-Ticks */
+  const y0=new Date(from).getFullYear(), y1=new Date(to).getFullYear();
+  const step=Math.max(1,Math.ceil((y1-y0)/10));
+  for(let y=y0;y<=y1+1;y+=step){const t=new Date(y,0,1).getTime();
+    if(t<from||t>to)continue;const px=x(t);
+    svg.appendChild(el('line',{x1:px,x2:px,y1:T-6,y2:H-20,stroke:C.grid}));
+    svg.appendChild(txt(px+3,T-10,String(y),{size:10}));}
+  /* Lanes */
+  lanes.forEach((k,i)=>{const cy=T+i*LH+LH/2;
+    svg.appendChild(el('line',{x1:L,x2:W-R,y1:T+i*LH+LH,y2:T+i*LH+LH,stroke:C.grid}));
+    svg.appendChild(txt(4,cy+4,k,{size:11,weight:600,fill:TLC[k]||C.mut}));
+    if(k==='Fall'){
+      bars.forEach(({a,b,f})=>{if(b<from||a>to)return;
+        const px=x(Math.max(a,from)),pw2=Math.max(x(Math.min(b,to))-px,3);
+        const r=el('rect',{x:px,y:cy-7,width:pw2,height:14,rx:4,
+          fill:f.offen?C.s5:C.s1,'fill-opacity':f.offen?.9:.55,cursor:'pointer'});
+        hover(r,`<b>Fall ${f.FALNR}</b> · ${falart(f.FALAR)}<br>${dfmt(f.BEGDT)||'—'} – ${f.offen?'laufend':(dfmt(f.ENDDT)||'—')}<br><i>Klick: Fall-Detail</i>`);
+        r.addEventListener('click',()=>loadFall(f.FALNR));
+        svg.appendChild(r);});
+    }else{
+      evs.filter(e=>e.typ===k&&e.t>=from&&e.t<=to).forEach(e=>{
+        const c=el('circle',{cx:x(e.t),cy,r:4,fill:TLC[k],'fill-opacity':.8});
+        hover(c,`<b>${k}</b> ${String(new Date(e.t).toISOString()).slice(0,10)}<br>Fall ${e.ref}<br>${e.det}`);
+        svg.appendChild(c);});
+    }});
+  /* Brush-Zoom: ziehen waehlt Fenster, Doppelklick reset */
+  let sx=null,band=null;
+  svg.addEventListener('mousedown',e=>{sx=e.offsetX;
+    band=el('rect',{x:sx,y:T-6,width:0,height:H-T-14,fill:C.s1,'fill-opacity':.12});
+    svg.appendChild(band);});
+  svg.addEventListener('mousemove',e=>{if(sx==null)return;
+    band.setAttribute('x',Math.min(sx,e.offsetX));
+    band.setAttribute('width',Math.abs(e.offsetX-sx));});
+  const endBrush=e=>{if(sx==null)return;const ex=e.offsetX;band.remove();
+    if(Math.abs(ex-sx)>12){
+      const t1=from+(Math.min(sx,ex)-L)/pw*(to-from),
+            t2=from+(Math.max(sx,ex)-L)/pw*(to-from);
+      tlState.from=Math.max(t1,Math.min(...allT));tlState.to=Math.min(t2,Math.max(...allT,now));
+      renderTimeline();}
+    sx=null;};
+  svg.addEventListener('mouseup',endBrush);
+  svg.addEventListener('mouseleave',e=>{if(sx!=null){band.remove();sx=null;}});
+  svg.addEventListener('dblclick',()=>{tlState.from=tlState.to=null;renderTimeline();});
+  plot.innerHTML='';plot.appendChild(svg);
+  /* Legende klickbar (Lane ein-/ausblenden) */
+  const lg=$('#lgTl');
+  lg.innerHTML=Object.keys(TLC).map(k=>
+    `<span data-k="${k}" style="cursor:pointer;opacity:${hidden.has(k)?.35:1}"><i style="background:${TLC[k]}"></i>${k}</span>`).join('');
+  lg.querySelectorAll('span[data-k]').forEach(s=>s.onclick=()=>{
+    hidden.has(s.dataset.k)?hidden.delete(s.dataset.k):hidden.add(s.dataset.k);
+    renderTimeline();});
+}
+/* ---------- Fall-Drilldown-Drawer (P2.5 v1) ---------- */
+function closeFall(){$('#fdrawer').classList.remove('open');$('#fdBack').style.display='none';}
+$('#fdClose').onclick=closeFall;
+$('#fdBack').onclick=closeFall;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeFall();});
+async function loadFall(falnr){
+  const d=await api('/api/fall/'+encodeURIComponent(falnr)).catch(()=>null);
+  if(!d||!d.kopf)return;
+  const k=d.kopf, b=dfmt(k.BEGDT), e=dfmt(k.ENDDT);
+  $('#fdTitle').textContent='Fall '+k.FALNR;
+  $('#fdBadges').innerHTML=(k.offen?'<span class="badge open">offen</span>':'')+
+    `<span class="badge">${falart(k.FALAR)}</span>`;
+  $('#fdMeta').textContent=`${b||'—'} – ${k.offen?'laufend':(e||'—')}`+
+    (k.FACHR&&k.FACHR.trim()?` · Fachrichtung ${k.FACHR}`:'');
+  /* MDM-Verbund: Deep-Link auf die Schwester-App (GESAMTKONZEPT §5) */
+  $('#fdMdm').href='http://127.0.0.1:8492/#fall/'+encodeURIComponent(k.FALNR);
+  $('#fdBew tbody').innerHTML=(d.bewegungen||[]).map(r=>{
+    const von=dfmt(r.BWIDT), bis=dfmt(r.BWEDT);
+    return `<tr><td style="font-variant-numeric:tabular-nums">${von||'—'}</td>
+      <td style="font-variant-numeric:tabular-nums">${bis||(k.offen?'laufend':'—')}</td>
+      <td>${r.typ_text||('Typ '+r.BEWTY)}${r.BWART&&r.BWART.trim()?' ('+r.BWART+')':''}</td>
+      <td>${r.oe_name||r.oe||'—'}</td></tr>`;}).join('')
+    ||'<tr><td colspan="4" style="color:var(--mut)">keine Bewegungen</td></tr>';
+  $('#fdDiaSect').style.display=(d.diagnosen||[]).length?'':'none';
+  $('#fdDia tbody').innerHTML=(d.diagnosen||[]).map(r=>
+    `<tr><td style="font-variant-numeric:tabular-nums">${dfmt(r.DIADT)||'—'}</td>
+     <td style="font-variant-numeric:tabular-nums;font-weight:600">${r.DKEY1||''}</td>
+     <td>${r.DITXT||'—'}</td>
+     <td>${r.KHDIA==='X'?'<span class="badge hd">HD</span>':''}</td></tr>`).join('');
+  $('#fdIcpSect').style.display=(d.prozeduren||[]).length?'':'none';
+  $('#fdIcp tbody').innerHTML=(d.prozeduren||[]).map(r=>
+    `<tr><td style="font-variant-numeric:tabular-nums">${dfmt(r.BGDOP)||'—'}</td>
+     <td style="font-variant-numeric:tabular-nums;font-weight:600">${r.ICPML||''}</td>
+     <td>${r.BTEXT||'—'}</td></tr>`).join('');
+  $('#fdBack').style.display='block';
+  $('#fdrawer').classList.add('open');
+  $('#fdrawer').scrollTop=0;
+}
+
+document.querySelectorAll('.tlrange').forEach(b=>b.onclick=()=>{
+  if(!tlState)return;const y=Number(b.dataset.y);
+  if(!y){tlState.from=tlState.to=null;}
+  else{tlState.to=Date.now();tlState.from=Date.now()-y*365.25*864e5;}
+  renderTimeline();});
 $('#p360go').onclick=loadP360;
 $('#p360in').addEventListener('keydown',e=>{if(e.key==='Enter')loadP360();});
+$('#pback').onclick=showListe;
+window.addEventListener('hashchange',()=>{
+  const m=/^#p360\/(.+)$/.exec(location.hash);
+  if(!m){showListe();return;}
+  if($('#p360in').value!==decodeURIComponent(m[1])){
+    $('#p360in').value=decodeURIComponent(m[1]);loadP360();}
+});
 
-loadMonitor();loadAnalytics();
+/* ---------- Patientenliste (gepaged, ROADMAP P1.2) ---------- */
+let plistPage=1;
+async function loadPatientList(){
+  const size=Number($('#plistSize').value)||50;
+  const q=$('#plistQ').value.trim();
+  const d=await api('/api/patients?page='+plistPage+'&page_size='+size+'&q='+encodeURIComponent(q)).catch(()=>null);
+  if(!d){$('#plist tbody').innerHTML='';$('#plistInfo').textContent='Fehler beim Laden';return;}
+  const pages=Math.max(1,Math.ceil(d.total/d.page_size));
+  $('#plistInfo').textContent=`${NF.format(d.total)} Patienten · Seite ${d.page}/${pages}`;
+  $('#plistPrev').disabled=d.page<=1;
+  $('#plistNext').disabled=d.page>=pages;
+  $('#plist tbody').innerHTML=(d.rows||[]).map(r=>{
+    const jahr=String(r.GBDAT||'').slice(0,4);
+    return `<tr class="rowlink" data-patnr="${r.PATNR}" style="cursor:pointer">
+      <td style="font-variant-numeric:tabular-nums">${r.PATNR}</td>
+      <td>${GS[String(r.GSCHL)]||'—'}</td>
+      <td class="num">${/^\d{4}$/.test(jahr)?jahr:'—'}</td>
+      <td class="num">${NF.format(r.faelle||0)}</td>
+      <td class="num">${NF.format(r.offene_faelle||0)}</td>
+      <td>${r.letzte_aufnahme?String(r.letzte_aufnahme).slice(0,10):'—'}</td></tr>`;
+  }).join('');
+  $('#plist tbody').querySelectorAll('tr').forEach(tr=>tr.onclick=()=>{
+    $('#p360in').value=tr.dataset.patnr;
+    loadP360(); // ersetzt die Liste durch die Akte (Master-Detail, Darstellung §5)
+  });
+}
+$('#plistSize').onchange=()=>{plistPage=1;loadPatientList();};
+$('#plistQ').addEventListener('keydown',e=>{if(e.key==='Enter'){plistPage=1;loadPatientList();}});
+$('#plistPrev').onclick=()=>{if(plistPage>1){plistPage--;loadPatientList();}};
+$('#plistNext').onclick=()=>{plistPage++;loadPatientList();};
+
+loadMonitor();loadAnalytics();loadPatientList();
+/* Deep-Link: #p360/<PATNR> stellt die Akte direkt wieder her (Darstellung §5) */
+(()=>{const m=/^#p360\/(.+)$/.exec(location.hash);
+  if(!m)return;
+  document.querySelector('nav a[data-p="p360"]').click();
+  $('#p360in').value=decodeURIComponent(m[1]);loadP360();})();
 </script>
 </body></html>

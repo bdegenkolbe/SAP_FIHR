@@ -1,0 +1,4 @@
+# HR-Kommunikation: NUR Auth-Strecke (AD-Login->PERNR). KEINE Namensfelder laden!
+table: PA0105
+schema: hrp
+select: [MANDT, PERNR, SUBTY, OBJPS, SPRPS, ENDDA, SEQNR, BEGDA, USRID]

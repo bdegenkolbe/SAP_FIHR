@@ -1,4 +1,5 @@
 # Analyse_Datenbank.md — Vorgehenskonzept SAP IS-H/i.s.h.med → FHIR/Analytik
+*(CliniBots Patient Insight — verbindliche Methode; Dokumentenlandkarte: `INDEX.md`)*
 
 **Zweck:** Verbindliche Arbeitsanweisung für Claude Code (und jede weitere Session) zur
 systematischen Erschließung der Replicate-Datenbank. Dieses Dokument definiert METHODE,
@@ -246,7 +247,10 @@ E-Statistik-Aufbereitung. Architektur-Erkenntnisse und verbindliche Übernahmen:
   kuratierte Display-Maps nur bei gesicherter Deutung (OP_VORGANG, FALLBEZUG M/N).
 - Verlustfreiheit: Unbekannte Codes/Zeilen nie verwerfen — Rohcode/Extension/Flag.
 
-## 8. Arbeits-Backlog (Reihenfolge für Claude Code)
+## 8. Arbeits-Backlog — VERSCHOBEN nach `ROADMAP.md`
+
+> Dieser Abschnitt ist in die einheitliche Roadmap aufgegangen (Mapping dort als
+> `[Analyse_DB §8.x]`). Historischer Stand unten unverändert; NICHT mehr hier pflegen.
 
 1. **Pipeline-Integration:** `normalize_resource()` nach priv.shift einhängen; Lookups
    als Broadcast-Joins (NAPX_FAL FALNR→APXNR, NFPZ je Fall, NKDI-Kodetexte, NVVP je

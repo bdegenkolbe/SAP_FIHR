@@ -1,4 +1,8 @@
-# Funktionsvergleich Ingolf (EUGASTRO-Praxisplattform) ↔ SAP_FIHR (IS-H/UKL)
+# Funktionsvergleich Ingolf (EUGASTRO-Praxisplattform) ↔ CliniBots Patient Insight (SAP_FIHR)
+
+> **STATUS: REFERENZ-ANALYSE** (siehe `INDEX.md`). Die Übernahme-Roadmap §5 (P1a–P3) ist
+> in `ROADMAP.md` aufgegangen (dort als `[INGOLF Px]` gemappt); die Funktionsanalyse
+> §1–§4 bleibt als Referenz gültig. Nicht mehr fortschreiben.
 
 Quelle: `legacy/ingolf-main.zip` (Stand 2026-07-16, 122 Dateien). Analysiert:
 README, CLAUDE.md, docs/ (CONCEPT, BENUTZERVERWALTUNG, UI_SPEC, KI_INTEGRATION,

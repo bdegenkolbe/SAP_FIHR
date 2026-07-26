@@ -1,5 +1,9 @@
 # Gesamtreview — Tabellenbestand + Konzeptkonsistenz nach Integration R8–R16
 
+> **STATUS: ARCHIV** (siehe `INDEX.md`). Momentaufnahme nach R16. Der konsolidierte
+> Backlog (§4, #1–#18) ist vollständig in `ROADMAP.md` aufgegangen (Mapping dort in
+> `[..]`-Klammern). Nicht mehr fortschreiben.
+
 Stand 17.07.2026 · Anlass: Integration des `sapfhir-paket` (lokale Verifikationsrunden
 R8–R16 gegen `10.50.8.250/Replicate`) in den Repo-Stand (Remote-Runden R1–R4 +
 Altbestand-Analyse). Dieses Dokument ist die angeforderte **Gesamtprüfung aller

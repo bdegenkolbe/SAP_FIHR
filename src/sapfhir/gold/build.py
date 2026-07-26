@@ -45,12 +45,18 @@ def build(warehouse: str = "data/warehouse.duckdb",
             con.execute(f.read())
         # optionale Marts (nur wenn die Quelle entladen wurde)
         if "ndrg" in views:
+            # NDRG hat ENGLISCHE Spalten (R9): DRG_CREAT_DATE/COST_WEIGHT/CANCEL_FLAG
+            # (Altfassung nutzte faelschlich UPDAT — fiel erst beim ersten echten
+            # NDRG-Load auf, R27). COST_WEIGHT = Bewertungsrelation -> echter CMI.
             con.execute("""
                 CREATE OR REPLACE VIEW gold.casemix AS
-                SELECT strftime(TRY_CAST(UPDAT AS DATE), '%Y') AS jahr,
-                       COUNT(*) AS drg_faelle
-                       -- SUM(bewertungsrelation) AS cm  -- VERIFY Spalte fuer CMI
-                FROM bronze_current.ndrg GROUP BY 1""")
+                SELECT strftime(TRY_CAST(DRG_CREAT_DATE AS DATE), '%Y') AS jahr,
+                       COUNT(*)                          AS drg_faelle,
+                       SUM(TRY_CAST(COST_WEIGHT AS DOUBLE)) AS casemix,
+                       AVG(TRY_CAST(COST_WEIGHT AS DOUBLE)) AS cmi
+                FROM bronze_current.ndrg
+                WHERE COALESCE(TRIM(CANCEL_FLAG),'') NOT IN ('X','1')
+                GROUP BY 1 ORDER BY 1""")
         result["marts"] = True
 
         # ref_*-Klartextschicht (CONCEPT_EXT §8): Kataloge materialisieren,
@@ -64,7 +70,7 @@ def build(warehouse: str = "data/warehouse.duckdb",
                 LEFT JOIN ref.icd r
                   ON CAST(d.DKAT1 AS VARCHAR) = r."DKAT"
                  AND CAST(d.DKEY1 AS VARCHAR) = r."DKEY"
-                WHERE COALESCE(d.STORN,'') IN ('','0')
+                WHERE COALESCE(TRIM(d.STORN),'') NOT IN ('X','1')
                   AND COALESCE(d.KHDIA,'') = 'X'
                 GROUP BY 1 ORDER BY n DESC LIMIT 50""")
         if "oe" in result["ref"] and "nbew" in views:
@@ -78,7 +84,7 @@ def build(warehouse: str = "data/warehouse.duckdb",
                   ON CAST(COALESCE(b.ORGPF, b.ORGFA) AS VARCHAR) = r."ORGID"
                 WHERE (b.BWEDT IS NULL
                        OR substr(CAST(b.BWEDT AS VARCHAR),1,4) = '9999')
-                  AND COALESCE(b.STORN,'') IN ('','0')
+                  AND COALESCE(TRIM(b.STORN),'') NOT IN ('X','1')
                 GROUP BY 1 ORDER BY offene_bewegungen DESC""")
 
         try:
@@ -88,6 +94,20 @@ def build(warehouse: str = "data/warehouse.duckdb",
             result["fts"] = False
 
         result["mcp_views"] = _views.build(con, pseudonymize=pseudonymize_view)
+
+        # Auth-Marts (BERECHTIGUNGSKONZEPT §5b, G1): materialisieren, sobald die
+        # Quelltabellen entladen sind — sonst ist authz.enabled ein toter Schalter,
+        # der gegen leere auth-Tabellen ALLES sperrt.
+        if {"pa0105", "pa0001", "setnode", "setleaf", "noek"} <= set(views):
+            try:
+                from ..authz import sql as _authz_sql
+                _authz_sql.build(con, src="bronze_current")
+                result["auth"] = True
+            except Exception as e:
+                print(f"Auth-Marts uebersprungen ({e})")
+                result["auth"] = False
+        else:
+            result["auth"] = False
     finally:
         con.close()
 

@@ -45,10 +45,13 @@ Lies ZUERST `docs/Analyse_Datenbank.md` — sie definiert das komplette Vorgehen
 - Backlog-Reihenfolge: Analyse_Datenbank.md §8.
 
 ## Repo-Betrieb (Ergänzung zur Methode — Details in docs/)
-- Gesamtkonzept: `docs/CONCEPT.md` (+ `CONCEPT_EXT.md`, `ALTBESTAND_ANALYSE.md`,
-  `GESAMTREVIEW.md`, `INGOLF_FUNKTIONSVERGLEICH.md` = Uebernahme-Roadmap aus der
-  Schwesterplattform Ingolf: Governance/RBAC, Kohorten, MII-KDS, Dok-Intelligence); Verifikationshistorie: `docs/VERIFY_RESULTS*.md` (R1-R4, remote)
-  und `docs/VERIFY_LOG_R8-R13.md` (R8-R16, lokal gegen 10.50.8.250).
+- **Produkt: CliniBots Patient Insight** (Codename SAP_FIHR/sapfhir); Schwesterprodukt
+  CliniBots MDM (`C:\ai\MD_Management`). **Einstieg IMMER über `docs/INDEX.md`**
+  (Dokumentenlandkarte): Zielbild = `CONCEPT_P360_VOLLAUSBAU.md`, Architektur =
+  `CONCEPT.md` v0.3, **einzige Roadmap = `docs/ROADMAP.md`** (nirgendwo sonst Backlogs
+  pflegen!). Archiv-Docs (CONCEPT_EXT, ANALYSE, GESAMTREVIEW, INGOLF_*, ALTBESTAND_*,
+  VERIFY_RESULTS*) tragen Status-Banner und werden nicht fortgeschrieben.
+  Verifikationslog fortlaufend ab R8: `docs/VERIFY_LOG_R8-R13.md` (aktuell R19).
 - Pipeline (alles user-space, No-Admin): Keyset-Backfill + `__ct`-CDC (Delta-Parquet,
   Retention-Waechter) -> `bronze_current`-Merge-Views + Compaction (`extract/merge.py`)
   -> FHIR-NDJSON mit Index/Provenance (`fhir/ndjson.py`; Reihenfolge Mapper -> Shift ->

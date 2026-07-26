@@ -1,4 +1,6 @@
-# SAP_FIHR — Verifikationsrunde 2 (breiter N-Tabellen-Scan)
+# Verifikationsrunde 2 (breiter N-Tabellen-Scan) — CliniBots Patient Insight
+
+> **STATUS: ARCHIV** — historisches Protokoll. Fortlaufendes Log ab R8: `VERIFY_LOG_R8-R13.md`.
 
 Stand 15.07.2026, `replicate` read-only, TOP-100-stabil. Ergänzt/korrigiert v0.2 und
 `VERIFY_RESULTS.md`. **Enthält mehrere Korrekturen falscher v0.2-Annahmen.**
