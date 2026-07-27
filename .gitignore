@@ -15,3 +15,7 @@ src/*.egg-info/
 data_*/
 data_*.log
 config/certs/
+
+# Claude Code: lokale Maschinen-Einstellungen bleiben lokal,
+# launch.json (Dev-Server-Konfiguration) gehoert ins Repo.
+.claude/settings.local.json

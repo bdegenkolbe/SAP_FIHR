@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "sapfhir-dashboard",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "sapfhir.api.app"],
+      "port": 8471
+    },
+    {
+      "name": "md-management",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "mdmgmt.api"],
+      "port": 8492
+    }
+  ]
+}
