@@ -125,6 +125,21 @@ $env:SAPFHIR_PRIVACY_SECRET = $salt
 Step 5 "DB-Passwort (Windows Credential Manager)"
 $pwScript = Join-Path $PSScriptRoot "set_db_password.ps1"
 $pwArgs = @{ Server = $src.host; Login = $src.username; Environment = $envName; Python = $Py }
+if ($src.port) { $pwArgs.Port = [int]$src.port }
+# Netzwerk vorab pruefen: sonst endet jeder Passwortversuch im selben Netzwerkfehler
+$port = if ($src.port) { [int]$src.port } else { 1433 }
+$tcp = New-Object Net.Sockets.TcpClient
+try {
+  $ar = $tcp.BeginConnect($src.host, $port, $null, $null)
+  $reach = $ar.AsyncWaitHandle.WaitOne(5000) -and $tcp.Connected
+} catch { $reach = $false } finally { $tcp.Close() }
+if (-not $reach) {
+  Warn "$($src.host):$port ist von diesem PC aus NICHT erreichbar (DNS/VPN/Firewall/Port)."
+  Write-Host "      Pruefen: Resolve-DnsName $($src.host) ; Test-NetConnection $($src.host) -Port $port"
+  Write-Host "      Anderer Port/Name? In config\connection.yaml 'host'/'port' anpassen und Skript neu starten."
+  throw "Server nicht erreichbar - Passwortabfrage uebersprungen."
+}
+Ok "$($src.host):$port erreichbar"
 if ($src.database) { $pwArgs.Database = $src.database }
 $has = & $Py -c "import sys,keyring; print(1 if keyring.get_password(sys.argv[1], sys.argv[2]) else 0)" "sapfhir:$envName" $src.username
 if ($src.auth -eq "ntlm") { Ok "Windows-Authentifizierung konfiguriert - kein Passwort noetig" }

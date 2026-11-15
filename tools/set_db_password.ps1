@@ -24,6 +24,7 @@
 [CmdletBinding()]
 param(
   [string]$Server      = "S050008250",
+  [int]$Port           = 1433,
   [string]$Login       = "bdegenkolbe",
   [string]$Database    = "Replicate",
   [string]$Environment = "higl-main",
@@ -53,7 +54,7 @@ function New-StrongPassword([int]$len = 24) {
 
 function Get-ConnString([string]$auth) {
   $enc = if ($Encrypt) { "True" } else { "False" }
-  "Server=$Server;Database=master;$auth;Encrypt=$enc;TrustServerCertificate=True;Application Name=sapfhir-set-password;Connect Timeout=15"
+  "Server=tcp:$Server,$Port;Database=master;$auth;Encrypt=$enc;TrustServerCertificate=True;Application Name=sapfhir-set-password;Connect Timeout=15"
 }
 
 # --- 1. Passwort ---------------------------------------------------------------
