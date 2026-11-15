@@ -57,7 +57,7 @@ Im Repo-Klon auf PC-A **`Start-LiveMCP.bat`** doppelklicken (kein Admin). Das Sk
 `-Login NAME` änderbar) → `SAPFHIR_PRIVACY_SECRET` → Passwort prüfen/abfragen und im
 Credential Manager ablegen (bei Bedarf neu setzen) → Offline-Tests + Live-Selbsttest
 (`tools/live_smoke.py`) → `.mcp.json` + `.claude/settings.local.json` (MCP vorab
-freigegeben) → startet Claude Code mit einem ersten RKT-Auftrag.
+freigegeben). Mit `-Launch` startet es danach Claude Code mit einem ersten RKT-Auftrag.
 
 ### Einrichtung von Hand (PC-A)
 1. Login: dedizierter SQL-/AD-Login nur mit `db_datareader` (+ `db_denydatawriter`).

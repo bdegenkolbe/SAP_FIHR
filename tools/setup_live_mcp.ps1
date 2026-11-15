@@ -13,14 +13,14 @@
      (tools\set_db_password.ps1); bei falschem Passwort Neusetzen anbieten
   6. Offline-Tests + Live-Selbsttest (tools\live_smoke.py)
   7. .mcp.json + .claude\settings.local.json (MCP vorab freigegeben) schreiben
-  8. Claude Code im Repo starten
+  8. optional (-Launch): Claude Code im Repo starten
 
   Kein Admin noetig. Start per Doppelklick auf Start-LiveMCP.bat im Repo-Root.
 #>
 [CmdletBinding()]
 param(
   [string]$Login = "bdegenkolbe",
-  [switch]$NoLaunch,        # Claude Code am Ende nicht starten
+  [switch]$Launch,          # Claude Code am Ende starten (Standard: nein)
   [switch]$NoPull           # kein git pull
 )
 
@@ -212,7 +212,7 @@ Ok ".claude\settings.local.json: 'sapfhir-live' freigegeben (lokal, nicht im Rep
 # --- 8. Claude Code starten --------------------------------------------------------------
 Step 8 "Claude Code"
 $claude = Get-Command claude -ErrorAction SilentlyContinue
-if ($NoLaunch) { Ok "nicht gestartet (-NoLaunch). Spaeter: im Repo-Ordner 'claude' ausfuehren." }
+if (-not $Launch) { Ok "Fertig - MCP eingerichtet, Passwort hinterlegt. (Claude Code direkt starten: -Launch)" }
 elseif (-not $claude) {
   Warn "Claude Code (Befehl 'claude') nicht gefunden. Installation ohne Admin:"
   Write-Host "      npm install -g @anthropic-ai/claude-code   (oder: https://claude.com/claude-code)"
