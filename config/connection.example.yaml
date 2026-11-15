@@ -2,7 +2,9 @@
 # connection.yaml ist gitignored (enthaelt Secrets).
 
 source:
-  host: S050008250                     # MSSQL-Host der Qlik-Replika (10.50.8.250, in SSMS bestaetigt)
+  host: s050008250.medizin.uni-leipzig.de   # Qlik-Replika = 10.50.8.250 (SSMS: S050008250).
+                                       # VOLLER Name noetig: der Kurzname loest ausserhalb der
+                                       # UKL-Domaene nicht auf (DNS_ERROR_RCODE_NAME_ERROR).
   port: 1433
   database: Replicate
   environment: higl-main               # Credential-Manager-Dienst 'sapfhir:higl-main'

@@ -53,7 +53,7 @@ ein `db_datareader`-Login — der Guard ist die zweite Linie.
 ### Ein-Klick-Einrichtung (empfohlen)
 Im Repo-Klon auf PC-A **`Start-LiveMCP.bat`** doppelklicken (kein Admin). Das Skript
 (`tools/setup_live_mcp.ps1`, idempotent) macht: git pull → `.venv` + Abhängigkeiten →
-`config/connection.yaml` (Host S050008250, DB Replicate, Login `bdegenkolbe`, per
+`config/connection.yaml` (Host `s050008250.medizin.uni-leipzig.de` = 10.50.8.250, DB Replicate, Login `bdegenkolbe`, per
 `-Login NAME` änderbar) → `SAPFHIR_PRIVACY_SECRET` → Passwort prüfen/abfragen und im
 Credential Manager ablegen (bei Bedarf neu setzen) → Offline-Tests + Live-Selbsttest
 (`tools/live_smoke.py`) → `.mcp.json` + `.claude/settings.local.json` (MCP vorab
@@ -62,8 +62,9 @@ freigegeben) → startet Claude Code mit einem ersten RKT-Auftrag.
 ### Einrichtung von Hand (PC-A)
 1. Login: dedizierter SQL-/AD-Login nur mit `db_datareader` (+ `db_denydatawriter`).
    `verbindung_pruefen` warnt, falls der Login Schreibrechte hat.
-2. `config/connection.yaml` (Block `source`, wie für den Backfill; Host `S050008250`,
-   DB `Replicate`) — Passwort über Env `SAPFHIR_DB_PW` oder Windows Credential Manager
+2. `config/connection.yaml` (Block `source`, wie für den Backfill; Host
+   `s050008250.medizin.uni-leipzig.de` — voller Name, der Kurzname löst außerhalb der
+   UKL-Domäne nicht auf; DB `Replicate`) — Passwort über Env `SAPFHIR_DB_PW` oder Windows Credential Manager
    (`sapfhir:<environment>`). Neu setzen + hinterlegen in einem Schritt:
    `powershell -ExecutionPolicy Bypass -File tools\set_db_password.ps1`
    (ALTER LOGIN über die eigene Windows-Anmeldung, Test-Login, Ablage per keyring;

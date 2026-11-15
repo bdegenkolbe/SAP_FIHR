@@ -23,7 +23,7 @@
 #>
 [CmdletBinding()]
 param(
-  [string]$Server      = "S050008250",
+  [string]$Server      = "s050008250.medizin.uni-leipzig.de",
   [int]$Port           = 1433,
   [string]$Login       = "bdegenkolbe",
   [string]$Database    = "Replicate",
