@@ -12,8 +12,8 @@
   5. DB-Passwort im Windows Credential Manager pruefen, sonst abfragen
      (tools\set_db_password.ps1); bei falschem Passwort Neusetzen anbieten
   6. Offline-Tests + Live-Selbsttest (tools\live_smoke.py)
-  7. MCP registrieren: Repo-.mcp.json, Claude Code (benutzerweit) und
-     Claude Desktop (claude_desktop_config.json, mit Sicherung)
+  7. MCP registrieren: Repo-.mcp.json und Claude Code (benutzerweit);
+     fuer Claude Desktop wird nur der einzufuegende Block angezeigt
   8. optional (-Launch): Claude Code im Repo starten
 
   Kein Admin noetig. Start per Doppelklick auf Start-LiveMCP.bat im Repo-Root.
@@ -210,33 +210,16 @@ $set | Add-Member -NotePropertyName enabledMcpjsonServers -NotePropertyValue $li
 Write-Utf8NoBom $setPath ($set | ConvertTo-Json -Depth 10)
 Ok ".claude\settings.local.json: 'sapfhir-live' freigegeben (lokal, nicht im Repo)"
 
-# Claude Desktop: claude_desktop_config.json (klassische + Store-Installation)
-$deskCfgs = @()
-$classic = Join-Path $env:APPDATA "Claude"
-if (Test-Path $classic) { $deskCfgs += (Join-Path $classic "claude_desktop_config.json") }
-$pkgRoot = Join-Path $env:LOCALAPPDATA "Packages"
-if (Test-Path $pkgRoot) {
-  Get-ChildItem $pkgRoot -Directory -Filter "Claude_*" -ErrorAction SilentlyContinue | ForEach-Object {
-    $d = Join-Path $_.FullName "LocalCache\Roaming\Claude"
-    if (Test-Path $d) { $deskCfgs += (Join-Path $d "claude_desktop_config.json") }
-  }
-}
-if (-not $deskCfgs) { Warn "Claude Desktop nicht gefunden (%APPDATA%\Claude fehlt) - uebersprungen." }
-foreach ($cfg in $deskCfgs) {
-  try {
-    if (Test-Path $cfg) {
-      Copy-Item $cfg ($cfg + ".bak-" + (Get-Date -Format "yyyyMMdd-HHmmss")) -Force
-      $raw = Get-Content $cfg -Raw -Encoding UTF8
-      if ($raw -and $raw.Trim()) { $dc = $raw | ConvertFrom-Json } else { $dc = New-Object psobject }
-    } else { $dc = New-Object psobject }
-    if (-not ($dc.PSObject.Properties.Name -contains "mcpServers")) {
-      $dc | Add-Member -NotePropertyName mcpServers -NotePropertyValue (New-Object psobject)
-    }
-    $dc.mcpServers | Add-Member -NotePropertyName "sapfhir-live" -NotePropertyValue ([pscustomobject]$entry) -Force
-    Write-Utf8NoBom $cfg ($dc | ConvertTo-Json -Depth 20)
-    Ok "Claude Desktop: 'sapfhir-live' in $cfg (Sicherung .bak-*) - Claude Desktop NEU STARTEN"
-  } catch { Warn "Claude Desktop-Konfiguration nicht geaendert ($cfg): $($_.Exception.Message)" }
-}
+# Claude Desktop: Konfiguration NICHT automatisch aendern. Die Store-Version von
+# Claude Desktop liest je nach Zustand %APPDATA%\Claude oder eine virtualisierte
+# Kopie unter %LOCALAPPDATA%\Packages\Claude_*\LocalCache - ein Schreiben in die
+# falsche Datei hat schon einmal alle anderen MCP-Server lahmgelegt. Daher nur Hinweis.
+Write-Host ""
+Write-Host "  Claude Desktop: in Einstellungen > Entwickler > 'Konfiguration bearbeiten'" -ForegroundColor Yellow
+Write-Host "  diesen Block in 'mcpServers' ergaenzen (Komma beachten), dann Desktop neu starten:" -ForegroundColor Yellow
+$snippet = [ordered]@{ "sapfhir-live" = [pscustomobject]$entry } | ConvertTo-Json -Depth 10
+Write-Host $snippet
+Write-Host ""
 
 # Claude Code benutzerweit (alle Ordner), zusaetzlich zur Repo-.mcp.json
 $claudeCli = Get-Command claude -ErrorAction SilentlyContinue

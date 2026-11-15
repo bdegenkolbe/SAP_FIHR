@@ -56,9 +56,11 @@ Im Repo-Klon auf PC-A **`Start-LiveMCP.bat`** doppelklicken (kein Admin). Das Sk
 `config/connection.yaml` (Host `s050008250.medizin.uni-leipzig.de` = 10.50.8.250, DB Replicate, Login `bdegenkolbe`, per
 `-Login NAME` änderbar) → `SAPFHIR_PRIVACY_SECRET` → Passwort prüfen/abfragen und im
 Credential Manager ablegen (bei Bedarf neu setzen) → Offline-Tests + Live-Selbsttest
-(`tools/live_smoke.py`) → MCP-Registrierung in **Claude Desktop** (`claude_desktop_config.json`,
-klassisch + Store-Installation, mit `.bak`-Sicherung; danach Desktop neu starten) und
-**Claude Code** benutzerweit (`claude mcp add --scope user`) plus Repo-`.mcp.json`. Mit `-Launch` startet es danach Claude Code mit einem ersten RKT-Auftrag.
+(`tools/live_smoke.py`) → **Claude Code** benutzerweit (`claude mcp add --scope user`) plus
+Repo-`.mcp.json`. Für **Claude Desktop** zeigt das Skript nur den Block an, der unter
+Einstellungen → Entwickler → „Konfiguration bearbeiten“ einzufügen ist. Es schreibt
+bewusst nicht selbst: Die Store-Version liest je nach Zustand eine virtualisierte Kopie
+unter `%LOCALAPPDATA%\Packages\Claude_*\LocalCache` (Vorfall R35). Mit `-Launch` startet es danach Claude Code mit einem ersten RKT-Auftrag.
 
 ### Einrichtung von Hand (PC-A)
 1. Login: dedizierter SQL-/AD-Login nur mit `db_datareader` (+ `db_denydatawriter`).

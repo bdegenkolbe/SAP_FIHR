@@ -694,3 +694,13 @@ Ein-Klick-Setup (`Start-LiveMCP.bat`) + `tools/live_smoke.py` gegen die Replika:
   ZNRKT_AUF 968.097 / ZNRKT_AUF__ct__bak 947.751, ZNRKT_BER 967.940, ZNRKT_BEA 15.407)
   → `tabellen_suchen` blendet `__ct` UND `__ct__bak` jetzt aus.
 - Verkryptungs-Guard live bestätigt (Klartext `NPAT.NNAME` abgewiesen).
+
+## R35 — Vorfall: Setup-Skript legte Claude-Desktop-MCPs lahm (15.11.2026)
+
+`setup_live_mcp.ps1` (Stand 91c8159) schrieb `sapfhir-live` per JSON-Merge auch in die
+virtualisierte Konfiguration der **Store-Version** von Claude Desktop
+(`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json`).
+Diese Kopie enthielt einen veralteten Stand (`C:\ai\mcp\_shared`, Python314-Kurzpfad); danach
+las Desktop sie und **alle** MCP-Server schlugen fehl (ENOENT). Behebung: korrekte Konfiguration
+in beide Dateien geschrieben (Sicherungen `*.vor-reparatur`, `*.bak-*`). Konsequenz: Das Skript
+fasst die Desktop-Konfiguration nicht mehr an, sondern zeigt nur den einzufügenden Block.
