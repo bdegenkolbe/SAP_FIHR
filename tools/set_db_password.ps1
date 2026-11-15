@@ -1,15 +1,15 @@
-<#
+﻿<#
 .SYNOPSIS
   Setzt das Passwort eines SQL-Logins auf der IS-H-Replika neu und hinterlegt es
   im Windows-Anmeldeinformationsspeicher fuer sapfhir (Backfill + sapfhir-live).
 
 .DESCRIPTION
   1. Neues Passwort abfragen (verdeckt, zweimal) oder mit -Generate erzeugen.
-  2. ALTER LOGIN ueber DEINE Windows-Anmeldung (Integrated Security) — dafuer
+  2. ALTER LOGIN ueber DEINE Windows-Anmeldung (Integrated Security) - dafuer
      braucht dein Windows-Login das Recht ALTER ANY LOGIN (wie in SSMS).
   3. Anmeldung mit dem neuen Passwort testen (SQL-Authentifizierung).
   4. Ablage im Windows Credential Manager ueber Python-keyring unter
-     Dienst 'sapfhir:<Environment>', Konto = Login — genau dort sucht
+     Dienst 'sapfhir:<Environment>', Konto = Login - genau dort sucht
      src/sapfhir/extract/dbsource.py, wenn in config/connection.yaml
      'password: ""' steht. Kein Klartext auf Platte, nicht in der Shell-History.
 
@@ -110,7 +110,7 @@ try {
   if (($r[4] -eq 1) -or ($r[5] -eq 1)) {
     Write-Warning "Login hat SCHREIBRECHTE in $Database. Fuer sapfhir/MCP besser einen reinen db_datareader-Login verwenden."
   } elseif ($r[3] -ne 1) {
-    Write-Warning "Login ist nicht in db_datareader — Lesezugriff auf sap.* pruefen."
+    Write-Warning "Login ist nicht in db_datareader - Lesezugriff auf sap.* pruefen."
   }
   $r.Close()
 } finally { $cn.Close() }

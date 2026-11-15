@@ -290,3 +290,15 @@ def test_mcp_registration():
         pytest.skip("mcp-SDK fehlt")
     svc = LiveService(PCFG, Knowledge(":memory:", ROOT, ()), FakeDB(), None, salt="x")
     register(app, svc)
+
+
+def test_windows_scripts_are_ascii():
+    """Windows PowerShell 5.1 liest .ps1 ohne BOM als ANSI: ein UTF-8-Gedankenstrich
+    wird zu 'â€”' und dessen Byte 0x94 (”) beendet Strings -> Parserfehler.
+    Skripte deshalb rein ASCII halten (BOM nur als Zusatzschutz)."""
+    for rel in ("tools/setup_live_mcp.ps1", "tools/set_db_password.ps1", "Start-LiveMCP.bat"):
+        raw = open(os.path.join(ROOT, rel), "rb").read()
+        if raw.startswith(b"\xef\xbb\xbf"):
+            raw = raw[3:]
+        bad = [i for i, b in enumerate(raw) if b > 127]
+        assert not bad, f"{rel}: Nicht-ASCII-Bytes an Position {bad[:5]}"

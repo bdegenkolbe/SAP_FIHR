@@ -1,7 +1,7 @@
-<#
+﻿<#
 .SYNOPSIS
   Ein Klick: sapfhir-live (Analyse-MCP auf der IS-H-Replika) auf diesem PC
-  einrichten, testen und Claude Code damit starten. Idempotent — beliebig oft
+  einrichten, testen und Claude Code damit starten. Idempotent - beliebig oft
   ausfuehrbar, ueberspringt Erledigtes.
 
 .DESCRIPTION
@@ -35,11 +35,12 @@ function Ask($q) {
   $a = Read-Host "$q (J/n)"
   return ($a -eq "" -or $a -match "^[JjYy]")
 }
-function Invoke-Quiet {
+function Invoke-Quiet([scriptblock]$Block) {
   # Windows PowerShell 5.1: stderr-Umleitung nativer Programme wird bei
   # ErrorActionPreference=Stop zum Abbruch -> hier gezielt 'Continue'.
+  # Skriptblock statt $args, damit Argumente wie --ff-only/-p unveraendert ankommen.
   $old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-  try { $exe, $rest = $args; & $exe @rest 2>$null } finally { $ErrorActionPreference = $old }
+  try { & $Block 2>$null } finally { $ErrorActionPreference = $old }
 }
 function Write-Utf8NoBom($path, $text) {
   [IO.File]::WriteAllText($path, $text, (New-Object Text.UTF8Encoding $false))
@@ -51,14 +52,14 @@ Write-Host "sapfhir-live Einrichtung in $Root" -ForegroundColor White
 Step 1 "Repo aktualisieren"
 $git = Get-Command git -ErrorAction SilentlyContinue
 if ($NoPull) { Ok "uebersprungen (-NoPull)" }
-elseif (-not $git -or -not (Test-Path (Join-Path $Root ".git"))) { Warn "kein Git-Klon — uebersprungen" }
+elseif (-not $git -or -not (Test-Path (Join-Path $Root ".git"))) { Warn "kein Git-Klon - uebersprungen" }
 else {
   $dirty = & git status --porcelain --untracked-files=no
   $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
-  if ($dirty) { Warn "lokale Aenderungen auf '$branch' — kein Pull" }
+  if ($dirty) { Warn "lokale Aenderungen auf '$branch' - kein Pull" }
   else {
-    Invoke-Quiet git pull --ff-only --quiet | Out-Null
-    if ($LASTEXITCODE -eq 0) { Ok "Branch '$branch' aktuell" } else { Warn "git pull nicht moeglich — weiter mit lokalem Stand" }
+    Invoke-Quiet { git pull --ff-only --quiet } | Out-Null
+    if ($LASTEXITCODE -eq 0) { Ok "Branch '$branch' aktuell" } else { Warn "git pull nicht moeglich - weiter mit lokalem Stand" }
   }
 }
 
@@ -70,15 +71,16 @@ if (-not (Test-Path $Py)) {
   foreach ($cand in @(@("py", "-3"), @("python"))) {
     $c = Get-Command $cand[0] -ErrorAction SilentlyContinue
     if (-not $c) { continue }
-    $args2 = @($cand | Select-Object -Skip 1) + @("-c", "import sys; print(sys.executable); print('%d.%d' % sys.version_info[:2])")
-    $out = Invoke-Quiet $c.Source @args2
+    $args2 = @($cand | Select-Object -Skip 1) + @("-c", "import sys; print(sys.executable); print('{}.{}'.format(*sys.version_info[:2]))")
+    $exe = $c.Source
+    $out = Invoke-Quiet { & $exe @args2 }
     if ($LASTEXITCODE -eq 0 -and $out.Count -ge 2) {
       $ver = [version]$out[1]
       if ($ver -ge [version]"3.11") { $base = $out[0]; break }
     }
   }
   if (-not $base) {
-    throw "Python 3.11+ nicht gefunden. Installieren (python.org, 'Install for me only' — kein Admin) und Skript erneut starten."
+    throw "Python 3.11+ nicht gefunden. Installieren (python.org, 'Install for me only' - kein Admin) und Skript erneut starten."
   }
   Write-Host "  lege .venv an mit $base ..."
   & $base -m venv (Join-Path $Root ".venv")
@@ -86,7 +88,7 @@ if (-not (Test-Path $Py)) {
 }
 Write-Host "  installiere/aktualisiere Abhaengigkeiten (kann beim ersten Mal dauern) ..."
 & $Py -m pip install --quiet --disable-pip-version-check -r requirements.txt keyring
-if ($LASTEXITCODE -ne 0) { throw "pip install fehlgeschlagen — Ausgabe oben pruefen (Proxy?)." }
+if ($LASTEXITCODE -ne 0) { throw "pip install fehlgeschlagen - Ausgabe oben pruefen (Proxy?)." }
 & $Py -m pip install --quiet --disable-pip-version-check -e .
 if ($LASTEXITCODE -ne 0) { throw "pip install -e . fehlgeschlagen." }
 Ok ("Python " + (& $Py -c "import sys; print(sys.version.split()[0])"))
@@ -99,13 +101,13 @@ if (-not (Test-Path $conn)) {
   $tpl = $tpl -replace "(?m)^(\s*username:\s*)\S+", "`${1}$Login"
   Write-Utf8NoBom $conn $tpl
   Ok "config\connection.yaml aus Beispiel angelegt (Login $Login)"
-} else { Ok "config\connection.yaml vorhanden — unveraendert" }
+} else { Ok "config\connection.yaml vorhanden - unveraendert" }
 $srcJson = & $Py -c "import yaml,json; c=yaml.safe_load(open('config/connection.yaml',encoding='utf-8')) or {}; print(json.dumps(c.get('source') or {}))"
 $src = $srcJson | ConvertFrom-Json
 if (-not $src.host) { throw "config\connection.yaml: 'source.host' fehlt." }
 $envName = if ($src.environment) { $src.environment } else { "higl-main" }
 Write-Host ("  Server {0}  DB {1}  Login {2}  Auth {3}" -f $src.host, $src.database, $src.username, $src.auth)
-if ($src.password) { Warn "Passwort steht im Klartext in connection.yaml — besser leer lassen (Credential Manager)." }
+if ($src.password) { Warn "Passwort steht im Klartext in connection.yaml - besser leer lassen (Credential Manager)." }
 
 # --- 4. Salt fuer Pseudonyme ---------------------------------------------------------
 Step 4 "Pseudonymisierungs-Schluessel"
@@ -125,7 +127,7 @@ $pwScript = Join-Path $PSScriptRoot "set_db_password.ps1"
 $pwArgs = @{ Server = $src.host; Login = $src.username; Environment = $envName; Python = $Py }
 if ($src.database) { $pwArgs.Database = $src.database }
 $has = & $Py -c "import sys,keyring; print(1 if keyring.get_password(sys.argv[1], sys.argv[2]) else 0)" "sapfhir:$envName" $src.username
-if ($src.auth -eq "ntlm") { Ok "Windows-Authentifizierung konfiguriert — kein Passwort noetig" }
+if ($src.auth -eq "ntlm") { Ok "Windows-Authentifizierung konfiguriert - kein Passwort noetig" }
 elseif ($src.password) { Ok "Passwort aus connection.yaml" }
 elseif ($has -eq "1") { Ok "Passwort fuer '$($src.username)' ist hinterlegt" }
 else {
@@ -141,7 +143,7 @@ else {
 
 # --- 6. Tests ------------------------------------------------------------------------
 Step 6 "Tests"
-Invoke-Quiet $Py -m pytest tests -q -p no:cacheprovider | Select-Object -Last 1 | ForEach-Object { Write-Host "  offline: $_" }
+Invoke-Quiet { & $Py -m pytest tests -q -p no:cacheprovider } | Select-Object -Last 1 | ForEach-Object { Write-Host "  offline: $_" }
 Write-Host "  Live-Selbsttest gegen $($src.host) ..."
 & $Py tools\live_smoke.py
 $rc = $LASTEXITCODE
@@ -150,14 +152,14 @@ if ($rc -eq 2 -and $src.auth -ne "ntlm" -and -not $src.password) {
   if (Ask "  Passwort neu eingeben (bekanntes Passwort)?") {
     try { & $pwScript @pwArgs -StoreOnly }
     catch {
-      if (Ask "  Weiterhin falsch — Passwort NEU SETZEN?") { & $pwScript @pwArgs } else { throw }
+      if (Ask "  Weiterhin falsch - Passwort NEU SETZEN?") { & $pwScript @pwArgs } else { throw }
     }
     & $Py tools\live_smoke.py
     $rc = $LASTEXITCODE
   }
 }
 if ($rc -eq 0) { Ok "Live-Selbsttest bestanden" }
-else { Warn "Live-Selbsttest mit Fehlern (Ausgabe oben) — MCP wird trotzdem eingerichtet." }
+else { Warn "Live-Selbsttest mit Fehlern (Ausgabe oben) - MCP wird trotzdem eingerichtet." }
 
 # --- 7. MCP registrieren ----------------------------------------------------------------
 Step 7 "MCP fuer Claude Code registrieren"
