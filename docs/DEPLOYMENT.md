@@ -151,6 +151,10 @@ entfernen (`docs/MCP_SETUP.md`).
 
 ## 9. Lokal mit Claude Code + eigenem mssql-MCP arbeiten (PC-A)
 
+> **Kurzweg:** Repo klonen, Branch auschecken, `Start-LiveMCP.bat` doppelklicken —
+> richtet den Analyse-MCP `sapfhir-live` komplett ein, testet live und startet Claude
+> Code (Details: `MCP_SETUP.md`). Die Schritte unten sind der manuelle Weg.
+
 Die Remote-Sessions (claude.ai/code) erreichen weder lokale MCP-Server noch die
 On-Prem-Replika. Für Live-Verifikation deshalb **lokal** arbeiten:
 

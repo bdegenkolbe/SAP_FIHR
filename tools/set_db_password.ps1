@@ -120,7 +120,8 @@ if (-not (Test-Path $Python)) {
   $cmdPy = Get-Command py -ErrorAction SilentlyContinue
   if ($cmdPy) { $Python = $cmdPy.Source } else { throw "Python nicht gefunden: $Python (Parameter -Python angeben)." }
 }
-& $Python -c "import keyring" 2>$null
+$old = $ErrorActionPreference; $ErrorActionPreference = "Continue"
+try { & $Python -c "import keyring" 2>$null } finally { $ErrorActionPreference = $old }
 if ($LASTEXITCODE -ne 0) {
   Write-Host "Installiere keyring (user-space) ..."
   & $Python -m pip install --quiet keyring
