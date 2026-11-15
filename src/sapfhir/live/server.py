@@ -523,16 +523,51 @@ class LiveService:
 # ---------------------------------------------------------------------------
 # MCP-Anbindung
 # ---------------------------------------------------------------------------
+def _beschreibbar(path: str) -> bool:
+    """True, wenn Datei UND Verzeichnis schreibbar sind (SQLite braucht beides
+    fuer Journal-Dateien). Legt nichts Bleibendes an ausser dem Verzeichnis."""
+    try:
+        d = os.path.dirname(os.path.abspath(path))
+        os.makedirs(d, exist_ok=True)
+        probe = os.path.join(d, f".schreibtest_{os.getpid()}_{secrets.token_hex(4)}")
+        with open(probe, "w", encoding="utf-8") as fh:
+            fh.write("x")
+        os.remove(probe)
+        if os.path.exists(path):
+            with open(path, "ab"):
+                pass
+        return True
+    except OSError:
+        return False
+
+
+def _zustandspfad(rel: str) -> str:
+    """Pfad fuer Lern-/Audit-Daten. Ist das Repo-Verzeichnis fuer den startenden
+    Prozess nicht schreibbar (z.B. Claude Desktop ohne Adminrechte, Repo per
+    Admin-Shell angelegt), weicht der Server auf ein Benutzerverzeichnis aus,
+    statt beim Start abzustuerzen. Ziel ueberschreibbar per SAPFHIR_STATE_DIR."""
+    if _beschreibbar(rel):
+        return rel
+    basis = (os.environ.get("SAPFHIR_STATE_DIR")
+             or os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+                             "sapfhir", "live-state"))
+    alt = os.path.join(basis, rel.replace("\\", "/").lstrip("./"))
+    import sys
+    print(f"[sapfhir-live] WARNUNG: {os.path.abspath(rel)} nicht schreibbar "
+          f"-> verwende {alt}", file=sys.stderr)
+    return alt
+
+
 def build_service(root: str = ".") -> LiveService:
     pcfg = _load_yaml(os.path.join(root, "config", "live_mcp.yaml"))
     ccfg = _load_yaml(os.path.join(root, "config", "connection.yaml"))
     kcfg = pcfg.get("knowledge") or {}
     lim = pcfg.get("limits") or {}
-    k = Knowledge(kcfg.get("store", "data/knowledge/live.sqlite"), root,
+    k = Knowledge(_zustandspfad(kcfg.get("store", "data/knowledge/live.sqlite")), root,
                   tuple(kcfg.get("docs", [])))
     db = LiveDB(ccfg.get("source") or {}, int(lim.get("query_timeout_s", 60)),
                 int(lim.get("lock_timeout_ms", 5000)))
-    audit = Audit(kcfg.get("audit_log", "data/audit/live_mcp.jsonl"))
+    audit = Audit(_zustandspfad(kcfg.get("audit_log", "data/audit/live_mcp.jsonl")))
     return LiveService(pcfg, k, db, audit)
 
 

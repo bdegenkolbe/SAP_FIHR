@@ -704,3 +704,18 @@ Diese Kopie enthielt einen veralteten Stand (`C:\ai\mcp\_shared`, Python314-Kurz
 las Desktop sie und **alle** MCP-Server schlugen fehl (ENOENT). Behebung: korrekte Konfiguration
 in beide Dateien geschrieben (Sicherungen `*.vor-reparatur`, `*.bak-*`). Konsequenz: Das Skript
 fasst die Desktop-Konfiguration nicht mehr an, sondern zeigt nur den einzufügenden Block.
+
+## R36 — sapfhir-live startet in Claude Desktop nicht: `attempt to write a readonly database`
+
+- Befund (Desktop-Log 2026-11-15 19:17 UTC): `Knowledge.reload_static()` scheitert mit
+  `sqlite3.OperationalError: attempt to write a readonly database` auf
+  `data/knowledge/live.sqlite`; in Claude Code (gleiche Python-Umgebung) laeuft der Server.
+- Wahrscheinliche Ursache: Repo wurde in einer Admin-Shell unter `C:\WINDOWS\system32`
+  geklont und per `Move-Item` nach `C:\ai` verschoben (gleiches Laufwerk -> geerbte
+  System32-ACL bleibt, normale Benutzer nur Lesen). Claude Code lief elevated, Desktop nicht.
+- Fix im Code: `_zustandspfad()` prueft Schreibbarkeit; sonst Ausweichen nach
+  `%LOCALAPPDATA%\sapfhir\live-state\...` (oder `SAPFHIR_STATE_DIR`) mit Warnung auf stderr,
+  statt Absturz. Tests in tests/test_live.py.
+- Eigentliche Bereinigung beim Nutzer: ACL des Repos zuruecksetzen
+  (`icacls C:\ai\SAP_FIHR /reset /T /C /Q` in Admin-PowerShell), damit Desktop und Code
+  dasselbe Lernwissen teilen.

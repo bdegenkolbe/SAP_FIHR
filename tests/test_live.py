@@ -309,3 +309,25 @@ def test_cli_beispiel_passes_guard():
     import live_query
     svc = LiveService(PCFG, Knowledge(":memory:", ROOT, ()), FakeDB(), None, salt="x")
     assert svc.check(live_query.BEISPIEL_SQL).tables == ["NFAL"]
+
+
+def test_zustandspfad_weicht_bei_schreibschutz_aus(tmp_path, monkeypatch):
+    """Vorfall R36: Claude Desktop (ohne Adminrechte) konnte live.sqlite im per
+    Admin-Shell angelegten Repo nicht schreiben -> Absturz beim Start. Der Server
+    muss stattdessen in ein Benutzerverzeichnis ausweichen."""
+    from sapfhir.live import server as S
+    monkeypatch.setenv("SAPFHIR_STATE_DIR", str(tmp_path / "state"))
+    echt = S._beschreibbar
+    monkeypatch.setattr(S, "_beschreibbar",
+                        lambda p: False if p.startswith("data/") else echt(p))
+    alt = S._zustandspfad("data/knowledge/live.sqlite")
+    assert alt == str(tmp_path / "state" / "data" / "knowledge" / "live.sqlite")
+    from sapfhir.live.knowledge import Knowledge
+    k = Knowledge(alt, ".", ())
+    assert os.path.exists(alt) and k.db is not None
+
+
+def test_zustandspfad_bleibt_wenn_schreibbar(tmp_path):
+    from sapfhir.live import server as S
+    p = str(tmp_path / "k" / "live.sqlite")
+    assert S._zustandspfad(p) == p
