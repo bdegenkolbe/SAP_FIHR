@@ -12,7 +12,8 @@
   5. DB-Passwort im Windows Credential Manager pruefen, sonst abfragen
      (tools\set_db_password.ps1); bei falschem Passwort Neusetzen anbieten
   6. Offline-Tests + Live-Selbsttest (tools\live_smoke.py)
-  7. .mcp.json + .claude\settings.local.json (MCP vorab freigegeben) schreiben
+  7. MCP registrieren: Repo-.mcp.json, Claude Code (benutzerweit) und
+     Claude Desktop (claude_desktop_config.json, mit Sicherung)
   8. optional (-Launch): Claude Code im Repo starten
 
   Kein Admin noetig. Start per Doppelklick auf Start-LiveMCP.bat im Repo-Root.
@@ -180,7 +181,7 @@ if ($rc -eq 0) { Ok "Live-Selbsttest bestanden" }
 else { Warn "Live-Selbsttest mit Fehlern (Ausgabe oben) - MCP wird trotzdem eingerichtet." }
 
 # --- 7. MCP registrieren ----------------------------------------------------------------
-Step 7 "MCP fuer Claude Code registrieren"
+Step 7 "MCP registrieren (Claude Code + Claude Desktop)"
 $mcpPath = Join-Path $Root ".mcp.json"
 if (Test-Path $mcpPath) {
   $mcp = Get-Content $mcpPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -208,6 +209,47 @@ if ($list -notcontains "sapfhir-live") { $list += "sapfhir-live" }
 $set | Add-Member -NotePropertyName enabledMcpjsonServers -NotePropertyValue $list -Force
 Write-Utf8NoBom $setPath ($set | ConvertTo-Json -Depth 10)
 Ok ".claude\settings.local.json: 'sapfhir-live' freigegeben (lokal, nicht im Repo)"
+
+# Claude Desktop: claude_desktop_config.json (klassische + Store-Installation)
+$deskCfgs = @()
+$classic = Join-Path $env:APPDATA "Claude"
+if (Test-Path $classic) { $deskCfgs += (Join-Path $classic "claude_desktop_config.json") }
+$pkgRoot = Join-Path $env:LOCALAPPDATA "Packages"
+if (Test-Path $pkgRoot) {
+  Get-ChildItem $pkgRoot -Directory -Filter "Claude_*" -ErrorAction SilentlyContinue | ForEach-Object {
+    $d = Join-Path $_.FullName "LocalCache\Roaming\Claude"
+    if (Test-Path $d) { $deskCfgs += (Join-Path $d "claude_desktop_config.json") }
+  }
+}
+if (-not $deskCfgs) { Warn "Claude Desktop nicht gefunden (%APPDATA%\Claude fehlt) - uebersprungen." }
+foreach ($cfg in $deskCfgs) {
+  try {
+    if (Test-Path $cfg) {
+      Copy-Item $cfg ($cfg + ".bak-" + (Get-Date -Format "yyyyMMdd-HHmmss")) -Force
+      $raw = Get-Content $cfg -Raw -Encoding UTF8
+      if ($raw -and $raw.Trim()) { $dc = $raw | ConvertFrom-Json } else { $dc = New-Object psobject }
+    } else { $dc = New-Object psobject }
+    if (-not ($dc.PSObject.Properties.Name -contains "mcpServers")) {
+      $dc | Add-Member -NotePropertyName mcpServers -NotePropertyValue (New-Object psobject)
+    }
+    $dc.mcpServers | Add-Member -NotePropertyName "sapfhir-live" -NotePropertyValue ([pscustomobject]$entry) -Force
+    Write-Utf8NoBom $cfg ($dc | ConvertTo-Json -Depth 20)
+    Ok "Claude Desktop: 'sapfhir-live' in $cfg (Sicherung .bak-*) - Claude Desktop NEU STARTEN"
+  } catch { Warn "Claude Desktop-Konfiguration nicht geaendert ($cfg): $($_.Exception.Message)" }
+}
+
+# Claude Code benutzerweit (alle Ordner), zusaetzlich zur Repo-.mcp.json
+$claudeCli = Get-Command claude -ErrorAction SilentlyContinue
+if (-not $claudeCli) { Warn "Claude Code (Befehl 'claude') nicht gefunden - nur Repo-.mcp.json eingetragen." }
+else {
+  $cli = $claudeCli.Source
+  Invoke-Quiet { & $cli mcp remove "sapfhir-live" --scope user } | Out-Null
+  # -e ist variadisch -> vor --scope/Name stellen; "--" quoten (Windows PowerShell 5.1
+  # verschluckt ein nacktes -- beim Aufruf nativer Programme).
+  Invoke-Quiet { & $cli mcp add -e "SAPFHIR_ROOT=$Root" --scope user "sapfhir-live" "--" $Py -m sapfhir.live.server } | Out-Null
+  if ($LASTEXITCODE -eq 0) { Ok "Claude Code: 'sapfhir-live' benutzerweit registriert (claude mcp list)" }
+  else { Warn "claude mcp add fehlgeschlagen - im Repo-Ordner funktioniert der MCP ueber .mcp.json trotzdem." }
+}
 
 # --- 8. Claude Code starten --------------------------------------------------------------
 Step 8 "Claude Code"
