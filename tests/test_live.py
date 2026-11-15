@@ -302,3 +302,10 @@ def test_windows_scripts_are_ascii():
             raw = raw[3:]
         bad = [i for i, b in enumerate(raw) if b > 127]
         assert not bad, f"{rel}: Nicht-ASCII-Bytes an Position {bad[:5]}"
+
+
+def test_cli_beispiel_passes_guard():
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import live_query
+    svc = LiveService(PCFG, Knowledge(":memory:", ROOT, ()), FakeDB(), None, salt="x")
+    assert svc.check(live_query.BEISPIEL_SQL).tables == ["NFAL"]
