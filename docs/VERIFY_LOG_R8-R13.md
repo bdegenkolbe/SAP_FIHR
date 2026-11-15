@@ -675,3 +675,22 @@ hatte.
    (Erlös-Nachrechnung, direkt an ZNRKT_DRG/TNDRG/NAPX_DRG anschließend), danach
    NLCO/N1COMPA/NTSP/NCIR/N1APCN (großvolumig, Domäne noch unklar).
 8. **ZNRKT_DRG** (147 Spalten, 193.243 Zeilen) noch nicht Dreiklang-geprüft.
+
+## R34 — sapfhir-live erstmals live auf PC-A (15.11.2026)
+
+Ein-Klick-Setup (`Start-LiveMCP.bat`) + `tools/live_smoke.py` gegen die Replika:
+- **Host:** `s050008250.medizin.uni-leipzig.de` = 10.50.8.250, Port 1433 erreichbar.
+  Der Kurzname `S050008250` (SSMS/`@@SERVERNAME`) löst außerhalb der UKL-Domäne
+  NICHT auf → in `connection.yaml` immer den vollen Namen verwenden.
+- **Version:** SQL Server 2017 (14.0.3560.2), Standard Edition (64-bit) — KORREKTUR
+  einer Session-Annahme (2008 R2 war aus der IP fehlinterpretiert).
+- **TLS:** Server-Zertifikat stammt von einer internen CA, der die Clients nicht
+  vertrauen (SSMS: „certificate chain … not trusted") → `trust_server_certificate: true`
+  bzw. künftig Haus-CA als `cafile`.
+- **Login `bdegenkolbe`** (SQL-Auth) hat **Schreibrechte** in Replicate — für Dauerbetrieb
+  eigenen `db_datareader`-Login anlegen (ROADMAP Q6). MCP-Guard bleibt read-only.
+- **NFAL:** 121 Spalten, PK live [MANDT, EINRI, FALNR] = Registry, 9.821.793 Zeilen.
+- **ZNRKT\*:** 168 Tabellen inkl. `…__ct__bak`-Sicherungen der Change-Tables (z.B.
+  ZNRKT_AUF 968.097 / ZNRKT_AUF__ct__bak 947.751, ZNRKT_BER 967.940, ZNRKT_BEA 15.407)
+  → `tabellen_suchen` blendet `__ct` UND `__ct__bak` jetzt aus.
+- Verkryptungs-Guard live bestätigt (Klartext `NPAT.NNAME` abgewiesen).

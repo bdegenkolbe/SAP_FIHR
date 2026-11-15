@@ -318,6 +318,7 @@ class LiveService:
                "JOIN sys.schemas s ON s.schema_id = t.schema_id "
                "JOIN sys.partitions p ON p.object_id = t.object_id AND p.index_id IN (0,1) "
                f"WHERE s.name = 'sap' AND t.name LIKE '{m}' AND t.name NOT LIKE '%[_][_]ct' "
+               "AND t.name NOT LIKE '%[_][_]ct[_][_]bak' "
                "GROUP BY t.name ORDER BY t.name")
         out = self._exec("tabellen_suchen", sql, f"Tabellensuche {m}", 1000, trusted=True)
         for r in out.get("zeilen", []):
