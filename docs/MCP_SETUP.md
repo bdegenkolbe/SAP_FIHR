@@ -53,8 +53,12 @@ ein `db_datareader`-Login — der Guard ist die zweite Linie.
 ### Einrichtung (PC-A)
 1. Login: dedizierter SQL-/AD-Login nur mit `db_datareader` (+ `db_denydatawriter`).
    `verbindung_pruefen` warnt, falls der Login Schreibrechte hat.
-2. `config/connection.yaml` (Block `source`, wie für den Backfill) — Passwort über
-   Env `SAPFHIR_DB_PW` oder Windows Credential Manager (`sapfhir:<environment>`).
+2. `config/connection.yaml` (Block `source`, wie für den Backfill; Host `S050008250`,
+   DB `Replicate`) — Passwort über Env `SAPFHIR_DB_PW` oder Windows Credential Manager
+   (`sapfhir:<environment>`). Neu setzen + hinterlegen in einem Schritt:
+   `powershell -ExecutionPolicy Bypass -File tools\set_db_password.ps1`
+   (ALTER LOGIN über die eigene Windows-Anmeldung, Test-Login, Ablage per keyring;
+   `-Generate` für Zufallspasswort, `-StoreOnly` wenn das Passwort bekannt ist).
 3. `SAPFHIR_PRIVACY_SECRET` als Benutzer-Umgebungsvariable setzen (Salt für
    `PSEUDO()`; ohne ihn sind Pseudonyme nur innerhalb einer Sitzung vergleichbar).
 4. `.mcp.json.example` → `.mcp.json` (Block `sapfhir-live`, `SAPFHIR_ROOT` = Repo- bzw.

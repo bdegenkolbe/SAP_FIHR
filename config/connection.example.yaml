@@ -2,9 +2,11 @@
 # connection.yaml ist gitignored (enthaelt Secrets).
 
 source:
-  host: sql-replica.klinik.intern      # MSSQL-Host der Qlik-Replika
+  host: S050008250                     # MSSQL-Host der Qlik-Replika (10.50.8.250, in SSMS bestaetigt)
   port: 1433
-  database: replicate
+  database: Replicate
+  environment: higl-main               # Credential-Manager-Dienst 'sapfhir:higl-main'
+                                       # Passwort hinterlegen: tools/set_db_password.ps1
   # Auth: entweder SQL-Login ODER Windows/NTLM (pytds unterstuetzt beides).
   # Fuer No-Admin + read-only: dedizierter Login mit db_datareader.
   auth: sql                            # sql | ntlm
