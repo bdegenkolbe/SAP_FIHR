@@ -6,35 +6,34 @@ CREATE SCHEMA IF NOT EXISTS gold;
 
 -- Faelle je Monat, getrennt nach Fallart.
 -- STASP = Statistiksperre (Altbestand): gesperrte Faelle nie in Statistik.
+-- R34: Monat aus gold.fall_zeitraum (gold/fallzeit.py), NICHT aus NFAL.BEGDT —
+-- das ist bei stationaeren Faellen zu 99,9 % Sentinel 0101-01-01 (alle stationaeren
+-- Faelle landeten frueher im Monat '0101-01'). Faelle ohne ableitbaren Beginn: monat NULL.
 CREATE OR REPLACE VIEW gold.faelle_monat AS
 SELECT
-    strftime(TRY_CAST(BEGDT AS DATE), '%Y-%m') AS monat,
-    FALAR AS fallart,
+    strftime(beg, '%Y-%m')      AS monat,
+    FALAR                       AS fallart,
     COUNT(*)                    AS faelle
-FROM bronze_current.nfal
-WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')
+FROM gold.fall_zeitraum
+WHERE NOT ist_storno
   AND COALESCE(STASP,'') <> 'X'
 GROUP BY 1, 2
 ORDER BY 1;
 
 -- Verweildauer stationaerer Faelle (Tage).
--- R7/R16: Fallende = ENDDT (ENDAT waere das Entbindungsdatum!); Sentinel
--- 0101-01-01 (SAP-Leerdatum via Qlik) und 9999* = offener Fall -> ausschliessen.
+-- R7/R16: Fallende = ENDDT (ENDAT waere das Entbindungsdatum!). R34: Aufnahme/
+-- Entlassung aus gold.fall_zeitraum (NFAL, wenn echt; sonst NBEW-Aufnahme BEWTY=1 /
+-- -Entlassung BEWTY=2). Offene Faelle (ende NULL) bleiben aussen vor.
 CREATE OR REPLACE VIEW gold.verweildauer AS
 SELECT
     FALNR,
-    TRY_CAST(BEGDT AS DATE)                                   AS aufnahme,
-    TRY_CAST(ENDDT AS DATE)                                   AS entlassung,
-    date_diff('day', TRY_CAST(BEGDT AS DATE), TRY_CAST(ENDDT AS DATE)) AS vwd_tage
-FROM bronze_current.nfal
+    beg                          AS aufnahme,
+    ende                         AS entlassung,
+    date_diff('day', beg, ende)  AS vwd_tage
+FROM gold.fall_zeitraum
 WHERE FALAR = '1'
-  AND BEGDT IS NOT NULL AND ENDDT IS NOT NULL
-  -- NFAL.BEGDT/ENDDT sind in diesem Haus meist Sentinel (R21: 10430/10433
-  -- FALAR=1-Faelle mit Sentinel-BEGDT) — echte Verweildauer gehoert auf die
-  -- NBEW-Bewegungskette (BWIDT/BWEDT), diese View ist nur ein Grob-Fallback.
-  AND substr(CAST(BEGDT AS VARCHAR),1,4) NOT IN ('0101','9999')
-  AND substr(CAST(ENDDT AS VARCHAR),1,4) NOT IN ('0101','9999')
-  AND COALESCE(TRIM(STORN),'') NOT IN ('X','1');
+  AND beg IS NOT NULL AND ende IS NOT NULL
+  AND NOT ist_storno;
 
 -- Top-Hauptdiagnosen (ICD-10-GM) — nur echte KH-Hauptdiagnosen (KHDIA-Flag),
 -- sonst dominieren die ~96% Behandlungsdiagnosen die Statistik (VERIFY_RESULTS_3).

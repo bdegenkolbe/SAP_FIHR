@@ -47,7 +47,7 @@ INDEX.md (hier)
 ### Protokolle (fortlaufend, nur anhängen)
 | Dokument | Rolle |
 |---|---|
-| `VERIFY_LOG_R8-R13.md` | **Fortlaufendes Verifikationslog ab R8** (aktuell bis R19; Dateiname historisch, bleibt wegen Verweisen). Jede neue Runde wird angehängt. |
+| `VERIFY_LOG_R8-R13.md` | **Fortlaufendes Verifikationslog ab R8** (aktuell bis R34; Dateiname historisch, bleibt wegen Verweisen). Jede neue Runde wird angehängt. |
 | `config/tables.yaml` | Lebende Registry (PKs „verifiziert Rx", Befunde in notes). |
 
 ### Archiv (historisch — nicht mehr fortschreiben, Aussagen ggf. überholt)
