@@ -81,6 +81,8 @@ class Source:
                   f"DATABASE={c['database']};{auth}"
                   f"Encrypt={enc};TrustServerCertificate={tsc};ApplicationIntent={intent}")
             self._conn = pyodbc.connect(cs, readonly=True)
+            if c.get("query_timeout"):
+                self._conn.timeout = int(c["query_timeout"])  # Sekunden je Abfrage
             self._paramstyle = "qmark"
         elif _HAVE_PYTDS:
             kw = dict(
@@ -89,6 +91,8 @@ class Source:
                 cafile=c.get("cafile"),
                 validate_host=(c.get("trust_server_certificate", False) is False),
             )
+            if c.get("query_timeout"):
+                kw["timeout"] = int(c["query_timeout"])  # Sekunden je Abfrage
             if c.get("auth") == "ntlm":
                 # Windows-Auth ueber pytds; Domain\User im username, sonst NTLM-Login
                 kw.update(user=c.get("username"), password=c.get("password"))

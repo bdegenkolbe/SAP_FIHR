@@ -675,3 +675,52 @@ hatte.
    (Erlös-Nachrechnung, direkt an ZNRKT_DRG/TNDRG/NAPX_DRG anschließend), danach
    NLCO/N1COMPA/NTSP/NCIR/N1APCN (großvolumig, Domäne noch unklar).
 8. **ZNRKT_DRG** (147 Spalten, 193.243 Zeilen) noch nicht Dreiklang-geprüft.
+
+## R34 — sapfhir-live erstmals live auf PC-A (15.11.2026)
+
+Ein-Klick-Setup (`Start-LiveMCP.bat`) + `tools/live_smoke.py` gegen die Replika:
+- **Host:** `s050008250.medizin.uni-leipzig.de` = 10.50.8.250, Port 1433 erreichbar.
+  Der Kurzname `S050008250` (SSMS/`@@SERVERNAME`) löst außerhalb der UKL-Domäne
+  NICHT auf → in `connection.yaml` immer den vollen Namen verwenden.
+- **Version:** SQL Server 2017 (14.0.3560.2), Standard Edition (64-bit) — KORREKTUR
+  einer Session-Annahme (2008 R2 war aus der IP fehlinterpretiert).
+- **TLS:** Server-Zertifikat stammt von einer internen CA, der die Clients nicht
+  vertrauen (SSMS: „certificate chain … not trusted") → `trust_server_certificate: true`
+  bzw. künftig Haus-CA als `cafile`.
+- **Login `bdegenkolbe`** (SQL-Auth) hat **Schreibrechte** in Replicate — für Dauerbetrieb
+  eigenen `db_datareader`-Login anlegen (ROADMAP Q6). MCP-Guard bleibt read-only.
+- **NFAL:** 121 Spalten, PK live [MANDT, EINRI, FALNR] = Registry, 9.821.793 Zeilen.
+- **ZNRKT\*:** 168 Tabellen inkl. `…__ct__bak`-Sicherungen der Change-Tables (z.B.
+  ZNRKT_AUF 968.097 / ZNRKT_AUF__ct__bak 947.751, ZNRKT_BER 967.940, ZNRKT_BEA 15.407)
+  → `tabellen_suchen` blendet `__ct` UND `__ct__bak` jetzt aus.
+- Verkryptungs-Guard live bestätigt (Klartext `NPAT.NNAME` abgewiesen).
+
+## R35 — Vorfall: Setup-Skript legte Claude-Desktop-MCPs lahm (15.11.2026)
+
+`setup_live_mcp.ps1` (Stand 91c8159) schrieb `sapfhir-live` per JSON-Merge auch in die
+virtualisierte Konfiguration der **Store-Version** von Claude Desktop
+(`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude\claude_desktop_config.json`).
+Diese Kopie enthielt einen veralteten Stand (`C:\ai\mcp\_shared`, Python314-Kurzpfad); danach
+las Desktop sie und **alle** MCP-Server schlugen fehl (ENOENT). Behebung: korrekte Konfiguration
+in beide Dateien geschrieben (Sicherungen `*.vor-reparatur`, `*.bak-*`). Konsequenz: Das Skript
+fasst die Desktop-Konfiguration nicht mehr an, sondern zeigt nur den einzufügenden Block.
+
+## R36 — sapfhir-live startet in Claude Desktop nicht: `attempt to write a readonly database`
+
+- Befund (Desktop-Log 2026-11-15 19:17 UTC): `Knowledge.reload_static()` scheitert mit
+  `sqlite3.OperationalError: attempt to write a readonly database` auf
+  `data/knowledge/live.sqlite`; in Claude Code (gleiche Python-Umgebung) laeuft der Server.
+- Wahrscheinliche Ursache: Repo wurde in einer Admin-Shell unter `C:\WINDOWS\system32`
+  geklont und per `Move-Item` nach `C:\ai` verschoben (gleiches Laufwerk -> geerbte
+  System32-ACL bleibt, normale Benutzer nur Lesen). Claude Code lief elevated, Desktop nicht.
+- Fix im Code: `_zustandspfad()` prueft Schreibbarkeit; sonst Ausweichen nach
+  `%LOCALAPPDATA%\sapfhir\live-state\...` (oder `SAPFHIR_STATE_DIR`) mit Warnung auf stderr,
+  statt Absturz. Tests in tests/test_live.py.
+- Eigentliche Bereinigung beim Nutzer: ACL des Repos zuruecksetzen
+  (`icacls C:\ai\SAP_FIHR /reset /T /C /Q` in Admin-PowerShell), damit Desktop und Code
+  dasselbe Lernwissen teilen.
+- Nachtrag R36: Claude Desktop startet sapfhir-live zweimal parallel (Chat + Pool
+  "Cowork und Code"), dazu ggf. Claude Code -> konkurrierende Schreibzugriffe auf
+  live.sqlite beim Index-Neuaufbau. Gehaertet: SQLite-Timeout 30 s, WAL-Modus,
+  `reload_static()` liest erst alles ein und schreibt in einer kurzen Transaktion;
+  Sperr-/Schreibfehler fuehren nur noch zu einer Warnung (stderr), nicht zum Absturz.

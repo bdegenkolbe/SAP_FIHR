@@ -1,10 +1,18 @@
 {
   "//": "Projekt-MCP-Konfiguration fuer LOKALE Claude-Code-Sessions (PC-A).",
   "//2": "Kopie nach .mcp.json (gitignored): copy .mcp.json.example .mcp.json",
-  "//3": "Block entspricht dem mssql-Eintrag aus claude_desktop_config.json",
-  "//4": "(@connorbritain/mssql-mcp-server; Verbindungsdaten liegen NICHT hier,",
-  "//5": "sondern in ENVIRONMENTS_CONFIG_PATH — bleibt ausserhalb des Repos).",
+  "//3": "sapfhir-live: Live-Analyse auf Replicate.sap.* mit Verkryptung + lernender Wissensschicht (docs/MCP_SETUP.md).",
+  "//4": "Verbindung aus config/connection.yaml (gitignored), Policy aus config/live_mcp.yaml; Start im Repo-Root.",
+  "//5": "mssql (@connorbritain): nur noch Fallback fuer DBA-Aufgaben — fuer Analyse sapfhir-live verwenden.",
   "mcpServers": {
+    "sapfhir-live": {
+      "command": "C:\\Users\\BjörnDegenko_ii5jj9a\\AppData\\Local\\greenbay\\sapfhir\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "sapfhir.live.server"],
+      "env": {
+        "SAPFHIR_ROOT": "C:\\Users\\BjörnDegenko_ii5jj9a\\AppData\\Local\\greenbay\\sapfhir",
+        "SAPFHIR_PRIVACY_SECRET": "${SAPFHIR_PRIVACY_SECRET}"
+      }
+    },
     "mssql": {
       "command": "node",
       "args": [

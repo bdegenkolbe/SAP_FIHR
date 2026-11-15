@@ -2,9 +2,13 @@
 # connection.yaml ist gitignored (enthaelt Secrets).
 
 source:
-  host: sql-replica.klinik.intern      # MSSQL-Host der Qlik-Replika
+  host: s050008250.medizin.uni-leipzig.de   # Qlik-Replika = 10.50.8.250 (SSMS: S050008250).
+                                       # VOLLER Name noetig: der Kurzname loest ausserhalb der
+                                       # UKL-Domaene nicht auf (DNS_ERROR_RCODE_NAME_ERROR).
   port: 1433
-  database: replicate
+  database: Replicate
+  environment: higl-main               # Credential-Manager-Dienst 'sapfhir:higl-main'
+                                       # Passwort hinterlegen: tools/set_db_password.ps1
   # Auth: entweder SQL-Login ODER Windows/NTLM (pytds unterstuetzt beides).
   # Fuer No-Admin + read-only: dedizierter Login mit db_datareader.
   auth: sql                            # sql | ntlm
@@ -12,7 +16,10 @@ source:
   password: ""                         # NICHT committen; leer -> Prompt / Env SAPFHIR_DB_PW
   prefer: pytds                        # pytds (No-Admin) | pyodbc
   encrypt: true
-  trust_server_certificate: false
+  trust_server_certificate: true       # S050008250 hat ein Zertifikat einer internen CA, der
+                                       # die Clients nicht vertrauen (SSMS: 'certificate chain ...
+                                       # not trusted'). Sauberer: CA-Zertifikat als cafile setzen
+                                       # und hier false.
   cafile: null
   read_only_intent: true
 

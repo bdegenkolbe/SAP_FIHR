@@ -1,0 +1,64 @@
+# Live-Analyse-MCP (sapfhir.live.server) — Policy & Wissensquellen.
+# Verbindung kommt aus config/connection.yaml (Block 'source', gitignored).
+#
+# VERKRYPTUNG (Analyse_Datenbank.md §4): Liste ERWEITERN, NIE KUERZEN.
+# Felder hier sind im Live-MCP nur gekapselt abfragbar:
+#   PSEUDO(f) | LEN(f) | DATALENGTH(f) | LEFT(f,1) | COUNT([DISTINCT] f) | f IS [NOT] NULL
+#   YEAR(f) nur fuer Felder in pii_dates.
+# "*" = ganze Tabelle verkryptungspflichtig ausser den Schluesseln in pii_keep
+#       (Spalten werden live aus INFORMATION_SCHEMA aufgeloest).
+
+limits:
+  row_limit: 500            # Standard-Zeilenlimit je Abfrage
+  row_limit_max: 1000       # "TOP 1000, nie mehr" (§4)
+  query_timeout_s: 60
+  lock_timeout_ms: 5000
+  mass_threshold: 50000000  # ab hier gilt eine Tabelle als Massentabelle (gelernt via Zeilenzahl)
+
+allowed_schemas: [sap, sys, information_schema]
+allowed_databases: [replicate]
+
+mass_tables: [NLEI, N2LABOR001]
+
+pii_dates: [GBDAT]
+
+pii_keep: [MANDT, EINRI, PATNR, FALNR, LFDNR, ADRNR, ADROB, LNRLS, ERDAT, ERUSR,
+           UPDAT, UPUSR, STORN, TXTID, DOKNR, DOKAR, DOKTL, DOKVR, SPRAS]
+
+pii:
+  NPAT:     [NNAME, VNAME, GBNAM, NAMZU, GBDAT, GBORT, STRAS, ORT, PSTLZ,
+             TELF1, TELF2, TELF3, TELFX, INSID]
+  NGPA:     [NAME1, NAME2, NAME3, KNAME, STRAS, ORT, ORT01, PSTLZ, TELF1, TELF2, TELFX]
+  NADR:     "*"
+  NADR2:    "*"
+  NVVP:     [VERNN, VERVN, VERGE, VERNR]
+  NEHC:     [EGK_ICCSN]
+  NC301M:   [MAIL]
+  NC301V:   [SGMINH]
+  NC301W:   [SGMINH]
+  NFAL:     [KZTXT]
+  NBEW:     [KZTXT]
+  NRSF:     [KZTXT]
+  N1CORDER: [FRAGE, KANAM]
+  N2TEXT:   "*"
+  # RKT/MD-Management (§275c): Freitext-Tabellen (MD-Gutachten, Reklamationen,
+  # Klagen, Kodierfragen) koennen Namen/Diagnosen im Klartext enthalten.
+  ZNRKT_KG_TXT:   "*"
+  ZNRKT_TOB_TXT:  "*"
+  ZNRKT_REKL_TXT: "*"
+  ZNRKT_MDK_TXT:  "*"
+  ZNRKT_MCS_TXT:  "*"
+  ZNRKT_KLA_TXT:  "*"
+
+# Statisches Kontextwissen, das abschnittsweise in den Volltextindex geht.
+knowledge:
+  store: data/knowledge/live.sqlite
+  audit_log: data/audit/live_mcp.jsonl
+  export_dir: data/knowledge
+  docs:
+    - CLAUDE.md
+    - docs/Analyse_Datenbank.md
+    - docs/PATIENT_DATENKATALOG.md
+    - docs/VERIFY_LOG_R8-R13.md
+    - docs/MD_MANAGEMENT_KONZEPT.md
+    - docs/BERECHTIGUNGSKONZEPT.md

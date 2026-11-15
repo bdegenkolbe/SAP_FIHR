@@ -15,6 +15,11 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
   FHIR-NDJSON (16 Ressourcentypen aus 21 Tabellen, Mapper+Tests) → Gold → `mcp.*` →
   Kuzu-Basisgraph. [CONCEPT §12 Phasen 1–5]
 - ✅ MCP-Server gehärtet (9 Tools, Sandbox, Audit-Hash-Kette). [CONCEPT §17]
+- ✅ **Live-Analyse-MCP `sapfhir-live`** (16 Tools) direkt auf `Replicate.sap.*`: T-SQL-Guard,
+  Verkryptung erzwungen (PSEUDO/LEN/LEFT/COUNT, Policy `config/live_mcp.yaml`),
+  Massentabellen-Schutz, Dreiklang-Werkzeuge und **lernende Wissensschicht** (Joins,
+  Fallstricke, Fakten, Statistik; Export als Vorschlag für tables.yaml). Ersetzt den
+  generischen `mssql`-MCP für die DB-Erschließung. Setup: MCP_SETUP.md.
 - ✅ Registry ~100 Tabellen, PKs live verifiziert R8–R19; DIAS-Abdeckungsdiff
   automatisiert; ref_*-Klartextschicht + `resolve_code`. [GESAMTREVIEW #3, Analyse_DB §8.3/.4]
 - ✅ RKT/ZNRKT-Familie (16 Tabellen) verifiziert → **CliniBots MDM** als eigenes Produkt
@@ -38,6 +43,7 @@ Arbeitspaket in `[..]` gemappt. Neue Vorhaben werden NUR hier ergänzt (INDEX.md
 | Q3 | Lastfenster-Verifikationen: NICP↔N1LSTEAM-Alternativpfad, NDOC-Fill (54 M), N2LABOR-Familie | [Analyse_DB §8.2] |
 | Q4 | `authz.sql.build` in Nightly einhängen + AD-Header-Login (Reverse-Proxy) bzw. lokale Logins | BERECHTIGUNGSKONZEPT §6 |
 | Q5 | Fehler-207-Fallback im Extractor (Schema-Drift) | [INGOLF P1d / GESAMTREVIEW #14] |
+| Q6 | `sapfhir-live` auf PC-A in Betrieb nehmen (db_datareader-Login, `SAPFHIR_PRIVACY_SECRET`, `verbindung_pruefen`); Wissens-Export regelmäßig in tables.yaml/VERIFY_LOG übernehmen | MCP_SETUP |
 | Q6 | NFFZ-REFA-Katalog klären (Q/T/S) → ggf. Patient.link M/N | [Analyse_DB §8.5] |
 
 ## P1 „Sichtbar machen" (2–3 SE) — größter Hebel, Daten liegen in mcp.*
