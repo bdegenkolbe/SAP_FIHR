@@ -37,7 +37,7 @@ INDEX.md (hier)
 | `PATIENT_DATENKATALOG.md` | Vollständigkeits-Rahmen: 77 patientenbezogene Tabellen, 37 Lücken (R19). |
 | `BERECHTIGUNGSKONZEPT.md` | Zugriff/RBAC: AD→PERNR→KOSTL→SETNODE-Rollup ⇄ NOEK→NBEW (Kette live verifiziert R19); `authz`-Modul umgesetzt. |
 | `DEPLOYMENT.md` | Installation & Betrieb (No-Admin). Natives Deployment dieses PCs: `C:\ai\_ops\README.md`. |
-| `MCP_SETUP.md` | MCP-Anbindung (Claude Desktop/Code). |
+| `MCP_SETUP.md` | MCP-Anbindung (Claude Desktop/Code): `sapfhir` (Warehouse, mcp.*) und `sapfhir-live` (Live-Analyse auf der Replika mit lernender Wissensschicht). |
 
 ### Fachkonzept Schwesterprodukt
 | Dokument | Rolle |
