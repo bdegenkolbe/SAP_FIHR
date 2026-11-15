@@ -132,12 +132,15 @@ elseif ($src.password) { Ok "Passwort aus connection.yaml" }
 elseif ($has -eq "1") { Ok "Passwort fuer '$($src.username)' ist hinterlegt" }
 else {
   Write-Host "  Kein Passwort hinterlegt. Bekanntes Passwort eingeben:"
-  try { & $pwScript @pwArgs -StoreOnly }
-  catch {
-    Warn "Anmeldung gescheitert: $($_.Exception.Message)"
+  $stored = $false
+  for ($try = 1; $try -le 3 -and -not $stored; $try++) {
+    try { & $pwScript @pwArgs -StoreOnly; $stored = $true }
+    catch { Warn "Versuch $try fehlgeschlagen: $($_.Exception.Message)" }
+  }
+  if (-not $stored) {
     if (Ask "  Passwort fuer '$($src.username)' jetzt NEU SETZEN (braucht ALTER ANY LOGIN fuer deine Windows-Anmeldung)?") {
       & $pwScript @pwArgs
-    } else { throw "Ohne gueltiges Passwort kein Live-Zugriff." }
+    } else { throw "Ohne gueltiges Passwort kein Live-Zugriff - Skript einfach erneut starten." }
   }
 }
 

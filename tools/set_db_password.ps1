@@ -60,12 +60,19 @@ function Get-ConnString([string]$auth) {
 if ($Generate) {
   $plain = New-StrongPassword
   Write-Host "Starkes Zufallspasswort erzeugt (wird nicht angezeigt, nur hinterlegt)."
+} elseif ($StoreOnly) {
+  # vorhandenes Passwort: einmal abfragen, Pruefung erfolgt durch den Test-Login
+  Write-Host "  (Einfuegen in der Konsole: RECHTSKLICK - Strg+V funktioniert hier nicht)"
+  $p1 = Read-Host "Vorhandenes Passwort fuer SQL-Login '$Login'" -AsSecureString
+  $plain = ConvertTo-Plain $p1
+  if (-not $plain) { throw "Kein Passwort eingegeben." }
 } else {
-  $p1 = Read-Host "Neues Passwort fuer SQL-Login '$Login'" -AsSecureString
-  $p2 = Read-Host "Passwort wiederholen" -AsSecureString
+  Write-Host "  (Einfuegen in der Konsole: RECHTSKLICK - Strg+V funktioniert hier nicht)"
+  $p1 = Read-Host "NEUES Passwort fuer SQL-Login '$Login'" -AsSecureString
+  $p2 = Read-Host "Neues Passwort wiederholen" -AsSecureString
   $plain = ConvertTo-Plain $p1
   if ($plain -ne (ConvertTo-Plain $p2)) { throw "Passwoerter stimmen nicht ueberein." }
-  if ($plain.Length -lt 12) { throw "Bitte mindestens 12 Zeichen." }
+  if ($plain.Length -lt 12) { throw "Neues Passwort: bitte mindestens 12 Zeichen." }
   if ($plain -match '[;"]') { throw "Bitte kein ';' oder '""' (Connection-String)." }
 }
 
