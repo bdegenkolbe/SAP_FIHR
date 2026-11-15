@@ -14,7 +14,10 @@ source:
   password: ""                         # NICHT committen; leer -> Prompt / Env SAPFHIR_DB_PW
   prefer: pytds                        # pytds (No-Admin) | pyodbc
   encrypt: true
-  trust_server_certificate: false
+  trust_server_certificate: true       # S050008250 hat ein Zertifikat einer internen CA, der
+                                       # die Clients nicht vertrauen (SSMS: 'certificate chain ...
+                                       # not trusted'). Sauberer: CA-Zertifikat als cafile setzen
+                                       # und hier false.
   cafile: null
   read_only_intent: true
 
