@@ -82,11 +82,18 @@ def _now() -> str:
 
 class Knowledge:
     def __init__(self, path: str = "data/knowledge/live.sqlite", repo_root: str = ".",
-                 doc_files: tuple = ()):
+                 doc_files: tuple = (), timeout: float = 30):
         if path != ":memory:":
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        self.db = sqlite3.connect(path, check_same_thread=False)
+        # timeout: mehrere Server-Instanzen (Desktop-Chat, Cowork/Code-Pool,
+        # Claude Code) teilen sich die Datei -> auf Sperren warten statt scheitern.
+        self.db = sqlite3.connect(path, check_same_thread=False, timeout=timeout)
         self.db.row_factory = sqlite3.Row
+        if path != ":memory:":
+            try:
+                self.db.execute("PRAGMA journal_mode=WAL")
+            except sqlite3.OperationalError:
+                pass
         self.db.executescript(_SCHEMA)
         self.root = repo_root
         self.doc_files = doc_files
@@ -110,16 +117,23 @@ class Knowledge:
                         (quelle, tabelle or "", titel or "", text or ""))
 
     def reload_static(self):
-        """Repo-Wissen neu einlesen (statischer Teil des FTS-Index)."""
+        """Repo-Wissen neu einlesen (statischer Teil des FTS-Index).
+
+        Erst alles in den Speicher lesen, dann in EINER kurzen Transaktion
+        schreiben. Scheitert das Schreiben (DB gesperrt durch eine parallel
+        startende Server-Instanz, z.B. Claude Desktop Chat + Cowork/Code-Pool,
+        oder schreibgeschuetzt), laeuft der Server mit dem vorhandenen Index
+        weiter statt abzustuerzen (Vorfall R36)."""
+        import sys
         import yaml
-        self.db.execute("DELETE FROM fts WHERE quelle IN ('registry','spalten','doku')")
+        rows = []
         p = os.path.join(self.root, "config", "tables.yaml")
         if os.path.exists(p):
             with open(p, encoding="utf-8") as f:
                 self.registry = (yaml.safe_load(f) or {}).get("tables", {}) or {}
         for t, reg in self.registry.items():
             txt = " ".join(str(reg.get(k, "")) for k in ("fhir", "notes", "pk"))
-            self._fts_add("registry", t.upper(), f"tables.yaml {t}", txt)
+            rows.append(("registry", t.upper(), f"tables.yaml {t}", txt))
         cdir = os.path.join(self.root, "config", "columns")
         if os.path.isdir(cdir):
             for fn in sorted(os.listdir(cdir)):
@@ -129,7 +143,7 @@ class Knowledge:
                     raw = f.read()
                 t = fn[:-5].upper()
                 self.projections[t] = raw
-                self._fts_add("spalten", t, f"config/columns/{fn}", raw)
+                rows.append(("spalten", t, f"config/columns/{fn}", raw))
         for rel in self.doc_files:
             fp = os.path.join(self.root, rel)
             if not os.path.exists(fp):
@@ -138,8 +152,19 @@ class Knowledge:
                 text = f.read()
             for sec in re.split(r"\n(?=#{2,3} )", text):
                 title = sec.strip().splitlines()[0][:120] if sec.strip() else rel
-                self._fts_add("doku", "", f"{rel} — {title}", sec[:8000])
-        self.db.commit()
+                rows.append(("doku", "", f"{rel} — {title}", sec[:8000]))
+        try:
+            self.db.execute("DELETE FROM fts WHERE quelle IN ('registry','spalten','doku')")
+            for r in rows:
+                self._fts_add(*r)
+            self.db.commit()
+        except sqlite3.OperationalError as e:
+            try:
+                self.db.rollback()
+            except sqlite3.Error:
+                pass
+            print(f"[sapfhir-live] WARNUNG: Wissensindex nicht aktualisiert ({e}); "
+                  "arbeite mit vorhandenem Index weiter.", file=sys.stderr)
 
     # -- Lernen aus Abfragen ------------------------------------------------
     def log_query(self, sql_norm: str, tables: list, ok: bool, rows: int, dur: float,

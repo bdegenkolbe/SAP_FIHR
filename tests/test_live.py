@@ -331,3 +331,21 @@ def test_zustandspfad_bleibt_wenn_schreibbar(tmp_path):
     from sapfhir.live import server as S
     p = str(tmp_path / "k" / "live.sqlite")
     assert S._zustandspfad(p) == p
+
+
+def test_knowledge_start_trotz_gesperrter_db(tmp_path, capsys):
+    """Vorfall R36: parallel startende Instanzen (Desktop-Chat + Cowork/Code-Pool)
+    duerfen sich beim Index-Neuaufbau nicht gegenseitig abschiessen."""
+    import sqlite3
+    from sapfhir.live.knowledge import Knowledge
+    p = str(tmp_path / "live.sqlite")
+    Knowledge(p, ".", ()).db.close()          # DB + Schema anlegen
+    sperre = sqlite3.connect(p)
+    sperre.execute("BEGIN EXCLUSIVE")           # fremde Instanz haelt Schreibsperre
+    try:
+        k = Knowledge(p, ".", (), timeout=0.2)  # darf NICHT werfen
+        assert k.registry                       # Repo-Wissen trotzdem im Speicher
+        assert "WARNUNG" in capsys.readouterr().err
+    finally:
+        sperre.rollback()
+        sperre.close()

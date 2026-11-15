@@ -719,3 +719,8 @@ fasst die Desktop-Konfiguration nicht mehr an, sondern zeigt nur den einzufügen
 - Eigentliche Bereinigung beim Nutzer: ACL des Repos zuruecksetzen
   (`icacls C:\ai\SAP_FIHR /reset /T /C /Q` in Admin-PowerShell), damit Desktop und Code
   dasselbe Lernwissen teilen.
+- Nachtrag R36: Claude Desktop startet sapfhir-live zweimal parallel (Chat + Pool
+  "Cowork und Code"), dazu ggf. Claude Code -> konkurrierende Schreibzugriffe auf
+  live.sqlite beim Index-Neuaufbau. Gehaertet: SQLite-Timeout 30 s, WAL-Modus,
+  `reload_static()` liest erst alles ein und schreibt in einer kurzen Transaktion;
+  Sperr-/Schreibfehler fuehren nur noch zu einer Warnung (stderr), nicht zum Absturz.
