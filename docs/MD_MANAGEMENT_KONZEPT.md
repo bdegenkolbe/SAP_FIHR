@@ -6,6 +6,9 @@
 > Dokument bleibt als **Domänenmodell-Referenz** (ZNRKT-Familie, DIAS-Tripel) und für
 > die Verbund-Schnittstelle (MD-Badge → MDM-Fall-Akte, `ROADMAP.md` P2.5/P4.3) gültig.
 > §5-Architekturoptionen/§6-Schritte sind historisch (Entscheidung: eigenständige App).
+> **Weiterentwicklung (R34):** `MDM_PLATTFORM_KONZEPT.md` — Konzeptprüfung, Betrieb im
+> Cluster unter `rkt.greenbay.systems`, Argo-Prozesse, KI, Skill. Die Tabellenzahl hier
+> (16) ist überholt: die Familie umfasst 83 Tabellen (MDM-Repo R35).
 
 **Stand:** R17-Anschluss (19.07.2026), Analyse live gegen `higl-main` (read-only).
 **Auslöser:** „Schau dir die Aufbereitung von RKT im DIAS-Cube an — das ist das

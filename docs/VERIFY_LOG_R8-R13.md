@@ -729,6 +729,29 @@ registriert), `ZNRKT_REKL_TXT` (388.340) und `ZNRKT_MCS_TXT` (1.289.741)
 (Versichertendaten mit VERNR und Adresse, hochsensibel, falls sie je befüllt wird) und
 `ZNRKT_FMA_TXT`.
 
+**8. Resttabellen der Familie (Detailprüfung, live).** Alle 24 Transaktionstabellen sind
+jetzt inhaltlich geprüft; die Tabelle mit allen Befunden steht in
+`MDM_PLATTFORM_KONZEPT.md` §2.3. Drei Registry-Notizen sind widerlegt:
+- `ZNRKT_MCS` ist **kein Datenaustausch**, sondern die Ergebnisklassifikation je Vorgang
+  (`MCS_ERG` → `C_MCSERG`).
+- `ZNRKT_MDK` ist **kein Altworkflow**: Es gibt Begehungen bis 2026, 105 davon liegen in
+  der Zukunft.
+- `ZNRKT_KLA` führt den **Instanzweg nicht**, 34 Felder sind tot.
+
+Weitere Befunde:
+- `ZNRKT_AUF`: 1.729 offene Aufgaben, davon 938 überfällig. Die Soll-Bearbeitungstage je
+  Typ stehen in `C_AUFTYP.AUF_BEARBZT`. 20.322 stornierte Aufgaben stehen noch auf einem
+  offenen Status.
+- `ZNRKT_FAK`: `FAK_STREIT`/`FAK_ERGEBNIS` sind tot, es gibt Platzhalterbelege.
+- ICD-Sicht: Kodes mit `ICD_LFDNR_NDIA` ab 800 stammen von MD oder Kasse und haben keine
+  Zeile in NDIA.
+- `ZNRKT_C_FRIST`: FRIST1 = 42, FRIST2 = 180 Tage.
+
+Ungeprüft ist nur die Brücke `ZNRKT_Z75 → NLEI`; die Abfrage läuft ins Timeout und
+braucht ein Lastfenster. Die Fakten 10–17 stehen im Wissensspeicher von sapfhir-live.
+Achtung: Diese Befunde ergänzen MDM-Repo R35/R36, das bereits alle 83 Tabellen
+inventarisiert hatte. Künftig führt das MDM-Repo die Fachbefunde (Konzept §1.2, F6).
+
 **Code-Fix Fallzeitraum (R34).** `NFAL.BEGDT`/`ENDDT` wurden an sieben Stellen
 ungeprüft als Fallzeitraum verwendet. Bei stationären Fällen hatte das folgende Folgen:
 

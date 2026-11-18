@@ -43,6 +43,8 @@ INDEX.md (hier)
 | Dokument | Rolle |
 |---|---|
 | `MD_MANAGEMENT_KONZEPT.md` | Domänenanalyse RKT/ZNRKT (§275c) — **umgesetzt als CliniBots MDM** (eigenes Repo; dortige Doku: VALIDIERUNG.md, DEPLOYMENT.md). Hier: Datenmodell-Referenz + Verbund-Schnittstelle (MD-Badge → MDM-Fall-Akte). |
+| `MDM_PLATTFORM_KONZEPT.md` | **Entwurf R34:** Konzeptprüfung (Befunde F1–F8 am MDM) + Zielbild Cluster (`rkt.greenbay.systems`, Testdaten, Keycloak, Postgres), Argo-Prozesse P1–P8, KI-Funktionen, Umsetzungsplan, offene Entscheidungen. |
+| `skills/md-management/` | **Entwurf R34:** Skill für Claude im Dialog und für KI-Schritte der Argo-Prozesse (Datenmodell, Kennzahlen, Fristen, Prozesse, Werkzeuge). Nach Freigabe → `C:\ai\infra\skills`. |
 
 ### Protokolle (fortlaufend, nur anhängen)
 | Dokument | Rolle |

@@ -1218,8 +1218,11 @@ tables:
     notes: "MDK-BEGEHUNGSTERMINE (47 Spalten) - ALT-WORKFLOW: MDKGUTDAT max 2013,
             CW_AUSG/ZIEL/ERG durchgaengig 0 (leer) - das DIAS-Vergleichstripel wird NICHT
             hieraus gespeist, sondern aus ZNRKT_DRG (6 Sichten). MDKTERMIN 100% befuellt,
-            MDKKONSENS 91% / MDKDISSENS 3%. Fuer aktuelle Analytik nur eingeschraenkt
-            relevant (Begehungs-Historie). PERSONENIDENT.: MDKARZT1-3, MDKBEM -> Verkryptung."
+            MDKKONSENS 91% / MDKDISSENS 3%. PERSONENIDENT.: MDKARZT1-3, MDKBEM -> Verkryptung.
+            KORRIGIERT R34: KEIN Alt-Workflow - Begehungen laufen aktiv (1.000-2.750
+            Zeilen/Jahr bis 2026, 105 Termine in der Zukunft, Konsens/Dissens laufend
+            gepflegt). Tot nur MDKGUTDAT (nach 2013), CW_*, FST_*_M1, MDKERL, MDKGRUND*,
+            MDKERG, Akten-Flags. -> Terminquelle fuer das Fristen-Cockpit."
   # Restliche RKT-Familie — voller Dreiklang R18 (alle PKs live 100% eindeutig).
   # Muster: RKT-Streitzeilen tragen Doppelschluessel RKT-Position + Quelltabellen-Position
   # (Bruecke zum medizinischen Kern: OPS->NICP, ICD->NDIA, Z75->NLEI, BEA->NFAL).
@@ -1280,7 +1283,12 @@ tables:
             KLAGE_*/KL_* (Klage), AWP_* (Aufwandspauschale), EV_* (Eroerterung). AUF_TERMIN
             = Wiedervorlage, AUF_ERL='X'=erledigt, AUF_BEARB = Bearbeiter (PERSONENIDENT.),
             AUF_BEM (Freitext). Verknuepft zu REKL_POS/REKL_ST_POS. Bruecke medizinischer
-            Kern nicht noetig (reine Prozesssteuerung)."
+            Kern nicht noetig (reine Prozesssteuerung).
+            R34: AUF_STAT -> ZNRKT_C_AUFSTAT (NEU/INAR/WAST/ERL), AUF_TYP -> ZNRKT_C_AUFTYP
+            (Spalte AUFTYP, 97/97 Treffer, AUF_BEARBZT = Soll-Tage -> SLA). Offen (AUF_ERL<>X,
+            ohne Storno) 1.729, davon 938 ueberfaellig. FALLE: 20.322 stornierte Aufgaben
+            stehen noch auf NEU/INAR/WAST -> AUF_STORN immer filtern. REKL_POS='00' bei
+            515k (ohne Reklamationsbezug). AUF_BEARB1/2 tot. Tippfehler-Jahre (1024, 2225)."
   ZNRKT_FAK:
     schema: sap
     fhir: null
@@ -1291,15 +1299,25 @@ tables:
     cdc: ct
     notes: "Fakturabezug je Vorgang (32 Spalten), 552.286 Zeilen. FAK_NETWR/FAK_STREIT/
             FAK_ERGEBNIS = Rechnungs-/Streit-/Ergebnisbetrag, FAK_VBELN=SD-Beleg,
-            LF301/WORKSIGN=§301-EDIFACT-Bezug. FAK_MODUL trennt Herkunft (REKL vs KLA)."
+            LF301/WORKSIGN=§301-EDIFACT-Bezug. FAK_MODUL trennt Herkunft (REKL vs KLA).
+            R34: FAK_MODUL 20=Reklamation (542k), 80=Klage (4,6k); FAK_TYP V/N = Rechnung
+            vorher/nachher (Deutung). FAK_STREIT und FAK_ERGEBNIS TOT (nie <>0).
+            Platzhalterbelege 'RECHNUNG01'/'RESTBTR 0x' (~39k, FAK_ERDAT Sentinel) und Modul
+            09 mit leerer VBELN (8.986) nie gegen SD joinen. V-Belege ueber mehrere REKL_POS
+            mehrfach (20.575) -> deduplizieren. Delta N-V je REKL_POS -38,3 Mio EUR."
   ZNRKT_MCS:
     schema: sap
     fhir: null
     tier: 2
     pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, MCS_LFDNR]   # verifiziert R18 (216.089, 100%)
     cdc: ct
-    notes: "MD-Communication-Server / elektr. §301-Datenaustausch mit MD/Kasse, 216.089
-            Zeilen. PERSONENIDENT.: MCSARZT (MD-Arzt) -> Verkryptung."
+    notes: "KORRIGIERT R34: KEIN Datenaustausch, sondern Ergebnisklassifikation je Vorgang
+            (genau 1 Zeile/Vorgang, 219.494 seit 2007; Deutung: durch das Med.-Controlling).
+            MCS_ERG -> ZNRKT_C_MCSERG (10 Codes, 100% Treffer): 05 kein Fehler 64,5k, 02
+            Fehlbelegung 54,9k, 01 Dokumentation 37,6k, 04 sonstiges 30,3k, 00 unbewertet
+            25,6k. MCS_PRFDT erst ab 2020 verlaesslich (>97%), MCS_DOK_AKT_DAT (69%) =
+            Aktenversand. TOT: MCS_ERG2-4, MCS_BEGR, MCSARZT2, MCS_PRFDT2.
+            PERSONENIDENT.: MCSARZT -> Verkryptung."
   ZNRKT_KLA:
     schema: sap
     fhir: null
@@ -1309,7 +1327,13 @@ tables:
     notes: "KLAGEVERFAHREN Sozialgericht (77 Spalten), 4.442 Zeilen. Kompletter Instanzenweg:
             KLA_STREITW, KLA_NETWR_VOR/NACH, Sozialgericht (KLA_AKZ_SOZ/SOZ_DAT), LSG
             (KLA_LSG/LSG_DAT), BSG (KLA_BSG/BSG_DAT), Zinsen (KLA_NETWR_ZINS), Gutachten
-            (KLA_GAPRF/GADAT/GAERG). PERSONENIDENT.: KLAARZT, KLA_FAELLE (Freitext)."
+            (KLA_GAPRF/GADAT/GAERG). PERSONENIDENT.: KLAARZT, KLA_FAELLE (Freitext).
+            KORRIGIERT R34: Instanzweg NICHT gepflegt - 34 Felder tot (alle Gutachten-,
+            Instanz-KLAG*-, Datums- und Betragsdatumsfelder, KLA_VBELN, KLA_FAELLE;
+            KLA_NETWR immer 0). Nutzbar: STREITW, NETWR_VOR, ABGGRUND/ABG_DAT (85%),
+            ERLGRUND/ERL_DAT (73%) -> C_KLAABGGR/C_KLAERLGR (Textschluessel mit
+            Zeitscheiben-Duplikaten), AKZ_SOZ (41%). KLA_ABGAN = Kanzlei-Freitext.
+            ~75-110 neue Klagen/Jahr."
   ZNRKT_KG:
     schema: sap
     fhir: null
@@ -1402,6 +1426,18 @@ tables:
   #     C_KLAARZT(11) C_MCSARZT(89) C_MDKARZT(24) C_MDKKLARZ(2) C_WDLVOR(18.520, ALV-
   #     Varianten mit BNAME=SAP-User)
   #   Technik/UI: C_MENU(17) C_PARAM(34, Dokument-/Brief-Ablage) C_PARAM__ct__bak_1(0)
+  #   R34 Schriftverkehr (C_PARAM live gelesen): RKT-Dokumente liegen im DMS (NDOC-
+  #     Zuordnung + DRAW-Kopf, DOKST AN/FR; INHALTE NICHT repliziert). DTID: DTA_KASSE
+  #     (Eingang Kasse, 291.902), DTA_MDK (Eingang MD, 166.901; ab 2025 eingebrochen
+  #     -> Kanalwechsel, Deutung LE-Portal), ZRKT_BRF_1 (eigene RKT-Schreiben, 49.113
+  #     seit 02/2015), VRW_VER-02 (Stellungnahme-Scan, 20.457), NEU ARC/DTAKASSE_I (seit
+  #     09.11.2026). Word-Vorlagen auf W:\_GLOBAL\RKT_MDK\Dokumentvorlagen, Ablage der
+  #     ausgefuellten Schreiben ausserhalb SAP. Gerichtsschriftverkehr nicht im RKT.
+  #     KEIN direkter Verweis ZNRKT -> DMS; Zuordnung nur ueber FALNR + Zeitraum. LE-
+  #     Eingaenge (Status 'Eingang LE') mit MD-Scan +-5 Tage: 2024 73% / 2025 11% /
+  #     2026 0,4% -> MD-Dokumente liegen seit 2025 nicht mehr im DMS (Ablage offen).
+  #     DRAW.DOKST 'AN' ist Normalzustand, kein Freigabestau.
+  #     Details: MDM_PLATTFORM_KONZEPT.md §2.4, sapfhir-live-Fakt "RKT-Schriftverkehr".
   #   LEER: C_FALLABS C_FMASTAT C_KTRADR C_MCSBEGR C_MENU_WEI C_OE_EXCLI C_REKSPEZ
   #     C_SB_AUFFA C_TNTFOLBK C_TNTFOLGE C_TNTFOLGR C_TNTFOMCH C_TNTTYP C_TNTTYP_R
   # ---- R34: ZNRKT-Freitext- und Restbestand (nicht registriert, nicht im Backfill) ----
