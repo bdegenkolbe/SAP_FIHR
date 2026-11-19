@@ -11,6 +11,7 @@ Enum-Belegungen (FALAR, BEWTY, GSCHL) sind fachlich zu bestaetigen -> # VERIFY.
 from __future__ import annotations
 import re
 from .. import ids as _ids
+from .. import terminology as _term
 
 # --- Enum-Tabellen (verifiziert gegen Live-replicate 15.07.2026) ------------
 GESCHLECHT = {  # NPAT.GSCHL — verifiziert: 1/2/3/' ' kommen vor
@@ -469,6 +470,16 @@ def map_procedure(row: dict, ns, priv=None, patnr: str | None = None,
     ops = row.get("ICPML")
     system = OPS_KATALOG_SYSTEM.get(str(row.get("ICPMK") or "").strip(),
                                     "http://fhir.de/CodeSystem/bfarm/ops")
+    # R35: IS-H fuehrt OPS gross ('5-144.5A'), bfarm/ops kennt nur klein ('5-144.5a').
+    # Katalogkonformes coding im OPS-System + Rohkode verlustfrei unter urn:ish:icpml.
+    codings = []
+    if ops is not None and str(ops).strip():
+        roh = str(ops)
+        if system == _term.OPS:
+            codings.append({"system": system, "code": _term.ops_code(roh)})
+            codings.append({"system": "urn:ish:icpml", "code": roh})
+        else:
+            codings.append({"system": system, "code": roh})
     enc_ref = "Encounter/" + _ids.rid(ns, "Encounter", mandt, einri, falnr)
     # FHIR Procedure.subject MUSS Patient sein; NICP traegt kein PATNR -> Pipeline-Kontext.
     subject = ({"reference": "Patient/" + _ids.rid(ns, "Patient", mandt, patnr)}
@@ -477,7 +488,7 @@ def map_procedure(row: dict, ns, priv=None, patnr: str | None = None,
         "resourceType": "Procedure",
         "id": _ids.rid(ns, "Procedure", mandt, lnric),
         "status": "completed",
-        "code": {"coding": [{"system": system, "code": ops}] if ops else [],
+        "code": {"coding": codings,
                  "text": row.get("BTEXT")},
         "subject": subject,
         "encounter": {"reference": enc_ref},

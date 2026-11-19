@@ -190,6 +190,34 @@ def test_map_procedure_lnric():
     assert res["subject"]["reference"] == res["encounter"]["reference"]
 
 
+def test_map_procedure_r35_ops_kleinschreibung_rohkode_bleibt():
+    """R35 (MDM R49b/B13): IS-H fuehrt OPS gross, bfarm/ops kennt nur klein.
+    OPS-coding normalisiert (strip+lower), Rohkode verlustfrei unter urn:ish:icpml."""
+    from sapfhir.fhir import terminology as T
+    ns = I.make_ns()
+    row = {"MANDT": "100", "EINRI": "0001", "FALNR": "0020942094",
+           "LNRIC": "0010919344", "ICPMK": "36", "ICPML": " 5-144.5A ",
+           "BTEXT": "Katarakt", "STORN": " "}
+    res = M.map_procedure(row, ns, None)
+    cod = res["code"]["coding"]
+    ops = [c for c in cod if c["system"] == T.OPS]
+    roh = [c for c in cod if c["system"] == "urn:ish:icpml"]
+    assert ops == [{"system": T.OPS, "code": "5-144.5a"}]
+    assert roh == [{"system": "urn:ish:icpml", "code": " 5-144.5A "}]
+    assert T.ops_code("8-83B.70") == "8-83b.70"
+    assert T.ops_code("  ") is None and T.ops_code(None) is None
+    # Nicht-OPS-Katalog: Kode unveraendert, kein urn:ish:icpml-Zusatz
+    M.OPS_KATALOG_SYSTEM["99"] = "urn:test:anderer-katalog"
+    try:
+        res2 = M.map_procedure(dict(row, ICPMK="99"), ns, None)
+    finally:
+        del M.OPS_KATALOG_SYSTEM["99"]
+    assert res2["code"]["coding"] == [
+        {"system": "urn:test:anderer-katalog", "code": " 5-144.5A "}]
+    # Leerer Kode -> keine codings
+    assert M.map_procedure(dict(row, ICPML="  "), ns, None)["code"]["coding"] == []
+
+
 def test_map_procedure_r8_subject_bodysite_category():
     ns = I.make_ns()
     row = {"MANDT": "100", "EINRI": "0001", "FALNR": "42", "LNRIC": "7",

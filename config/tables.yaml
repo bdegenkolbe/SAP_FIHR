@@ -99,7 +99,11 @@ tables:
             (fachlich, ->NORG, TRAEGT den Procedure.performer), ORGPF=ISH_ERBOE_PROC
             (erbringend, ->NORG). Lokalisation LSLOK=ISH_PROC_LOC FK->TN26E (->bodySite),
             OP-Art OPART FK->TN14O (->category). FALNR/EINRI denormalisiert (FK->NFAL/TN01);
-            PATNR fehlt -> subject via Pipeline-Kontext (FALNR->NFAL->PATNR)."
+            PATNR fehlt -> subject via Pipeline-Kontext (FALNR->NFAL->PATNR).
+            R35 (aus MDM R49b/B13): ICPML steht GROSS ('5-144.5A'), bfarm/ops und der
+            Grouper kennen nur klein ('5-144.5a') -> Mapper/Mart/Graph/MCP normalisieren
+            strip+lower, Rohkode bleibt als coding urn:ish:icpml. Grossschreibung live je
+            ICPMK noch nachzumessen (DB in R35 nicht erreichbar)."
 
   N2LABOR:
     schema: sap

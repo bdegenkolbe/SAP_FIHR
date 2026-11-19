@@ -171,7 +171,9 @@ def patient_360(patnr: str) -> dict:
                 "AND COALESCE(TRIM(d.STORN),'') NOT IN ('X','1') "
                 "ORDER BY d.DIADT DESC LIMIT 200", [patnr])
             ops = _fetch(con,
-                "SELECT p.FALNR, CAST(p.ICPML AS VARCHAR) AS ops, "
+                # R35: ops katalogkonform klein (Grouper/bfarm), Rohkode daneben.
+                "SELECT p.FALNR, lower(trim(CAST(p.ICPML AS VARCHAR))) AS ops, "
+                "CAST(p.ICPML AS VARCHAR) AS ops_roh, "
                 "p.BTEXT AS text, p.BGDOP AS datum "
                 "FROM mcp.prozedur p JOIN mcp.fall f USING (FALNR) "
                 "WHERE f.PATNR = ? ORDER BY datum DESC LIMIT 200", [patnr])

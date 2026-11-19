@@ -54,9 +54,10 @@ _NODE_SQL = {
         "SELECT DISTINCT DKEY1 AS icd FROM bronze_current.ndia "
         "WHERE DKEY1 IS NOT NULL", "ndia"),
     "prozedur": (
-        "SELECT DISTINCT CAST(ICPML AS VARCHAR) AS ops "
+        # R35: OPS katalogkonform klein (bfarm/ops) -- Knoten und Kante identisch.
+        "SELECT DISTINCT lower(trim(CAST(ICPML AS VARCHAR))) AS ops "
         "FROM bronze_current.nicp "
-        "WHERE CAST(ICPML AS VARCHAR) IS NOT NULL", "nicp"),
+        "WHERE trim(CAST(ICPML AS VARCHAR)) <> ''", "nicp"),
 }
 
 _REL_SQL = {
@@ -85,9 +86,9 @@ _REL_SQL = {
         "WHERE DKEY1 IS NOT NULL AND FALNR IN "
         "(SELECT FALNR FROM bronze_current.nfal)", "ndia"),
     "HAT_PROZEDUR": (
-        "SELECT DISTINCT FALNR, CAST(ICPML AS VARCHAR) "
+        "SELECT DISTINCT FALNR, lower(trim(CAST(ICPML AS VARCHAR))) "
         "FROM bronze_current.nicp "
-        "WHERE CAST(ICPML AS VARCHAR) IS NOT NULL AND FALNR IN "
+        "WHERE trim(CAST(ICPML AS VARCHAR)) <> '' AND FALNR IN "
         "(SELECT FALNR FROM bronze_current.nfal)", "nicp"),
 }
 
