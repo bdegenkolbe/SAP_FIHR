@@ -266,8 +266,10 @@ def run(cfg: dict, warehouse: str = "data/warehouse.duckdb",
     # Fall-Kontext als DuckDB-seitige LIST(STRUCT)-Aggregate (kein Python-Dict
     # ueber 28 Mio NBEW-Zeilen): Aufnahme-/Entlassbewegung, NFPZ-Personal,
     # NFFZ-Verknuepfungen je FALNR.
+    # BWIDT/BWIZT: Fallzeitraum stationaerer Faelle (NFAL.BEGDT/ENDDT dort Sentinel, R34)
     bew_agg = _list_agg(con, "nbew", "FALNR",
-                        ["BEWTY", "STORN", "RFSRC", "UNFAV", "BWGR1", "EZUST"],
+                        ["BEWTY", "STORN", "RFSRC", "UNFAV", "BWGR1", "EZUST",
+                         "BWIDT", "BWIZT"],
                         "WHERE CAST(BEWTY AS VARCHAR) IN ('1','2')")
     pers_agg = _list_agg(con, "nfpz", "FALNR",
                          ["PERNR", "FARZT", "BEGDT", "ENDDT", "STORN"])

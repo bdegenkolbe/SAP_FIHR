@@ -192,9 +192,10 @@ if app:
             "faelle": one("SELECT COUNT(*) n FROM mcp.fall "
                           "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')").get("n"),
             "offen": one("SELECT COUNT(*) n FROM mcp.fall "
-                         "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1') AND (ENDDT IS NULL "
-                         "OR substr(CAST(ENDDT AS VARCHAR),1,4) IN ('0101','9999'))"
-                         ).get("n"),
+                         # R34: offen = kein ableitbares Fallende. NFAL.ENDDT allein
+                         # zaehlte praktisch JEDEN stationaeren Fall als offen.
+                         "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
+                         "AND FALL_END IS NULL").get("n"),
             "patienten": one("SELECT COUNT(*) n FROM mcp.patient "
                              "WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')").get("n"),
             "labor": one("SELECT COUNT(*) n FROM mcp.labor").get("n"),
@@ -283,9 +284,11 @@ if app:
         rows = _q(
             f"SELECT p.PATNR, p.GSCHL, p.GBDAT, p.TODKZ, "
             f"  COUNT(f.FALNR) AS faelle, "
-            f"  SUM(CASE WHEN f.ENDDT IS NULL OR substr(CAST(f.ENDDT AS VARCHAR),1,4) "
-            f"       IN ('0101','9999') THEN 1 ELSE 0 END) AS offene_faelle, "
-            f"  MAX(f.BEGDT) AS letzte_aufnahme "
+            # R34: FALL_BEG/FALL_END (mcp/views.py) statt NFAL.BEGDT/ENDDT — die sind
+            # bei stationaeren Faellen Sentinel 0101-01-01.
+            f"  SUM(CASE WHEN f.FALNR IS NOT NULL AND f.FALL_END IS NULL "
+            f"       THEN 1 ELSE 0 END) AS offene_faelle, "
+            f"  MAX(f.FALL_BEG) AS letzte_aufnahme "
             f"FROM mcp.patient p "
             f"LEFT JOIN mcp.fall f ON f.PATNR = p.PATNR "
             f"  AND COALESCE(TRIM(f.STORN),'') NOT IN ('X','1') "
@@ -309,9 +312,10 @@ if app:
         nicht NFAL-Daten). DRG/Erloes + MD-Badge folgen, sobald NDRG/ZNRKT in der
         Kohorte liegen."""
         kopf = _q(
-            "SELECT f.FALNR, f.PATNR, f.FALAR, f.BEGDT, f.ENDDT, f.FACHR, f.STATU, "
-            "  CASE WHEN f.ENDDT IS NULL OR substr(CAST(f.ENDDT AS VARCHAR),1,4) "
-            "       IN ('0101','9999') THEN 1 ELSE 0 END AS offen "
+            # BEGDT/ENDDT im JSON = abgeleiteter Fallzeitraum (R34, FALL_BEG/FALL_END)
+            "SELECT f.FALNR, f.PATNR, f.FALAR, f.FALL_BEG AS BEGDT, f.FALL_END AS ENDDT, "
+            "  f.FACHR, f.STATU, "
+            "  CASE WHEN f.FALL_END IS NULL THEN 1 ELSE 0 END AS offen "
             "FROM mcp.fall f WHERE f.FALNR = ? "
             "  AND COALESCE(TRIM(f.STORN),'') NOT IN ('X','1')", [falnr])
         if not kopf:
@@ -355,11 +359,11 @@ if app:
             "SELECT GSCHL, GBDAT, TODKZ FROM mcp.patient "
             "WHERE PATNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1')", [patnr])
         faelle = _q(
-            "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR, "
-            "  CASE WHEN ENDDT IS NULL OR substr(CAST(ENDDT AS VARCHAR),1,4)"
-            "       IN ('0101','9999') THEN 1 ELSE 0 END AS offen "
+            # BEGDT/ENDDT im JSON = abgeleiteter Fallzeitraum (R34, FALL_BEG/FALL_END)
+            "SELECT FALNR, FALAR, FALL_BEG AS BEGDT, FALL_END AS ENDDT, FACHR, "
+            "  CASE WHEN FALL_END IS NULL THEN 1 ELSE 0 END AS offen "
             "FROM mcp.fall WHERE PATNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
-            "ORDER BY BEGDT DESC LIMIT 50", [patnr])
+            "ORDER BY FALL_BEG DESC NULLS LAST LIMIT 50", [patnr])
         # Anreicherung je Fall: Hauptdiagnose + DRG (mit Bezeichner aus dem Katalog).
         # mcp.drg/drg_katalog existieren erst nach einem Kohorten-Lauf mit NDRG —
         # deshalb defensiv (R26-Muster: Existenz pruefen statt UNION-Blindflug).
@@ -456,7 +460,7 @@ if app:
             "SELECT table_name FROM information_schema.tables "
             "WHERE table_schema='mcp'")}
         teile = [
-            ("fall", " SELECT BEGDT AS datum, 'Fall' AS typ, FALNR AS ref,"
+            ("fall", " SELECT FALL_BEG AS datum, 'Fall' AS typ, FALNR AS ref,"
                      "        FALAR AS detail FROM mcp.fall WHERE PATNR = ?"),
             ("bewegung", " SELECT b.BWIDT, 'Bewegung', b.FALNR,"
                          "   COALESCE(rb.\"TEXT\", CAST(b.BEWTY AS VARCHAR))"

@@ -43,11 +43,13 @@ INDEX.md (hier)
 | Dokument | Rolle |
 |---|---|
 | `MD_MANAGEMENT_KONZEPT.md` | Domänenanalyse RKT/ZNRKT (§275c) — **umgesetzt als CliniBots MDM** (eigenes Repo; dortige Doku: VALIDIERUNG.md, DEPLOYMENT.md). Hier: Datenmodell-Referenz + Verbund-Schnittstelle (MD-Badge → MDM-Fall-Akte). |
+| `MDM_PLATTFORM_KONZEPT.md` | **Entwurf R34:** Konzeptprüfung (Befunde F1–F8 am MDM) + Zielbild Cluster (`rkt.greenbay.systems`, Testdaten, Keycloak, Postgres), Argo-Prozesse P1–P8, KI-Funktionen, Umsetzungsplan, offene Entscheidungen. |
+| `skills/md-management/` | **Entwurf R34:** Skill für Claude im Dialog und für KI-Schritte der Argo-Prozesse (Datenmodell, Kennzahlen, Fristen, Prozesse, Werkzeuge). Nach Freigabe → `C:\ai\infra\skills`. |
 
 ### Protokolle (fortlaufend, nur anhängen)
 | Dokument | Rolle |
 |---|---|
-| `VERIFY_LOG_R8-R13.md` | **Fortlaufendes Verifikationslog ab R8** (aktuell bis R19; Dateiname historisch, bleibt wegen Verweisen). Jede neue Runde wird angehängt. |
+| `VERIFY_LOG_R8-R13.md` | **Fortlaufendes Verifikationslog ab R8** (aktuell bis R34; Dateiname historisch, bleibt wegen Verweisen). Jede neue Runde wird angehängt. |
 | `config/tables.yaml` | Lebende Registry (PKs „verifiziert Rx", Befunde in notes). |
 
 ### Archiv (historisch — nicht mehr fortschreiben, Aussagen ggf. überholt)

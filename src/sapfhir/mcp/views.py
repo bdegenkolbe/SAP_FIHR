@@ -14,6 +14,8 @@ Tabellen: mcp.patient, mcp.fall, mcp.bewegung, mcp.diagnose, mcp.prozedur,
 from __future__ import annotations
 import duckdb
 
+from ..gold import fallzeit as _fallzeit
+
 # Quelle -> (mcp-Name, Spalten [maskierbare mit '~' Praefix])
 # '~'-Spalten werden bei pseudonymize=True durch '***' bzw. Jahr ersetzt.
 _SPEC = {
@@ -69,6 +71,28 @@ def _select_list(avail: set[str], cols: list[str], pseudonymize: bool) -> list[s
     return out
 
 
+def _fall_zeitraum(con: duckdb.DuckDBPyConnection, avail: set[str]) -> tuple[list[str], str]:
+    """(Zusatzspalten, JOIN-Fragment) fuer mcp.fall: FALL_BEG/FALL_END (R34).
+    NFAL.BEGDT/ENDDT sind bei stationaeren Faellen Sentinel 0101-01-01 -> Verbraucher
+    (API, MCP, Timeline) sortieren und datieren ueber diese Spalten. Quelle:
+    gold.fall_zeitraum (NBEW-Fallback); fehlt sie, wenigstens die echten NFAL-Daten
+    (Sentinel -> NULL). Join-Spalten umbenannt (_z_*), damit die unqualifizierte
+    Spaltenliste von NFAL eindeutig bleibt."""
+    if con.execute("SELECT 1 FROM information_schema.tables "
+                   "WHERE table_schema='gold' AND table_name='fall_zeitraum'").fetchone():
+        on_einri = (' AND z._z_einri IS NOT DISTINCT FROM "EINRI"'
+                    if "EINRI" in avail else "")
+        join = ("LEFT JOIN (SELECT FALNR AS _z_falnr, EINRI AS _z_einri, "
+                "beg AS _z_beg, ende AS _z_ende FROM gold.fall_zeitraum) z "
+                'ON z._z_falnr = "FALNR"' + on_einri)
+        return ['z._z_beg AS "FALL_BEG"', 'z._z_ende AS "FALL_END"'], join
+    cols = []
+    for src_col, alias in (("BEGDT", "FALL_BEG"), ("ENDDT", "FALL_END")):
+        cols.append((_fallzeit.echtes_datum_sql(f'"{src_col}"') if src_col in avail
+                     else "CAST(NULL AS DATE)") + f' AS "{alias}"')
+    return cols, ""
+
+
 def build(con: duckdb.DuckDBPyConnection, pseudonymize: bool = True) -> list[str]:
     con.execute("CREATE SCHEMA IF NOT EXISTS mcp")
     made = []
@@ -87,8 +111,12 @@ def build(con: duckdb.DuckDBPyConnection, pseudonymize: bool = True) -> list[str
         # weder Analytik noch MCP.
         where = ("WHERE COALESCE(STASP, '') <> 'X'"
                  if src == "nfal" and "STASP" in avail else "")
+        join = ""
+        if src == "nfal":
+            extra, join = _fall_zeitraum(con, avail)
+            sel = sel + extra
         con.execute(f'CREATE OR REPLACE TABLE mcp."{name}" AS '
-                    f'SELECT {", ".join(sel)} FROM bronze_current."{src}" {where}')
+                    f'SELECT {", ".join(sel)} FROM bronze_current."{src}" {join} {where}')
         made.append(name)
     # Labor: Kopf (N2LABOR) + Werte (N2LABOR001) ueber DVS-Schluessel joinen (R8)
     have = lambda t: bool(con.execute(

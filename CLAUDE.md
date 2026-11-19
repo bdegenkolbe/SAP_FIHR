@@ -30,6 +30,11 @@ Lies ZUERST `docs/Analyse_Datenbank.md` — sie definiert das komplette Vorgehen
 - NDRG hat ENGLISCHE Spalten (CLIENT/INSTITUTION/PATCASEID). NLEI/NLEM-Key = [MANDT,LNRLS].
 - GPART == PERNR == PHYSNO (1:1, 236.114) → EIN Practitioner-ID-Schema für NGPA/NPER/
   NFPZ/NKBVLANR/NBSNR. Pipeline mergt NGPA(Name)+NPER(LANR/FACHR).
+- NFAL.BEGDT/ENDDT nur bei ambulanten Fällen (FALAR=2) gepflegt; bei FALAR 1/3 zu 99,9 %
+  Sentinel 0101-01-01 → Fallbeginn stationär = NBEW BEWTY=1/BWIDT. Fälle je Jahr NIE über
+  NFAL.BEGDT zählen; im Code `gold.fall_zeitraum` / `mcp.fall.FALL_BEG|FALL_END` nutzen (R34).
+- ZNRKT_REKL: Beträge wiederholen sich je Statuszeile → je Vorgang+Beleg deduplizieren
+  (naive Summe ~7-fach, R34). Kataloge der Familie: ZNRKT_C_* (GRUND/STAND/REKLERL/AUFTYP).
 - Tote Felder in DIESEM Haus: NICP.OPART, NBEW.UNFAV/VGNREF/NFGREF, NFAL.FACHR/ENDTYP,
   NDIA.DIASI (Wahrheit: DIAGW). Bewegungskette per ORDER BY BWIDT/BWIZT ableiten.
 - §301-Meldedaten: NC301S (Index) + NC301M (EDIFACT-Rohtext, gechunkt) + NC301V/W (Segmente).
@@ -51,7 +56,7 @@ Lies ZUERST `docs/Analyse_Datenbank.md` — sie definiert das komplette Vorgehen
   `CONCEPT.md` v0.3, **einzige Roadmap = `docs/ROADMAP.md`** (nirgendwo sonst Backlogs
   pflegen!). Archiv-Docs (CONCEPT_EXT, ANALYSE, GESAMTREVIEW, INGOLF_*, ALTBESTAND_*,
   VERIFY_RESULTS*) tragen Status-Banner und werden nicht fortgeschrieben.
-  Verifikationslog fortlaufend ab R8: `docs/VERIFY_LOG_R8-R13.md` (aktuell R19).
+  Verifikationslog fortlaufend ab R8: `docs/VERIFY_LOG_R8-R13.md` (aktuell R34).
 - Pipeline (alles user-space, No-Admin): Keyset-Backfill + `__ct`-CDC (Delta-Parquet,
   Retention-Waechter) -> `bronze_current`-Merge-Views + Compaction (`extract/merge.py`)
   -> FHIR-NDJSON mit Index/Provenance (`fhir/ndjson.py`; Reihenfolge Mapper -> Shift ->

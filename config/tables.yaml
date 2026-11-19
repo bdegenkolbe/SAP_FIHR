@@ -41,7 +41,13 @@ tables:
     notes: "Fall (einrichtungsbezogen, EINRI IM PK — anders als NPAT!). FALAR verifiziert R7
             (Domaene FALLART): 1=stationaer(IMP), 2=ambulant(AMB), 3=teilstat./Tagesfall(SS).
             KORREKTUR R7: Fallende = ENDDT (ENDDT_FAL), NICHT ENDAT (=Entbindungsdatum ENTDAT!).
-            BEGDT=Fallbeginn. PATNR->NPAT. FACHR->TNKFA (Fachrichtung -> serviceType), BEKAT->TN24,
+            BEGDT=Fallbeginn NUR bei FALAR=2 (ambulant). VERIFIZIERT R34: bei FALAR 1/3 ist
+            BEGDT/ENDDT zu 99,9% Sentinel 0101-01-01 (1.564.966/1.565.995 bzw. 75.582/75.659)
+            -> Fallbeginn stationaer = NBEW BEWTY=1 (BWIDT), NIE Faelle je Jahr ueber BEGDT
+            zaehlen (sonst fehlen alle stationaeren: ~60.000/Jahr ab 2022). Im Code
+            zentral: gold.fall_zeitraum (gold/fallzeit.py) bzw. mcp.fall.FALL_BEG/FALL_END,
+            FHIR: core._fallzeitraum. partition_date BEGDT legt stationaere Faelle physisch
+            in EINE Sentinel-Partition (nur Dateilayout, keine Datenverluste). PATNR->NPAT. FACHR->TNKFA (Fachrichtung -> serviceType), BEKAT->TN24,
             ENDTYP->TN15D (Entlassart -> hospitalization.dischargeDisposition), FATYP->TN15C.
             PATGEW/PATGRO = Aufnahmegewicht/-groesse (Observation-Kandidaten)."
 
@@ -1107,7 +1113,11 @@ tables:
             Anforderung/Rechnung): je Sicht VWD_BILL, UGVD/MVWD/OGVD (Grenzverweildauern),
             BWREL/EFFBWR (Bewertungsrelation effektiv), GRUNDPREIS, ZUABSCH_BETR
             (Zu-/Abschlag), DRG_ENTGELT (EUR), CARE_*-Pflegeentgelt je Sicht. Speist das
-            DIAS-Vergleichstripel Forderung_MD/Forderung_Kasse/Ergebnisvereinbarung."
+            DIAS-Vergleichstripel Forderung_MD/Forderung_Kasse/Ergebnisvereinbarung.
+            VERIFIZIERT R34 (196.359 Zeilen): Sicht _MDE im Haus KOMPLETT LEER (Code+Entgelt
+            0/196.359) -> Endergebnis ist _RKT (Code 95%), ferner _ANF 75%, _MDK 62%, _KK 21%,
+            _ISH 100%. ISH->RKT: 30% der Zeilen DRG-Wechsel, Entgeltminderung 1,5-5 Mio
+            EUR/Jahr (2019: 5,0 Mio auf 125,8 Mio geprueftes Entgelt). DRG_STORN='X' 17.021."
 
   # ---- R17 DIAS-Diff-Neufunde (Analyse_Datenbank.md Abschnitt 5, Backlog #3) -------
   # Automatisierter Abgleich TEST_DIAS_Objektbaum.xml vs. Registry: 85 live bestaetigte
@@ -1162,7 +1172,16 @@ tables:
             (Erloesdifferenz) + STREITW_STRAFZ (Aufwandspauschale/Strafzahlung),
             MEDO_INIT_*-Flags (Pruefdimensionen DRG/Z75/BEA/OPS/ICH/ICN/FAK), WIKE_*/
             XXXX_*-Spalten = Fallklammer-Grenzen bei Wiederaufnahme/Zusammenfuehrung.
-            PERSONENIDENT.: ARZT_MDK, RKT_STWRT_TXT, MAHNSP, SACHBEARB -> Verkryptung."
+            PERSONENIDENT.: ARZT_MDK, RKT_STWRT_TXT, MAHNSP, SACHBEARB -> Verkryptung.
+            R34 (248.958 Zeilen, PK erneut 100%): RKT_VERSION = Release-Stempel des Add-ons
+            bei Anlage (V1.084 ab 02/2015 ... V2.6.4 ab 29.05.2024, ERDAT-Intervalle
+            lueckenlos) -> erklaert Strukturbrueche; vor 02/2015 RKTTYP/AUFN_FALAR/XXXX_/WIKE_
+            leer (23% der Vorgaenge). Vorgaenge/Jahr (ERDAT) 2022-2025: 16.013/13.752/
+            12.234/12.708. LRE_NETWR (Rechnung) 123-135 Mio EUR/Jahr. STREITW_ERLDIF nur
+            10,5% <>0. TOT: FRIST3*, WAERK, MAHNSP, RKT_EXTNR, MEDO_INIT_OPS/ICN,
+            RKT_FALLTYP, DRG_CREAT_USER, VVKTR, RKTFALKZ1/2, MDK_ECHT, MDK_UL,
+            RKT_STWRT_TXT/USR/DAT, XPRA_STRNR, STREITW_*_02, STREITW_03. KOSTR -> NGPA.GPART
+            99,6% (99,4% mit IK, 1.861 Kassen). KOPF->NFAL 100%; RKT_FALAR=NFAL.FALAR 93%."
   ZNRKT_REKL:
     schema: sap
     fhir: null
@@ -1177,9 +1196,19 @@ tables:
             Kasse/MDK -> Pruefung beendet -> Eingang LE positiv/negativ (Leistungsentscheid)
             -> Rechnungskorrektur -> Aufwandspauschale -> erledigt. Gruende REKL_GRUND1-4,
             OPS/ICD-Streit REK_* vs VVF_* (Vergleichs-/Eroerterungsverfahren §17c KHG),
-            17C-Flag, EDI_REK_LF301 (§301-Verknuepfung). Rechnung-Netto unter Pruefung
-            (REK_NETWR): 2019 1,22 Mrd / 2021 823 Mio / 2025 731 Mio EUR. PERSONENIDENT.:
-            REKL_BEM, REKL_ABRI* -> Verkryptung."
+            17C-Flag, EDI_REK_LF301 (§301-Verknuepfung). PERSONENIDENT.:
+            REKL_BEM, REKL_ABRI* -> Verkryptung.
+            KORREKTUR R34 Volumen: REKL hat 2 Ebenen (REKL_POS=Reklamation, REKL_ST_POS=
+            Statuszeile, Mittel 4,6 / max 32); Betraege wiederholen sich je Statuszeile. Die
+            R17-Zahlen (2019 1,22 Mrd / 2025 731 Mio) waren naive SUM ueber Statuszeilen
+            (~7-fach). Richtig: MAX(REK_NETWR) je Vorgang+REK_VBELN, Jahr=REK_REDAT ->
+            2019 142,4 / 2022 90,8 / 2025 102,5 Mio EUR (Querprobe ZNRKT_DRG passt).
+            REKL_NETWR tot (immer 0). RKT_PHASE hat DREI Werte RKZ/MDK/VVF (+' ' Altbestand
+            vor 02/2015). Kataloge: REKL_GRUND->ZNRKT_C_GRUND, REKL_STAND->ZNRKT_C_STAND,
+            REKL_ERLGR->ZNRKT_C_REKLERL (GRUPPE=gewonnen/verloren/Kompromiss/MDK).
+            MD-Phase gewonnen (bewertete Faelle): 2023 69% / 2024 61% / 2025 61%. Seit
+            02/2020 'Vorgang erledigt' ohne Bewertung (2021 71%). 12.206 offene
+            Reklamationen, davon 8.131 >12 Monate ohne Statusbewegung (Altlasten)."
   ZNRKT_MDK:
     schema: sap
     fhir: null
@@ -1189,8 +1218,11 @@ tables:
     notes: "MDK-BEGEHUNGSTERMINE (47 Spalten) - ALT-WORKFLOW: MDKGUTDAT max 2013,
             CW_AUSG/ZIEL/ERG durchgaengig 0 (leer) - das DIAS-Vergleichstripel wird NICHT
             hieraus gespeist, sondern aus ZNRKT_DRG (6 Sichten). MDKTERMIN 100% befuellt,
-            MDKKONSENS 91% / MDKDISSENS 3%. Fuer aktuelle Analytik nur eingeschraenkt
-            relevant (Begehungs-Historie). PERSONENIDENT.: MDKARZT1-3, MDKBEM -> Verkryptung."
+            MDKKONSENS 91% / MDKDISSENS 3%. PERSONENIDENT.: MDKARZT1-3, MDKBEM -> Verkryptung.
+            KORRIGIERT R34: KEIN Alt-Workflow - Begehungen laufen aktiv (1.000-2.750
+            Zeilen/Jahr bis 2026, 105 Termine in der Zukunft, Konsens/Dissens laufend
+            gepflegt). Tot nur MDKGUTDAT (nach 2013), CW_*, FST_*_M1, MDKERL, MDKGRUND*,
+            MDKERG, Akten-Flags. -> Terminquelle fuer das Fristen-Cockpit."
   # Restliche RKT-Familie — voller Dreiklang R18 (alle PKs live 100% eindeutig).
   # Muster: RKT-Streitzeilen tragen Doppelschluessel RKT-Position + Quelltabellen-Position
   # (Bruecke zum medizinischen Kern: OPS->NICP, ICD->NDIA, Z75->NLEI, BEA->NFAL).
@@ -1251,7 +1283,12 @@ tables:
             KLAGE_*/KL_* (Klage), AWP_* (Aufwandspauschale), EV_* (Eroerterung). AUF_TERMIN
             = Wiedervorlage, AUF_ERL='X'=erledigt, AUF_BEARB = Bearbeiter (PERSONENIDENT.),
             AUF_BEM (Freitext). Verknuepft zu REKL_POS/REKL_ST_POS. Bruecke medizinischer
-            Kern nicht noetig (reine Prozesssteuerung)."
+            Kern nicht noetig (reine Prozesssteuerung).
+            R34: AUF_STAT -> ZNRKT_C_AUFSTAT (NEU/INAR/WAST/ERL), AUF_TYP -> ZNRKT_C_AUFTYP
+            (Spalte AUFTYP, 97/97 Treffer, AUF_BEARBZT = Soll-Tage -> SLA). Offen (AUF_ERL<>X,
+            ohne Storno) 1.729, davon 938 ueberfaellig. FALLE: 20.322 stornierte Aufgaben
+            stehen noch auf NEU/INAR/WAST -> AUF_STORN immer filtern. REKL_POS='00' bei
+            515k (ohne Reklamationsbezug). AUF_BEARB1/2 tot. Tippfehler-Jahre (1024, 2225)."
   ZNRKT_FAK:
     schema: sap
     fhir: null
@@ -1262,15 +1299,25 @@ tables:
     cdc: ct
     notes: "Fakturabezug je Vorgang (32 Spalten), 552.286 Zeilen. FAK_NETWR/FAK_STREIT/
             FAK_ERGEBNIS = Rechnungs-/Streit-/Ergebnisbetrag, FAK_VBELN=SD-Beleg,
-            LF301/WORKSIGN=§301-EDIFACT-Bezug. FAK_MODUL trennt Herkunft (REKL vs KLA)."
+            LF301/WORKSIGN=§301-EDIFACT-Bezug. FAK_MODUL trennt Herkunft (REKL vs KLA).
+            R34: FAK_MODUL 20=Reklamation (542k), 80=Klage (4,6k); FAK_TYP V/N = Rechnung
+            vorher/nachher (Deutung). FAK_STREIT und FAK_ERGEBNIS TOT (nie <>0).
+            Platzhalterbelege 'RECHNUNG01'/'RESTBTR 0x' (~39k, FAK_ERDAT Sentinel) und Modul
+            09 mit leerer VBELN (8.986) nie gegen SD joinen. V-Belege ueber mehrere REKL_POS
+            mehrfach (20.575) -> deduplizieren. Delta N-V je REKL_POS -38,3 Mio EUR."
   ZNRKT_MCS:
     schema: sap
     fhir: null
     tier: 2
     pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, MCS_LFDNR]   # verifiziert R18 (216.089, 100%)
     cdc: ct
-    notes: "MD-Communication-Server / elektr. §301-Datenaustausch mit MD/Kasse, 216.089
-            Zeilen. PERSONENIDENT.: MCSARZT (MD-Arzt) -> Verkryptung."
+    notes: "KORRIGIERT R34: KEIN Datenaustausch, sondern Ergebnisklassifikation je Vorgang
+            (genau 1 Zeile/Vorgang, 219.494 seit 2007; Deutung: durch das Med.-Controlling).
+            MCS_ERG -> ZNRKT_C_MCSERG (10 Codes, 100% Treffer): 05 kein Fehler 64,5k, 02
+            Fehlbelegung 54,9k, 01 Dokumentation 37,6k, 04 sonstiges 30,3k, 00 unbewertet
+            25,6k. MCS_PRFDT erst ab 2020 verlaesslich (>97%), MCS_DOK_AKT_DAT (69%) =
+            Aktenversand. TOT: MCS_ERG2-4, MCS_BEGR, MCSARZT2, MCS_PRFDT2.
+            PERSONENIDENT.: MCSARZT -> Verkryptung."
   ZNRKT_KLA:
     schema: sap
     fhir: null
@@ -1280,7 +1327,13 @@ tables:
     notes: "KLAGEVERFAHREN Sozialgericht (77 Spalten), 4.442 Zeilen. Kompletter Instanzenweg:
             KLA_STREITW, KLA_NETWR_VOR/NACH, Sozialgericht (KLA_AKZ_SOZ/SOZ_DAT), LSG
             (KLA_LSG/LSG_DAT), BSG (KLA_BSG/BSG_DAT), Zinsen (KLA_NETWR_ZINS), Gutachten
-            (KLA_GAPRF/GADAT/GAERG). PERSONENIDENT.: KLAARZT, KLA_FAELLE (Freitext)."
+            (KLA_GAPRF/GADAT/GAERG). PERSONENIDENT.: KLAARZT, KLA_FAELLE (Freitext).
+            KORRIGIERT R34: Instanzweg NICHT gepflegt - 34 Felder tot (alle Gutachten-,
+            Instanz-KLAG*-, Datums- und Betragsdatumsfelder, KLA_VBELN, KLA_FAELLE;
+            KLA_NETWR immer 0). Nutzbar: STREITW, NETWR_VOR, ABGGRUND/ABG_DAT (85%),
+            ERLGRUND/ERL_DAT (73%) -> C_KLAABGGR/C_KLAERLGR (Textschluessel mit
+            Zeitscheiben-Duplikaten), AKZ_SOZ (41%). KLA_ABGAN = Kanzlei-Freitext.
+            ~75-110 neue Klagen/Jahr."
   ZNRKT_KG:
     schema: sap
     fhir: null
@@ -1300,6 +1353,103 @@ tables:
     cdc: ct
     notes: "Langtext-Zeilen zu ZNRKT_KG-Anforderungen (10 Spalten), 1.749 Zeilen. TEXT ist
             Freitext -> potenziell personenident., in Auswertung nicht im Klartext."
+  ZNRKT_BERMAHN:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, EINRI, FALNR, KOSTR, LFDNR, BER_LFDNR, BMA_LFDNR]   # verifiziert R34 (22.744, 100%)
+    cdc: ct
+    notes: "Mahnungen zu Berichts-/Unterlagenanforderungen (Kind von ZNRKT_BER ueber
+            BER_LFDNR), 22.744 Zeilen / 10.049 Faelle. BMA_MAHN_DAT, BMA_STORN.
+            PERSONENIDENT.: BMA_MAHN_BEM (Freitext) -> Verkryptung."
+
+  # ---- R34: ZNRKT-Customizing (ZNRKT_C_*, 59 Tabellen) ---------------------------------
+  # WIDERLEGT R18 "kein aufloesbarer Pruefgrund-Katalog": die Familie hat eigene Kataloge.
+  # Muster: PK [MANDT,EINRI,REIHENFOLGE,<Schluessel>,BEGDT] mit Gueltigkeit BEGDT..ENDDT
+  # und CRE_TYP (Vorgangstyp-Bindung). Join ueber den TEXTSCHLUESSEL (z.B. REKL_GRUND='HD');
+  # wegen Gueltigkeitsscheiben kann ein Schluessel mehrfach vorkommen -> je Schluessel
+  # aggregieren (MAX) oder zeitscharf joinen. Registriert sind nur die fachlich tragenden,
+  # personenfreien Kataloge; der Rest steht unten als Inventar (nicht im Backfill).
+  ZNRKT_C_GRUND:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, EINRI, REIHENFOLGE, REKL_GRUND, BEGDT]   # DB-PK, R34 (33 Zeilen)
+    cdc: full
+    notes: "Reklamationsgrund-Katalog fuer ZNRKT_REKL.REKL_GRUND(1-4). Ab 2010-04-21 gueltig:
+            HD, ND, OPS, ZE, Beatmung, prim. VWD, sec. VWD, KBS, PKMS, sonstiges; Altwerte bis
+            2010 (ICD, Fallzusammenfuehrung, Rueckverlegung, Stichprobe ...). CRE_TYP bindet
+            'Grund in Bemerkung' an INTPRUE/FORMRABW. NICHT im Katalog (Rohcode lassen):
+            'Rechnungsabweisung' (54.291, FORMRABW), '<Berichtsanford.>', 'Altfall aus Access'."
+  ZNRKT_C_STAND:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, EINRI, REIHENFOLGE, REKL_MCS_TYP, REKL_STAND, BEGDT]   # DB-PK, R34 (107 Zeilen)
+    cdc: full
+    notes: "Reklamationsstand-Katalog (ZNRKT_REKL.REKL_STAND). REKL_ERL='X' = Endstand
+            (z.B. Vorgang erledigt, Aufwandspauschale berechnet, AWP korrekt, Konsens/Dissens,
+            Ablehnung Frist KK/UKL). REIHENFOLGE-Bloecke: 085-234 MD-Verfahren, 400-413
+            Formale Rechnungsabweisung (RAW), 500-509 interne Pruefung (INP), 800-884
+            Vorverfahren/Falldialog (VVF), 970-973 Eroerterungsverfahren (EV, ab 2021),
+            176 MDK06-14 Strafzahlungs-Stufen (ab 2023). REKL_MCS_TYP 'M' = MCS-Variante."
+  ZNRKT_C_REKLERL:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, EINRI, REIHENFOLGE, REKL_ERLGR, BEGDT]   # DB-PK, R34 (24 Zeilen)
+    cdc: full
+    notes: "Erledigungsgrund-Katalog (ZNRKT_REKL.REKL_ERLGR) MIT hauseigener Ergebnisbewertung
+            GRUPPE: gewonnen (Ohne Aenderung, Aufwandspauschale, Konsens ohne RK), verloren
+            (Rechnungsaenderung, Konsens mit RK), Kompromiss (Beendigung nach DTA/
+            Datenkorrektur im VVF), MDK (Beauftragung des MDK, Dissens, Vorverfahren
+            abgelehnt). 'Vorgang erledigt' (ab 02/2020) und RAW/INP-Gruende ohne GRUPPE.
+            Grundlage der Erfolgsquote (gespeicherte Abfrage RKT_ERFOLGSQUOTE_JE_JAHR_PHASE)."
+  ZNRKT_C_AUFTYP:
+    schema: sap
+    fhir: null
+    tier: 3
+    pk: [MANDT, EINRI, REIHENFOLGE, AUFTYP, BEGDT]   # DB-PK, R34 (99 Zeilen)
+    cdc: full
+    notes: "Aufgabentyp-Katalog fuer ZNRKT_AUF.AUF_TYP: AUFTYPTXT, AUF_STAT, AUF_BEARBZT
+            (Bearbeitungszeit), AUF_WARNTG (Warntage -> Fristen-Cockpit), REK_STAND
+            (ausgeloester Reklamationsstand). AUF_BEARB = Default-Bearbeiter (PERSONENIDENT.)."
+  # Weitere ZNRKT_C_* (Inventar R34, Spalten live; nicht registriert):
+  #   Fachkataloge, personenfrei: C_AUFSTAT(4) C_AUTOMEDO(10) C_BERAUSAN(5) C_BERTYP(45)
+  #     C_BERWLAN(89) C_BSTTXT(2) C_CENT(4)+C_CENT_OE(17, Zentrum->ORGFA) C_FRIST(1, §275c-
+  #     Fristen+Pauschale) C_GESERLST(14) C_GUTACHT(7) C_KGANF(14) C_KGFOLGE(26)
+  #     C_KGSTATUS(22) C_KGZIEL(97) C_KLAABGGR(6) C_KLAAN(8) C_KLAERLGR(13) C_KTART(2)
+  #     C_MCSERG(10) C_MCSTXT(5) C_MCSWIKE(11) C_MDKINFO(13) C_MEDDOK(22) C_ORDNER(3)
+  #     C_SCHWEITX(2) C_TOBGRUND(5) C_MDKADR(15, MD-Institutionsadressen)
+  #   PERSONENIDENT. (Namen/Telefon/E-Mail -> Verkryptung, nie Klartext):
+  #     C_SB(122) C_AUFSB(137) C_MDKSB(78) C_SB_ORGFA(149) C_FACHABT(2) C_MDA_LTG(1)
+  #     C_KLAARZT(11) C_MCSARZT(89) C_MDKARZT(24) C_MDKKLARZ(2) C_WDLVOR(18.520, ALV-
+  #     Varianten mit BNAME=SAP-User)
+  #   Technik/UI: C_MENU(17) C_PARAM(34, Dokument-/Brief-Ablage) C_PARAM__ct__bak_1(0)
+  #   R34 Schriftverkehr (C_PARAM live gelesen): RKT-Dokumente liegen im DMS (NDOC-
+  #     Zuordnung + DRAW-Kopf, DOKST AN/FR; INHALTE NICHT repliziert). DTID: DTA_KASSE
+  #     (Eingang Kasse, 291.902), DTA_MDK (Eingang MD, 166.901; ab 2025 eingebrochen
+  #     -> Kanalwechsel, Deutung LE-Portal), ZRKT_BRF_1 (eigene RKT-Schreiben, 49.113
+  #     seit 02/2015), VRW_VER-02 (Stellungnahme-Scan, 20.457), NEU ARC/DTAKASSE_I (seit
+  #     09.11.2026). Word-Vorlagen auf W:\_GLOBAL\RKT_MDK\Dokumentvorlagen, Ablage der
+  #     ausgefuellten Schreiben ausserhalb SAP. Gerichtsschriftverkehr nicht im RKT.
+  #     KEIN direkter Verweis ZNRKT -> DMS; Zuordnung nur ueber FALNR + Zeitraum. LE-
+  #     Eingaenge (Status 'Eingang LE') mit MD-Scan +-5 Tage: 2024 73% / 2025 11% /
+  #     2026 0,4% -> MD-Dokumente liegen seit 2025 nicht mehr im DMS (Ablage offen).
+  #     DRAW.DOKST 'AN' ist Normalzustand, kein Freigabestau.
+  #     Details: MDM_PLATTFORM_KONZEPT.md §2.4, sapfhir-live-Fakt "RKT-Schriftverkehr".
+  #   LEER: C_FALLABS C_FMASTAT C_KTRADR C_MCSBEGR C_MENU_WEI C_OE_EXCLI C_REKSPEZ
+  #     C_SB_AUFFA C_TNTFOLBK C_TNTFOLGE C_TNTFOLGR C_TNTFOMCH C_TNTTYP C_TNTTYP_R
+  # ---- R34: ZNRKT-Freitext- und Restbestand (nicht registriert, nicht im Backfill) ----
+  #   PK je [MANDT,EINRI,FALNR,KOSTR,LFDNR,OBJNR,OBUNR,TXT_LFDNR], live 100% eindeutig
+  #   (REKL_TXT, MCS_TXT geprueft); Spalte TEXT = Freitext -> PERSONENIDENT., nie Klartext:
+  #     ZNRKT_REKL_TXT 388.340 Z. / 106.988 Faelle (max 80 Zeichen je Zeile)
+  #     ZNRKT_MCS_TXT 1.289.741 Z. / 197.639 Faelle (max 100)
+  #     ZNRKT_MDK_TXT 62.647 / 15.663 | ZNRKT_KLA_TXT 19.308 / 3.669 | ZNRKT_TOB_TXT 67 / 32
+  #   LEER: ZNRKT_CIR (Versichertendaten: VERNR, Name, Adresse - hochsensibel, falls je
+  #     befuellt), ZNRKT_FMA_TXT. ZNRKT_FAK__ct__bak_1 = Qlik-CT-Backup (133.097, ohne PK).
+  #   Hinweis Live-Server: KOSTR und OBJNR sind im sapfhir-live-Guard verkryptungspflichtig
+  #   (KOSTR loest aber zu 99,4% auf Kassen mit IK auf -> institutionell, s. ZNRKT_KOPF).
 
   # ==== HRP / Auth-Strecke (R19) — Mitarbeiter<->Abteilung fuer Berechtigungskonzept ====
   # NUR fuer RBAC/Datenverfuegbarkeit (docs/BERECHTIGUNGSKONZEPT.md), NICHT klinische FHIR-

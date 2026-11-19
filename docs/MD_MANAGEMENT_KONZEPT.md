@@ -6,6 +6,9 @@
 > Dokument bleibt als **Domänenmodell-Referenz** (ZNRKT-Familie, DIAS-Tripel) und für
 > die Verbund-Schnittstelle (MD-Badge → MDM-Fall-Akte, `ROADMAP.md` P2.5/P4.3) gültig.
 > §5-Architekturoptionen/§6-Schritte sind historisch (Entscheidung: eigenständige App).
+> **Weiterentwicklung (R34):** `MDM_PLATTFORM_KONZEPT.md` — Konzeptprüfung, Betrieb im
+> Cluster unter `rkt.greenbay.systems`, Argo-Prozesse, KI, Skill. Die Tabellenzahl hier
+> (16) ist überholt: die Familie umfasst 83 Tabellen (MDM-Repo R35).
 
 **Stand:** R17-Anschluss (19.07.2026), Analyse live gegen `higl-main` (read-only).
 **Auslöser:** „Schau dir die Aufbereitung von RKT im DIAS-Cube an — das ist das
@@ -103,11 +106,17 @@ Kodier-Feedback-Loop.
 - Vorgangstypen (`RKTTYP`): `0_DRG` (DRG-Prüfung) 110.568 · `FORMRABW` (formale
   Rechnungsabweisung) 54.829 · `INTPRUE` (interne Prüfung) 19.644 · `0_PSYCH` 1.758 ·
   `0_SONST`/`0_AMBU` Rest.
-- Reklamationsvolumen (Rechnung-Netto unter Prüfung, `ZNRKT_REKL.REK_NETWR`, je Jahr):
-  2019 **1,22 Mrd €**, 2020 552 Mio, 2021 823 Mio, 2022 700 Mio, 2023 729 Mio,
-  2024 672 Mio, 2025 731 Mio, 2026 (ytd) 295 Mio.
+- Reklamationsvolumen (Rechnung-Netto unter Prüfung, `ZNRKT_REKL.REK_NETWR`, je Jahr
+  `REK_REDAT`). **KORRIGIERT R34:** Die hier zuvor genannten Werte (2019 1,22 Mrd. €
+  usw.) waren eine naive Summe über alle Statuszeilen und damit etwa 7-fach zu hoch.
+  Zählt man je Vorgang und Rechnungsbeleg: 2019 **142,4 Mio. €**, 2020 79,8, 2021 103,4,
+  2022 90,8, 2023 87,9, 2024 90,8, 2025 102,5 Mio. € (siehe VERIFY_LOG R34).
 - Workflow-Phasen (`RKT_PHASE`): `RKZ` (Rechnungskürzung/formale Prüfung) → `MDK`
-  (medizinische Prüfung). Stände (`REKL_STAND`, denormalisierter Klartext, ~30 Stufen):
+  (medizinische Prüfung), dazu `VVF` (Vorverfahren/Erörterung, R34).
+- **Kataloge (R34):** `REKL_GRUND`→`ZNRKT_C_GRUND`, `REKL_STAND`→`ZNRKT_C_STAND`,
+  `REKL_ERLGR`→`ZNRKT_C_REKLERL` mit hauseigener Ergebnisbewertung (gewonnen/verloren/
+  Kompromiss/MDK) → Erfolgsquote MD-Phase 2023 bis 2025: 61 bis 69 % gewonnen (bewertete Fälle).
+- **`ZNRKT_DRG._MDE` ist leer** (R34): Das Ergebnis des Tripels kommt aus `_RKT`. Stände (`REKL_STAND`, denormalisierter Klartext, ~30 Stufen):
   „Beginn Reklamationsvorgang" → „Übergabe an Med. Co." → „Prüfung durch Med. Co." →
   „Berichte angefordert (MDK)" → „Unterlagen an Kasse / MDK" → „Med. Co. Prüfung beendet"
   → „Eingang LE (positiv/negativ)" [Leistungsentscheid] → „Rechnungskorrektur" →

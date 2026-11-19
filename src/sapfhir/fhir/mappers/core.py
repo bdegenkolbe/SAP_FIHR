@@ -156,6 +156,34 @@ def _hospitalization(bewegungen):
     return hosp or None
 
 
+def _fallzeitraum(row: dict, bewegungen) -> tuple:
+    """(Beginn, Ende) eines Falls (R34; SQL-Pendant: gold/fallzeit.py).
+    NFAL.BEGDT/ENDDT gelten nur, wenn echtes Datum — bei stationaeren Faellen stehen
+    dort zu 99,9 % Sentinels. Sonst: frueheste Aufnahmebewegung (BEWTY=1) bzw.
+    spaeteste Entlassbewegung (BEWTY=2), jeweils nicht storniert, mit Uhrzeit."""
+    beginn = _echtes_datum(row.get("BEGDT"))
+    ende = _echtes_datum(row.get("ENDDT"))
+    if (beginn and ende) or not bewegungen:
+        return beginn, ende
+
+    def _zeitpunkte(bewty):
+        out = []
+        for b in bewegungen:
+            if (str(b.get("BEWTY") or "").strip() == bewty
+                    and str(b.get("STORN") or "").strip() in ("", "0")
+                    and _echtes_datum(b.get("BWIDT"))):
+                out.append(_dt(b.get("BWIDT"), b.get("BWIZT")))
+        return sorted(out)
+
+    if not beginn:
+        auf = _zeitpunkte("1")
+        beginn = auf[0] if auf else None
+    if not ende:
+        ent = _zeitpunkte("2")
+        ende = ent[-1] if ent else None
+    return beginn, ende
+
+
 def _participants_nfpz(personal, ns, mandt):
     """NFPZ-Zeilen -> Encounter.participant[]. Verifiziert R12 gegen replicate:
     NFPZ PK [MANDT,EINRI,FALNR,PERNR,LFDNR] = Fall<->behandelnde Person. PERNR->NPER
@@ -230,10 +258,13 @@ def map_encounter(row: dict, ns, priv=None, bewegungen: list | None = None,
     `personal` (optional, NFPZ-Zeilen des Falls) -> Encounter.participant (R12)."""
     pid = row.get("PATNR"); falnr = row.get("FALNR"); mandt = row.get("MANDT")
     cls, disp = FALLART.get(str(row.get("FALAR", "")), ("IMP", "stationaer"))
-    # R16 (Datenaudit): ENDDT=0101-01-01 ist das Qlik-geladene SAP-Leerdatum -> OFFENER
-    # Fall (23% des Bestands!). Dann KEIN period.end und status=in-progress statt finished.
-    ende = _echtes_datum(row.get("ENDDT"))   # ENDDT=Fallende (ENDAT=Entbindung!)
-    period = {"start": _shift(priv, pid, row.get("BEGDT"))}
+    # R16 (Datenaudit): ENDDT=0101-01-01 ist das Qlik-geladene SAP-Leerdatum. R34: bei
+    # stationaeren Faellen sind BEGDT UND ENDDT zu 99,9 % dieses Sentinel -> Zeitraum
+    # aus der Aufnahme-/Entlassbewegung (NBEW). Offen = kein ableitbares Fallende.
+    beginn, ende = _fallzeitraum(row, bewegungen)   # ENDDT=Fallende (ENDAT=Entbindung!)
+    period = {}
+    if beginn:
+        period["start"] = _shift(priv, pid, beginn)
     if ende:
         period["end"] = _shift(priv, pid, ende)
     res = {
@@ -249,6 +280,8 @@ def map_encounter(row: dict, ns, priv=None, bewegungen: list | None = None,
         "period": period,
         "meta": {"source": "sapfhir/NFAL"},
     }
+    if not period:   # weder echtes NFAL-Datum noch Bewegung: lieber kein period als {}
+        del res["period"]
     hosp = _hospitalization(bewegungen)
     if hosp:
         res["hospitalization"] = hosp
