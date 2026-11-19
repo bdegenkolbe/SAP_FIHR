@@ -783,6 +783,42 @@ enthalten dafür jetzt `BWIDT`/`BWIZT`. Tests: `test_map_encounter_stationaer_ze
 - `DATEADD` auf ein String-Literal ergibt `datetime`; der Vergleich mit dem date-Sentinel
   `0001-01-01` bricht dann mit einem Bereichsfehler ab, deshalb `CAST(... AS date)`.
 
+## R35 — OPS-Kodes katalogkonform klein: IS-H gross, BfArM/Grouper nur klein
+
+**Befund (19.11.2026, aus CliniBots MDM R49b, Befund B13):** Bei der Grouper-Gegenprobe
+mit 200 Faellen gegen den lokalen Datalytics-Grouper erkannte der Grouper
+grossgeschriebene OPS-Kodes nicht. Operative Faelle fielen in medizinische DRGs
+(Katarakt C08B -> C63Z, Endoprothese I44C -> I69B). Nach Kleinschreibung stieg die
+exakte DRG-Uebereinstimmung von 80 % auf 93 %.
+
+**Ursache in sapfhir:** `NICP.ICPML` steht in IS-H in Grossbuchstaben (`5-144.5A`,
+`8-83B.70`). Der BfArM-OPS-Katalog und damit `http://fhir.de/CodeSystem/bfarm/ops`
+kennen nur Kleinbuchstaben (`5-144.5a`). Der Procedure-Mapper uebernahm ICPML
+unveraendert -> die Kodes waren gegen das CodeSystem ungueltig.
+
+**Fix:**
+- `terminology.ops_code()` (strip + lower) als einzige Normalisierungsregel.
+- `map_procedure`: im OPS-System das normalisierte coding, daneben der Rohkode
+  verlustfrei als zweites coding unter `urn:ish:icpml` (Regel 4). Andere Kataloge
+  (ICPMK, das nicht auf bfarm/ops zeigt) bleiben unveraendert.
+- `gold.top_prozeduren`: `lower(trim(ICPML))` — Katalogvergleich und Zusammenfassung
+  von Schreibvarianten.
+- Graph (`graph/load.py`): Prozedur-Knoten und HAT_PROZEDUR-Kante identisch
+  normalisiert (sonst haengen Kanten ins Leere).
+- MCP `patient_360`: `ops` normalisiert (ein LLM reicht das an den Grouper weiter),
+  `ops_roh` daneben.
+- Bewusst NICHT geaendert: reine Anzeige (MCP-Timeline, `api/app.py` Fallakte und
+  Patiententimeline).
+
+**Test:** `test_map_procedure_r35_ops_kleinschreibung_rohkode_bleibt`.
+
+**Offen:** Die Live-Pruefung der Schreibweise je ICPMK (gross/klein/Leerraum) war von
+dieser Sitzung aus nicht moeglich (Datenbank nicht erreichbar). Abfrage zum Nachholen:
+`SELECT ICPMK, COUNT(*), SUM(CASE WHEN ICPML COLLATE Latin1_General_CS_AS LIKE '%[A-Z]%'
+THEN 1 ELSE 0 END) FROM sap.NICP WHERE MANDT='100' GROUP BY ICPMK`.
+Ausserdem faellt ein unbekanntes ICPMK im Mapper auf bfarm/ops zurueck (Altverhalten,
+unveraendert) und wird damit ebenfalls normalisiert.
+
 ---
 
 ## Offene Punkte (Stand R17)

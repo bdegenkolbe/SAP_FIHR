@@ -17,6 +17,19 @@ OBS_CATEGORY = "http://terminology.hl7.org/CodeSystem/observation-category"
 COND_VERSTATUS = "http://terminology.hl7.org/CodeSystem/condition-ver-status"
 
 
+def ops_code(code) -> str | None:
+    """OPS-Kode katalogkonform (R35): IS-H fuehrt ICPML in Grossbuchstaben
+    ('5-144.5A', '8-83B.70'), der BfArM-OPS-Katalog und damit das CodeSystem
+    bfarm/ops nur in Kleinbuchstaben ('5-144.5a'). Ein Grouper erkennt
+    grossgeschriebene Kodes NICHT (MDM R49b/B13: operative Faelle fallen in
+    medizinische DRGs). Nur fuer OPS anwenden; der Rohkode bleibt anderswo
+    erhalten (urn:ish:icpml)."""
+    if code is None:
+        return None
+    s = str(code).strip().lower()
+    return s or None
+
+
 def icd_group(icd: str | None) -> str | None:
     """ICD-10-Dreisteller (z.B. 'I50.14' -> 'I50') — fuer Wiederaufnahme-Kante
     und Diagnose-Rollups."""

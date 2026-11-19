@@ -64,10 +64,12 @@ WHERE COALESCE(TRIM(STORN),'') NOT IN ('X','1')
 GROUP BY 1
 ORDER BY 1;
 
--- Top-Prozeduren (OPS)
+-- Top-Prozeduren (OPS). R35: IS-H fuehrt ICPML gross ('5-144.5A'), BfArM-OPS und
+-- Grouper nur klein -> katalogkonform lower(trim()); fasst zugleich Schreibvarianten
+-- zusammen. Wie der Procedure-Mapper (unbekannte ICPMK fallen dort auf bfarm/ops).
 CREATE OR REPLACE VIEW gold.top_prozeduren AS
 SELECT
-    ICPML AS ops,               -- VERIFY OPS-Spalte
+    lower(trim(CAST(ICPML AS VARCHAR))) AS ops,
     COUNT(*) AS n
 FROM bronze_current.nicp
 GROUP BY 1
