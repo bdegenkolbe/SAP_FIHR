@@ -28,16 +28,18 @@ except Exception:
 
 from .schema import DDL
 from ..extract import merge as _merge
+from ..gold import fallzeit as _fallzeit
 
 # Staging-Queries: Name -> (SQL ueber bronze_current, benoetigte Tabelle)
 _NODE_SQL = {
     "patient": (
         "SELECT DISTINCT PATNR AS patnr, CAST(GSCHL AS VARCHAR) AS gender "
         "FROM bronze_current.npat WHERE PATNR IS NOT NULL", "npat"),
+    # R34: Fallzeitraum aus gold.fall_zeitraum (NFAL.BEGDT/ENDDT sind bei stationaeren
+    # Faellen Sentinel 0101-01-01); load() baut die Tabelle vorab, falls noetig.
     "fall": (
-        "SELECT DISTINCT FALNR AS falnr, CAST(FALAR AS VARCHAR) AS fallart, "
-        "TRY_CAST(BEGDT AS DATE) AS beg, TRY_CAST(ENDDT AS DATE) AS ende "
-        "FROM bronze_current.nfal WHERE FALNR IS NOT NULL", "nfal"),
+        "SELECT DISTINCT FALNR AS falnr, FALAR AS fallart, beg, ende "
+        "FROM gold.fall_zeitraum WHERE FALNR IS NOT NULL", "nfal"),
     # Kanten/Knoten mit Fallbezug filtern auf existierende Faelle — nach einem
     # CDC-Delete koennen Detailzeilen sonst auf geloeschte Knoten zeigen.
     "bewegung": (
@@ -117,9 +119,10 @@ _ZUSAMMEN_SQL = (
 
 # WIEDERAUFNAHME: < {tage} Tage + gleiche ICD-Dreisteller-Gruppe der Hauptdiagnose
 _WIEDERAUFNAHME_SQL = (
-    "WITH f AS (SELECT PATNR, FALNR, TRY_CAST(BEGDT AS DATE) beg, "
-    "  TRY_CAST(ENDDT AS DATE) ende FROM bronze_current.nfal "
-    "  WHERE PATNR IS NOT NULL AND FALNR IS NOT NULL), "
+    # R34: Zeitraum aus gold.fall_zeitraum — mit NFAL.BEGDT/ENDDT fand die Regel
+    # fuer stationaere Faelle (Sentinel-Daten) praktisch keine Wiederaufnahme.
+    "WITH f AS (SELECT PATNR, FALNR, beg, ende FROM gold.fall_zeitraum "
+    "  WHERE PATNR IS NOT NULL AND FALNR IS NOT NULL AND NOT ist_storno), "
     "hd AS (SELECT FALNR, substr(MIN(DKEY1), 1, 3) icd3 "
     "  FROM bronze_current.ndia WHERE DKEY1 IS NOT NULL GROUP BY 1) "
     "SELECT a.FALNR, b.FALNR, date_diff('day', a.ende, b.beg) AS tage "
@@ -157,6 +160,8 @@ def load(db_path: str = "data/graph.kuzu",
     if not _has(d, "nfal") or not _has(d, "npat"):
         d.close()
         raise RuntimeError("bronze_current.npat/nfal fehlen — erst Backfill/Seed.")
+    # Fallzeitraum frisch ableiten (unabhaengig davon, ob der Gold-Build lief)
+    _fallzeit.build(d)
 
     db = kuzu.Database(db_path)
     con = kuzu.Connection(db)

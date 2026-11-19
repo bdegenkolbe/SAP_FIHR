@@ -658,6 +658,131 @@ hatte.
 
 ---
 
+## R34 — ZNRKT im Detail: Kataloge gefunden, Volumen-Korrektur, NFAL.BEGDT-Falle
+
+**Anlass:** Detailanalyse der RKT/MD-Management-Familie (Björn, 15.11.2026), live über
+den `sapfhir-live`-MCP (read-only), aufbauend auf R17/R18. Auslöser für die
+NFAL-Korrektur war eine Fallzählung je Jahr und Fallart, die zunächst falsch ausfiel.
+
+**1. NFAL.BEGDT ist bei stationären Fällen Sentinel (Fallzählungen!).** Bei FALAR 1 und 3
+steht in `BEGDT`/`ENDDT` zu 99,9 % `0101-01-01` (1.564.966 von 1.565.995 stationären,
+75.582 von 75.659 teilstationären Fällen). Eine Zählung „Fälle je Jahr über BEGDT“
+liefert deshalb nur etwa 40 stationäre Fälle pro Jahr. Über die NBEW-Aufnahme
+(`BEWTY='1'`, `BWIDT`) sind es ab 2022 je Jahr 59.209 / 62.014 / 62.904 / 65.073 /
+60.637 (2026 ytd) stationäre und 4.360 bis 5.484 teilstationäre Fälle. Der R21-Kommentar
+in `gold/marts.sql` kannte das bereits für die Verweildauer, `gold.faelle_monat` gruppiert
+aber weiterhin über `BEGDT` (→ offener Punkt 9). Gespeicherte Abfrage:
+`FAELLE_JE_JAHR_FALLART_KORREKT`.
+
+**2. Kataloge vorhanden — R18-Aussage widerlegt.** R18 hielt fest, es gebe keinen
+auflösbaren Prüfgrund-Katalog. Tatsächlich existieren 59 `ZNRKT_C_*`-Customizing-Tabellen
+(Muster-PK `[MANDT,EINRI,REIHENFOLGE,<Schlüssel>,BEGDT]` mit Gültigkeit `BEGDT..ENDDT`
+und `CRE_TYP`-Bindung). Tragend und neu registriert: `C_GRUND` (REKL_GRUND, 33 Zeilen),
+`C_STAND` (REKL_STAND, 107, `REKL_ERL='X'` = Endstand), `C_REKLERL` (REKL_ERLGR, 24, mit
+hauseigener Bewertung `GRUPPE` = gewonnen/verloren/Kompromiss/MDK) und `C_AUFTYP`
+(AUF_TYP, 99). Die übrigen 55 sind als Inventar in `tables.yaml` erfasst: Fachkataloge,
+personenidentifizierende Kataloge (Sachbearbeiter, MD-Ärzte, Fachabteilungskontakte)
+und 14 leere Tabellen. Nicht im Katalog und als Rohcode belassen: `Rechnungsabweisung`
+(54.291 Reklamationen im FORMRABW-Pfad), `<Berichtsanford.>`, `Altfall aus Access`.
+
+**3. KORREKTUR Reklamationsvolumen (R17-Zahlen ~7-fach zu hoch).** `ZNRKT_REKL` hat zwei
+Ebenen: Reklamation (`REKL_POS`) und Statuszeile (`REKL_ST_POS`, im Mittel 4,6, höchstens
+32 je Reklamation). `REK_NETWR` wiederholt sich auf jeder Statuszeile. Die R17-Werte
+(2019 1,22 Mrd., 2025 731 Mio. €) sind exakt die naive Summe über alle Statuszeilen
+(nachgerechnet: 1.207,6 bzw. 739,2 Mio.). Richtig ist `MAX(REK_NETWR)` je Vorgang und
+Rechnungsbeleg `REK_VBELN`, Jahr = `REK_REDAT`:
+
+| Jahr | 2015 | 2016 | 2017 | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| Mio. € | 87,9 | 113,4 | 120,8 | 129,7 | 142,4 | 79,8 | 103,4 | 90,8 | 87,9 | 90,8 | 102,5 |
+
+Querprobe: Das DRG-Entgelt der Abrechnungssicht `ZNRKT_DRG._ISH` liegt 2019 bei 125,8 Mio.
+€ (der Rest der Rechnung sind Zusatzentgelte und weitere Posten), `ZNRKT_KOPF.LRE_NETWR` bei
+123 bis 167 Mio. € je Jahr. `REKL_NETWR` ist tot (immer 0). Gespeicherte Abfrage:
+`RKT_RECHNUNGSVOLUMEN_JE_JAHR_DEDUPLIZIERT`.
+
+**4. ZNRKT_DRG: Sicht `_MDE` leer.** Code und Entgelt der Sicht `_MDE` sind in 0 von
+196.359 Zeilen belegt. Belegt sind `_ISH` 100 %, `_RKT` 95 %, `_ANF` 75 %, `_MDK` 62 % und
+`_KK` 21 %. Das DIAS-Ergebnisfeld kann also nicht aus `_MDE` kommen, Endergebnis ist
+`_RKT`. Von `_ISH` zu `_RKT` ändert sich in 30 % der Zeilen der DRG-Code, die
+Entgeltminderung beträgt 1,5 bis 5 Mio. € pro Jahr.
+
+**5. ZNRKT_KOPF.** Die PK ist erneut zu 100 % eindeutig (248.958 Zeilen). `RKT_VERSION` ist
+der Release-Stempel des Add-ons bei der Anlage (V1.084 ab 02/2015 bis V2.6.4 ab
+29.05.2024, lückenlose ERDAT-Intervalle) und erklärt die Strukturbrüche: Vor 02/2015 sind
+`RKTTYP`, `AUFN_FALAR` und die `XXXX_`/`WIKE_`-Felder leer. Insgesamt 19 tote Felder,
+Liste in `tables.yaml`. `KOSTR` löst sich zu 99,6 % in `NGPA.GPART` auf (99,4 % mit IK,
+1.861 Kassen). `KOPF→NFAL` hält zu 100 %. Die Kindtabellen (REKL, DRG, AUF, FAK, MCS,
+ICD, BER, KG; 4,8 Mio. Zeilen) haben nur 4 Waisenzeilen.
+
+**6. Ergebnis und Hygiene (ZNRKT_REKL).** `RKT_PHASE` kennt drei Werte: RKZ, MDK und VVF.
+In R17 waren nur zwei genannt. Erfolgsquote der MD-Phase über `C_REKLERL.GRUPPE`, gezählt
+nur bewertete Fälle, Anteil „gewonnen“: 2017 41 %, 2019 60 %, 2022 57 %, 2023 69 %, 2024
+61 %, 2025 61 %. Einschränkung: Seit 02/2020 wird „Vorgang erledigt“ ohne Bewertung
+vergeben (2021 betraf das 71 %, 2025 19 % der Erledigungen). Gespeicherte Abfrage:
+`RKT_ERFOLGSQUOTE_JE_JAHR_PHASE`. Offen sind 12.206 Reklamationen, davon 8.131 seit mehr als
+12 Monaten ohne Statusbewegung (1.909 aus der Zeit vor 2015).
+
+**7. Neu verifiziert (PK live 100 %).** `ZNRKT_BERMAHN` `[…,BER_LFDNR,BMA_LFDNR]` (22.744,
+registriert), `ZNRKT_REKL_TXT` (388.340) und `ZNRKT_MCS_TXT` (1.289.741)
+`[…,OBJNR,OBUNR,TXT_LFDNR]`, reiner Freitext, nicht registriert. Leer sind `ZNRKT_CIR`
+(Versichertendaten mit VERNR und Adresse, hochsensibel, falls sie je befüllt wird) und
+`ZNRKT_FMA_TXT`.
+
+**8. Resttabellen der Familie (Detailprüfung, live).** Alle 24 Transaktionstabellen sind
+jetzt inhaltlich geprüft; die Tabelle mit allen Befunden steht in
+`MDM_PLATTFORM_KONZEPT.md` §2.3. Drei Registry-Notizen sind widerlegt:
+- `ZNRKT_MCS` ist **kein Datenaustausch**, sondern die Ergebnisklassifikation je Vorgang
+  (`MCS_ERG` → `C_MCSERG`).
+- `ZNRKT_MDK` ist **kein Altworkflow**: Es gibt Begehungen bis 2026, 105 davon liegen in
+  der Zukunft.
+- `ZNRKT_KLA` führt den **Instanzweg nicht**, 34 Felder sind tot.
+
+Weitere Befunde:
+- `ZNRKT_AUF`: 1.729 offene Aufgaben, davon 938 überfällig. Die Soll-Bearbeitungstage je
+  Typ stehen in `C_AUFTYP.AUF_BEARBZT`. 20.322 stornierte Aufgaben stehen noch auf einem
+  offenen Status.
+- `ZNRKT_FAK`: `FAK_STREIT`/`FAK_ERGEBNIS` sind tot, es gibt Platzhalterbelege.
+- ICD-Sicht: Kodes mit `ICD_LFDNR_NDIA` ab 800 stammen von MD oder Kasse und haben keine
+  Zeile in NDIA.
+- `ZNRKT_C_FRIST`: FRIST1 = 42, FRIST2 = 180 Tage.
+
+Ungeprüft ist nur die Brücke `ZNRKT_Z75 → NLEI`; die Abfrage läuft ins Timeout und
+braucht ein Lastfenster. Die Fakten 10–17 stehen im Wissensspeicher von sapfhir-live.
+Achtung: Diese Befunde ergänzen MDM-Repo R35/R36, das bereits alle 83 Tabellen
+inventarisiert hatte. Künftig führt das MDM-Repo die Fachbefunde (Konzept §1.2, F6).
+
+**Code-Fix Fallzeitraum (R34).** `NFAL.BEGDT`/`ENDDT` wurden an sieben Stellen
+ungeprüft als Fallzeitraum verwendet. Bei stationären Fällen hatte das folgende Folgen:
+
+- **FHIR:** `period.start` war „0101-01-01“, und jeder stationäre Encounter stand auf
+  `in-progress`.
+- **Gold:** `gold.faelle_monat` legte alle stationären Fälle in den Monat „0101-01“.
+- **Kennzahlen:** Die KPI „offene Fälle“ zählte praktisch jeden stationären Fall als offen.
+- **API/MCP:** Fall-Listen und Timelines sortierten stationäre Fälle ans Ende.
+- **Graph:** Die Wiederaufnahme-Regel fand bei stationären Fällen nichts.
+
+Die Lösung leitet den Zeitraum an einer Stelle ab: `src/sapfhir/gold/fallzeit.py` erzeugt
+`gold.fall_zeitraum`. Ist das NFAL-Datum echt (Jahr 1901 bis 9998), gilt es; sonst gilt die
+früheste nicht stornierte Aufnahmebewegung (`BEWTY=1`) bzw. die späteste
+Entlassbewegung (`BEWTY=2`). `beg_quelle` dokumentiert die Herkunft. Daraus lesen:
+
+- die Gold-Views `faelle_monat` und `verweildauer`,
+- `mcp.fall` mit den neuen Spalten `FALL_BEG`/`FALL_END`; die Rohspalten bleiben quelltreu,
+- API und MCP-Server; im JSON stehen die abgeleiteten Daten unter den Schlüsseln
+  `BEGDT`/`ENDDT`, das Frontend bleibt also unverändert,
+- der Kuzu-Graph (Fall-Knoten, Wiederaufnahme).
+
+Das FHIR-Pendant ist `_fallzeitraum()` im Encounter-Mapper; die Bewegungs-Aggregate
+enthalten dafür jetzt `BWIDT`/`BWIZT`. Tests: `test_map_encounter_stationaer_zeitraum_aus_bewegungen`,
+`test_fall_zeitraum_nbew_fallback_und_mcp_fall`, `test_fall_zeitraum_ohne_nbew_nur_echte_nfal_daten`.
+
+**Abfragetechnik-Fallstricke (als Fakten gemerkt):**
+- `ISNULL(x,'(leer)')` schneidet den Ersatzwert auf die Länge von `x` ab, deshalb `COALESCE`.
+- Das Werkzeug `fuellgrade` zählt numerische Nullen als belegt.
+- `DATEADD` auf ein String-Literal ergibt `datetime`; der Vergleich mit dem date-Sentinel
+  `0001-01-01` bricht dann mit einem Bereichsfehler ab, deshalb `CAST(... AS date)`.
+
 ## R35 — OPS-Kodes katalogkonform klein: IS-H gross, BfArM/Grouper nur klein
 
 **Befund (19.11.2026, aus CliniBots MDM R49b, Befund B13):** Bei der Grouper-Gegenprobe
@@ -712,4 +837,6 @@ unveraendert) und wird damit ebenfalls normalisiert.
    Dreiklang fahren. Priorität nach Zeilenzahl/DIAS-Häufigkeit: ZNRKT_*-Familie
    (Erlös-Nachrechnung, direkt an ZNRKT_DRG/TNDRG/NAPX_DRG anschließend), danach
    NLCO/N1COMPA/NTSP/NCIR/N1APCN (großvolumig, Domäne noch unklar).
-8. **ZNRKT_DRG** (147 Spalten, 193.243 Zeilen) noch nicht Dreiklang-geprüft.
+8. ~~**ZNRKT_DRG** noch nicht Dreiklang-geprüft~~ — erledigt R17/R18/R34.
+9. ~~**R34:** Code nutzte `NFAL.BEGDT`/`ENDDT` trotz Sentinel bei stationären Fällen~~ —
+   behoben in R34 (Abschnitt „Code-Fix“ unten).

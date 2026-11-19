@@ -60,6 +60,35 @@ def test_map_patient_redacted():
     assert res["identifier"][0]["system"] == "urn:pseudonym"
 
 
+def test_map_encounter_stationaer_zeitraum_aus_bewegungen():
+    """R34: bei stationaeren Faellen sind NFAL.BEGDT/ENDDT zu 99,9 % Sentinel ->
+    period aus Aufnahme- (BEWTY=1) und Entlassbewegung (BEWTY=2), Storno ignoriert.
+    Frueher: period.start='0101-01-01' und JEDER stationaere Fall in-progress."""
+    ns = I.make_ns()
+    fall = {"MANDT": "100", "EINRI": "0001", "FALNR": "7", "PATNR": "1", "FALAR": "1",
+            "BEGDT": "0101-01-01", "ENDDT": "0101-01-01"}
+    bew = [
+        {"BEWTY": "1", "STORN": "X", "BWIDT": "2024-01-10", "BWIZT": "07:00:00"},  # storniert
+        {"BEWTY": "1", "STORN": "", "BWIDT": "2024-01-15", "BWIZT": "08:15:00"},
+        {"BEWTY": "3", "STORN": "", "BWIDT": "2024-01-16", "BWIZT": "10:00:00"},  # Verlegung
+        {"BEWTY": "2", "STORN": "", "BWIDT": "2024-01-20", "BWIZT": "11:30:00"},
+    ]
+    enc = M.map_encounter(fall, ns, None, bewegungen=bew)
+    assert enc["period"] == {"start": "2024-01-15T08:15:00", "end": "2024-01-20T11:30:00"}
+    assert enc["status"] == "finished"
+    # noch nicht entlassen -> offen, aber mit echtem Beginn
+    offen = M.map_encounter(fall, ns, None, bewegungen=bew[:3])
+    assert offen["status"] == "in-progress"
+    assert offen["period"] == {"start": "2024-01-15T08:15:00"}
+    # weder echtes Datum noch Bewegung -> kein Sentinel-Datum im Encounter
+    leer = M.map_encounter(fall, ns, None)
+    assert "period" not in leer and leer["status"] == "in-progress"
+    # echtes NFAL-Datum (ambulant) hat Vorrang vor Bewegungen
+    amb = M.map_encounter(dict(fall, FALAR="2", BEGDT="2024-01-01", ENDDT="2024-03-31"),
+                          ns, None, bewegungen=bew)
+    assert amb["period"] == {"start": "2024-01-01", "end": "2024-03-31"}
+
+
 def test_map_encounter_offener_fall_sentinel():
     """R16 (Datenaudit): ENDDT=0101-01-01 = Qlik-geladenes SAP-Leerdatum (2,21 Mio Faelle!)
     -> offener Fall: KEIN period.end, status=in-progress. 9999* = SAP-Unendlich ebenso."""

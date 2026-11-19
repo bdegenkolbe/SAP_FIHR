@@ -157,9 +157,13 @@ def patient_360(patnr: str) -> dict:
         con = _con()
         try:
             faelle = _fetch(con,
-                "SELECT FALNR, FALAR, BEGDT, ENDDT, FACHR FROM mcp.fall "
+                # R34: abgeleiteter Fallzeitraum statt NFAL.BEGDT/ENDDT (Sentinel
+                # 0101-01-01 bei stationaeren Faellen), Schluessel fuer Clients stabil
+                "SELECT FALNR, FALAR, CAST(FALL_BEG AS VARCHAR) AS BEGDT, "
+                "CAST(FALL_END AS VARCHAR) AS ENDDT, FACHR "
+                "FROM mcp.fall "
                 "WHERE PATNR = ? AND COALESCE(TRIM(STORN),'') NOT IN ('X','1') "
-                "ORDER BY BEGDT DESC LIMIT 50", [patnr])
+                "ORDER BY FALL_BEG DESC NULLS LAST LIMIT 50", [patnr])
             dx = _fetch(con,
                 "SELECT d.FALNR, d.DKEY1 AS icd, d.DITXT AS text, d.DIADT, "
                 "CASE WHEN d.KHDIA='X' THEN 'Hauptdiagnose' "
@@ -200,7 +204,7 @@ def patient_timeline(patnr: str, von: str = "", bis: str = "") -> list[dict]:
         con = _con()
         try:
             parts = [
-                ("SELECT BEGDT AS datum, 'Fall' AS typ, FALNR AS ref, "
+                ("SELECT FALL_BEG AS datum, 'Fall' AS typ, FALNR AS ref, "
                  "FALAR AS detail FROM mcp.fall WHERE PATNR = ?"),
                 ("SELECT b.BWIDT, 'Bewegung', b.FALNR, b.BEWTY "
                  "FROM mcp.bewegung b JOIN mcp.fall f USING (FALNR) "

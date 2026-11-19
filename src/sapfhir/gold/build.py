@@ -3,6 +3,7 @@
 
 Reihenfolge ist Teil des Vertrags (CONCEPT §14/§15/§17):
   1. extract/merge.create_views  — ohne bronze_current sieht Gold keine CDC-Deltas
+  1b. gold/fallzeit.build        — gold.fall_zeitraum (Fallbeginn/-ende, NBEW-Fallback)
   2. marts.sql                   — Analyse-Views fuer das Dashboard
   3. fts.build                   — BM25-Index fuer doc_search (falls N2TEXT da)
   4. mcp/views.build             — maskierte, materialisierte mcp.*-Schicht
@@ -19,6 +20,7 @@ import yaml
 
 from ..extract import merge as _merge
 from ..fhir.lookups import build_ref_tables
+from . import fallzeit as _fallzeit
 from . import fts as _fts
 from . import quality as _quality
 from ..mcp import views as _views
@@ -39,6 +41,10 @@ def build(warehouse: str = "data/warehouse.duckdb",
     try:
         views = _merge.create_views(con, registry, bronze)
         result["bronze_current"] = views
+
+        # Fallzeitraum VOR den Marts: NFAL.BEGDT/ENDDT sind bei stationaeren
+        # Faellen Sentinel -> zentrale Ableitung aus NBEW (R34, gold/fallzeit.py)
+        result["fall_zeitraum"] = _fallzeit.build(con)
 
         here = os.path.dirname(__file__)
         with open(os.path.join(here, "marts.sql"), "r", encoding="utf-8") as f:

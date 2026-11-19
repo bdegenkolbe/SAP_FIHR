@@ -188,3 +188,58 @@ def test_practitioner_merge_ngpa_nper():
     # einseitige Saetze bleiben nutzbar
     assert _merge_practitioner(a, None) is a
     assert _merge_practitioner(None, b) is b
+
+
+def _fallzeit_bronze(con):
+    """bronze_current-Minimalbestand: stationaer (Sentinel), ambulant (echt), offen."""
+    con.execute("CREATE SCHEMA bronze_current")
+    con.execute("""CREATE TABLE bronze_current.nfal AS SELECT * FROM (VALUES
+        ('100','0001','S1','P1','1','0101-01-01','0101-01-01',''),
+        ('100','0001','A1','P1','2','2024-04-01','2024-06-30',''),
+        ('100','0001','S2','P2','1','0101-01-01','0101-01-01',''),
+        ('100','0001','X1','P2','1','0101-01-01','0101-01-01','X'))
+        t(MANDT,EINRI,FALNR,PATNR,FALAR,BEGDT,ENDDT,STORN)""")
+    con.execute("""CREATE TABLE bronze_current.nbew AS SELECT * FROM (VALUES
+        ('100','0001','S1','1','1','2024-01-05','X'),
+        ('100','0001','S1','2','1','2024-01-10',''),
+        ('100','0001','S1','3','3','2024-01-11',''),
+        ('100','0001','S1','4','2','2024-01-18',''),
+        ('100','0001','S2','1','1','2024-02-01',''))
+        t(MANDT,EINRI,FALNR,LFDNR,BEWTY,BWIDT,STORN)""")
+
+
+def test_fall_zeitraum_nbew_fallback_und_mcp_fall():
+    """R34: gold.fall_zeitraum leitet Fallbeginn/-ende stationaerer Faelle aus NBEW ab
+    (NFAL.BEGDT/ENDDT dort Sentinel); mcp.fall traegt FALL_BEG/FALL_END."""
+    from sapfhir.gold import fallzeit as FZ
+    from sapfhir.mcp import views as V
+    con = duckdb.connect()
+    _fallzeit_bronze(con)
+    assert FZ.build(con)
+    z = {r[0]: r[1:] for r in con.execute(
+        "SELECT FALNR, CAST(beg AS VARCHAR), CAST(ende AS VARCHAR), beg_quelle, ist_storno "
+        "FROM gold.fall_zeitraum").fetchall()}
+    # stationaer: Aufnahme = frueheste NICHT stornierte BEWTY=1, Ende = BEWTY=2
+    assert z["S1"] == ("2024-01-10", "2024-01-18", "NBEW_AUFNAHME", False)
+    assert z["A1"] == ("2024-04-01", "2024-06-30", "NFAL", False)   # ambulant: NFAL
+    assert z["S2"] == ("2024-02-01", None, "NBEW_AUFNAHME", False)  # offen
+    assert z["X1"][3] is True and z["X1"][0] is None                # Storno markiert
+
+    V.build(con, pseudonymize=True)
+    f = {r[0]: (str(r[1]) if r[1] else None, str(r[2]) if r[2] else None)
+         for r in con.execute("SELECT FALNR, FALL_BEG, FALL_END FROM mcp.fall").fetchall()}
+    assert f["S1"] == ("2024-01-10", "2024-01-18")
+    assert f["S2"] == ("2024-02-01", None)
+    # Rohspalten bleiben unveraendert (Quelltreue)
+    assert con.execute("SELECT BEGDT FROM mcp.fall WHERE FALNR='S1'").fetchone()[0] \
+        == "0101-01-01"
+
+
+def test_fall_zeitraum_ohne_nbew_nur_echte_nfal_daten():
+    from sapfhir.gold import fallzeit as FZ
+    con = duckdb.connect()
+    _fallzeit_bronze(con)
+    con.execute("DROP TABLE bronze_current.nbew")
+    assert FZ.build(con)
+    z = dict(con.execute("SELECT FALNR, beg FROM gold.fall_zeitraum").fetchall())
+    assert z["S1"] is None and str(z["A1"]) == "2024-04-01"   # Sentinel -> NULL
